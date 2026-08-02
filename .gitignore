@@ -28,3 +28,6 @@ htmlcov/
 .idea/
 .vscode/
 site/
+
+# Local agent telemetry (model-routing hook)
+.claude/state/
