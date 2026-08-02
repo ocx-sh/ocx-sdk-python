@@ -1,0 +1,26 @@
+/* Tighten table cells slightly. */
+.md-typeset table:not([class]) td,
+.md-typeset table:not([class]) th {
+  padding: 0.5rem 0.75rem;
+}
+
+/* Render symbol-type chips a touch larger for the API reference. */
+.doc-symbol {
+  font-size: 0.85em;
+}
+
+/* Pre-1.0 admonition accent. */
+.md-typeset .admonition.experimental,
+.md-typeset details.experimental {
+  border-color: rgb(168, 85, 247);
+}
+.md-typeset .experimental > .admonition-title,
+.md-typeset .experimental > summary {
+  background-color: rgba(168, 85, 247, 0.1);
+}
+.md-typeset .experimental > .admonition-title::before,
+.md-typeset .experimental > summary::before {
+  background-color: rgb(168, 85, 247);
+  -webkit-mask-image: var(--md-admonition-icon--note);
+          mask-image: var(--md-admonition-icon--note);
+}

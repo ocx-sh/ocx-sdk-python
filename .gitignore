@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# uv / venv
+.venv/
+
+# Task runner cache
+.task/
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# OCX caches
+.ocx/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+site/

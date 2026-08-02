@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=https://squidfunk.github.io/mkdocs-material/schema.json
+
+site_name: ocx-sdk
+site_description: Python SDK for OCX.
+site_url: https://ocx-sh.github.io/ocx-sdk-python/
+site_author: The OCX Authors
+repo_name: ocx-sh/ocx-sdk-python
+repo_url: https://github.com/ocx-sh/ocx-sdk-python
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 The OCX Authors
+
+theme:
+  name: material
+  language: en
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+extra:
+  status:
+    pre-1.0: Pre-1.0 — APIs may change between minor versions.
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ocx-sh/ocx-sdk-python
+    - icon: fontawesome/solid/globe
+      link: https://ocx.sh
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - section-index
+  - include-markdown
+  - git-revision-date-localized:
+      enabled: !ENV [CI, false]
+      enable_creation_date: true
+      type: timeago
+      fallback_to_build_date: true
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_signature_annotations: true
+            separate_signature: true
+            line_length: 90
+            merge_init_into_class: true
+            filters: ["!^_", "!^model_config$"]
+            members_order: source
+            docstring_section_style: spacy
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      hide_protocol: true
+      repo_url_shorthand: true
+      user: ocx-sh
+      repo: ocx-sdk-python
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      base_path: [docs/snippets, .]
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started/index.md
+      - Install: getting-started/install.md
+  - API reference:
+      - api/index.md
+  - Contributing:
+      - contributing/index.md
+      - Setup: contributing/setup.md
+      - Writing docs: contributing/docs.md
+  - Changelog: changelog.md

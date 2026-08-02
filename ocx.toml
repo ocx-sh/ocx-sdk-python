@@ -1,0 +1,6 @@
+#:schema https://ocx.sh/schemas/project/v1.json
+
+[tools]
+task = "ocx.sh/go-task/task:3"
+uv = "ocx.sh/astral-sh/uv:0"
+git-cliff = "ocx.sh/git-cliff/git-cliff:2"
