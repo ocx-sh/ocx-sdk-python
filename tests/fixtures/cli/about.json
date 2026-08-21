@@ -1,0 +1,32 @@
+{
+  "version": "0.5.8",
+  "registry": "ocx.sh",
+  "platforms": [
+    "linux/amd64"
+  ],
+  "libc": [
+    "libc.glibc"
+  ],
+  "shell": "Zsh",
+  "home": "/tmp/wp00-home",
+  "commit": {
+    "sha": "b8b5658d11dfb05fff8ffdce6b7cfa5f0d5cc2bf",
+    "short": "b8b5658d",
+    "describe": "v0.5.8",
+    "dirty": false,
+    "timestamp": "2026-08-11T12:02:48.000000000Z"
+  },
+  "build": {
+    "timestamp": "2026-08-11T12:07:04.464979733Z",
+    "profile": "release",
+    "target": "x86_64-unknown-linux-musl",
+    "rustc": "1.95.0"
+  },
+  "ci": {
+    "provider": "github-actions",
+    "run_url": "https://github.com/ocx-sh/ocx/actions/runs/31489403512",
+    "workflow": "Release",
+    "ref": "refs/tags/v0.5.8",
+    "sha": "b8b5658d11dfb05fff8ffdce6b7cfa5f0d5cc2bf"
+  }
+}

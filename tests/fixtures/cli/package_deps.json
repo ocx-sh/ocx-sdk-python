@@ -1,0 +1,10 @@
+{
+  "roots": [
+    {
+      "identifier": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+      "repeated": false,
+      "visibility": null,
+      "dependencies": []
+    }
+  ]
+}

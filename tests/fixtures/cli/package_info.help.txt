@@ -1,0 +1,11 @@
+Show description metadata for one or more packages
+
+Usage: ocx package info [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...  Package repositories to query
+
+Options:
+      --save-readme <SAVE_README>  Save the README to this file or directory (single package only)
+      --save-logo <SAVE_LOGO>      Save the logo to this file or directory (single package only)
+  -h, --help                       Print help

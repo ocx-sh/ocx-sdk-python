@@ -1,0 +1,64 @@
+Creates an archive from a local package directory
+
+Usage: ocx package create [OPTIONS] <PATH>
+
+Arguments:
+  <PATH>
+          Path to the package to bundle
+
+Options:
+  -i, --identifier <IDENTIFIER>
+          Identifier the bundle will be published under (e.g. `repo:2.0.0`)
+          
+          Used to infer the output filename when `--output` names no file, and recorded in the build receipt beside the bundle, which `ocx package push` falls back to when it is given no `--identifier` of its own.
+
+  -p, --platform <PLATFORM>
+          Platform of the package content (e.g. `linux/amd64`, or `any` for platform-agnostic content)
+          
+          Required whenever `--metadata` is given: it declares the platform the packaged content runs on, which cannot be read off the machine doing the build. Dependencies carrying no digest are resolved against the selected index to a platform manifest digest for this platform, and the content tree is scanned under this platform's executable convention. Resolution honors `--remote`, `--offline`, and `--frozen`.
+          
+          The value is written to a build receipt beside the bundle, which `ocx package push` and `ocx package test` fall back to when they are given no `--platform` of their own. Passing `--platform` to either of those simply wins; the receipt is not consulted for it.
+          
+          Also used to infer the output filename.
+          
+          With `--metadata`, a Linux target or `any` also has its declared `os.features` checked against what the packaged binaries actually need: a binary linked against a libc this value does not require is refused (exit 65), because an undeclared libc claims the package runs on hosts that cannot execute it. `any` requires no libc at all, so under it every dynamically linked binary is refused. Static binaries need no declaration.
+
+  -o, --output <OUTPUT>
+          Output file or directory, if a directory is provided the filename will be inferred
+
+  -f, --force
+          Force overwrite of output file if it already exists
+
+  -m, --metadata <METADATA>
+          Path to a `metadata.json` file to validate, resolve, and write alongside the output bundle
+          
+          Requires `--platform`. Dependencies without a digest are pinned to that platform's manifest digests, and the compiled result (the same form `ocx package push` publishes) is written next to the output bundle. The build receipt is written whether or not this flag is given - it records the invocation, not the sidecar.
+
+  -l, --compression-level <COMPRESSION_LEVEL>
+          Compression level to use for the package bundle
+          
+          [default: default]
+          [possible values: fast, best, default]
+
+  -j, --threads <THREADS>
+          Number of compression threads (0 = auto-detect, 1 = single-threaded)
+          
+          [default: 0]
+
+      --bin-scan
+          Scan the content tree for executables the package puts on `PATH`, verifying a declared `binaries` claim or filling an absent one.
+          
+          Requires `--metadata`/`-m`: there is nothing to check or fill without a metadata sidecar; omitting it is a usage error (exit 64). When `binaries` is undeclared, behaves like the default and fills it from the scan. When `binaries` is declared, verifies it against the scan and fails (exit 65) if a scanned executable is missing from the declared list, or a declared name exists on disk but is not executable. See https://ocx.sh/docs/reference/metadata#executables for the field's full semantics.
+
+      --no-bin-scan
+          Skip the executable scan; the `binaries` field passes through unchanged, whether declared or absent.
+          
+          Use this to skip scan cost, or when content a later `push` layer adds makes a create-time scan meaningless. See https://ocx.sh/docs/reference/metadata#executables for what `binaries` means.
+
+      --no-libc-lint
+          Skip the libc check on the packaged binaries
+          
+          An escape hatch, not a convenience: a false refusal from the check would otherwise block every `ocx package create` for a Linux target with no way through. Skipping it leaves the declared `os.features` unverified, so a binary needing a libc the platform does not require can be published and will then resolve on hosts that cannot execute it; a warning naming the platform is printed wherever the check would have run, which is `--metadata` with a Linux target or `--platform any`. Anywhere else the check inspects nothing, so the flag suppresses nothing and says nothing. Nothing else changes - the same metadata and the same layers are written either way. See https://ocx.sh/docs/reference/command-line#package-create-libc-check for what the check does.
+
+  -h, --help
+          Print help (see a summary with '-h')

@@ -1,0 +1,87 @@
+Print the resolved environment variables for one or more installed packages
+
+Usage: ocx package env [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...
+          Package identifiers to resolve the environment for
+
+Options:
+      --self
+          Expose the package's full env, including private (self-only) entries. See `ocx exec --help` for full view semantics.
+          
+          Generated launchers embed `--self`; avoid passing it directly unless building a launcher equivalent.
+          
+          Cannot be combined with `--lazy-mode always`: a generated shim is a launcher, launchers are consumer-facing, and a package's private view bypasses them, so those two ask for contradictory things (exit 64). `--lazy-mode never` agrees with this view and is accepted, as is an `always` coming from `OCX_LAZY_MODE`, which composes eagerly.
+
+      --env <KEY[:TYPE[:SEP]]=VALUE>
+          Set an environment variable for this invocation, as `KEY[:TYPE[:SEP]]=VALUE`.
+          
+          Repeatable; a later `--env` for the same key wins. The value is split on the FIRST `=`, so `--env FOO=a=b` sets `FOO` to `a=b`. Values are literal - no interpolation.
+          
+          `TYPE` is `constant` (replace the existing value), `path` (prepend to it) or `list` (append to it), and defaults to `constant`. A relative `path` value resolves against the current directory, so `--env PATH:path=node_modules/.bin` puts a project-local directory in front of the composed `PATH`. Without `:path` a `PATH` override replaces the composed value outright, dropping every package directory.
+          
+          `SEP` is the string a `list` contribution is joined to the existing value with, as in `--env GODEBUG:list:,=gctrace=1`. It accepts any text, including a colon. Omitted, the key takes whatever separator another contributor to it declared, or a single space if none did.
+          
+          Applied last, so it overrides every package-declared variable - and, for the project toolchain, the project's `[env]` and any selected group's `[env]` as well.
+          
+          A bare `--env FOO` (pass the ambient value through) is not accepted; keys matching `OCX_*` or `__OCX_*` are rejected; so is a `TYPE` outside `constant`, `path` and `list`, a `SEP` that is empty or that qualifies any type but `list`, and a `list` value starting or ending with its own separator. All exit 64.
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --candidate
+          Resolve the content path via the installed candidate symlink (`~/.ocx/symlinks/<registry>/<repo>/candidates/<tag>`).
+          
+          The package must be installed before this flag can be used. Digest identifiers are rejected - use a tag-only identifier instead. No auto-install is performed.
+
+      --current
+          Resolve the content path via the current-selected symlink (`~/.ocx/symlinks/<registry>/<repo>/current`).
+          
+          A version of the package must be selected before this flag can be used. Digest identifiers are rejected. The tag portion of the identifier is not validated against the selected version - only the registry and repository are used to locate the symlink. No auto-install is performed.
+
+      --lazy-mode <MODE>
+          Control when a tool's content downloads: now, or on first use.
+          
+          `never` composes eagerly, so a tool's content is materialized before the tool reaches `PATH`. `always` composes a shim instead: the tool's declared names are on `PATH` immediately, and its content downloads the first time one of those names runs.
+          
+          When omitted, the value is read from `ocx.toml` (the package entry first, then the group, then the top-level `lazy-mode` key), then from the `OCX_LAZY_MODE` environment variable, and finally defaults to `never`. Passing the flag overrides all of them.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-lazy-mode for the full resolution order.
+          
+          [possible values: never, always]
+
+      --shell[=<SHELL>]
+          Target shell for eval-safe export lines.
+          
+          Must be supplied with `=` (`--shell=bash`).  Bare `--shell` (no `=`) triggers autodetection from `$SHELL`/parent process; exit 64 if undetectable.
+          
+          When absent, output uses the context-level format (root `--format` flag; default plain). Use `ocx --format json package env` for JSON. `--shell=sh` is an alias for `--shell=dash` (POSIX strict).
+          
+          [possible values: ash, ksh, dash, bash, elvish, fish, batch, powershell, zsh, nushell]
+
+      --ci[=<PROVIDER>]
+          Write the composed environment into a CI system's persistence channel.
+          
+          `--ci=github` appends tool dirs and vars to `$GITHUB_PATH` / `$GITHUB_ENV`; `--ci=gitlab` writes JSON-lines to `--export-file` (or stdout). Bare `--ci` autodetects the provider from CI environment variables; exit 64 if none is detected. Must be supplied with `=` (`--ci=github`).
+          
+          Unlike `--shell` (which affects only the current step), the CI channel makes the environment available to later pipeline steps. Conflicts with `--shell`.
+          
+          [possible values: github, gitlab]
+
+      --export-file <PATH>
+          Write the GitLab export to this file instead of stdout.
+          
+          Requires `--ci`. Rejected for `--ci=github`, which infers its sink from `$GITHUB_PATH` / `$GITHUB_ENV`. Point this at GitLab's export file.
+
+      --show-patches
+          Annotate each entry with its origin package or companion identifier.
+          
+          When `[patches]` is configured, companion overlay entries are appended after the package's own entries.  `--show-patches` adds a Source column to the plain table (or a `"source"` field in JSON) so the origin of each entry is visible.
+          
+          Has no effect when `[patches]` is not configured.  Cannot be combined with `--shell` or `--ci`; use the plain or JSON structured report instead.
+
+  -h, --help
+          Print help (see a summary with '-h')

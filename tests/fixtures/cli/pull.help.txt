@@ -1,0 +1,33 @@
+Pre-warm the object store from the project ocx.lock without creating symlinks
+
+Usage: ocx pull [OPTIONS]
+
+Options:
+      --dry-run
+          Preview which locked tools are cached vs. would be fetched.
+          
+          Walks `ocx.lock`, resolves each entry through the local index (cache-first, like `pull_all` does), and probes `find_plain` on the resolved digest. No store writes; the only network surface is the cache-miss path of resolve, which lock has typically already populated. Combine with `--offline` to forbid any network probe. Honors `--format json` and `--quiet`. The staleness gate still fires: a stale lock exits 65 before the dry-run preview prints.
+
+  -g, --group <GROUPS>
+          Restrict the pull to the named group(s).
+          
+          Repeatable and comma-separated: `-g ci,lint -g release`. The reserved name `default` selects the top-level `[tools]` table; the reserved name `all` expands to `default` + every declared `[group.*]`. When omitted, every `[tools]` and `[group.*]` entry from the lock is pulled.
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --lazy-mode <MODE>
+          Control when a tool's content downloads: now, or on first use.
+          
+          `never` composes eagerly, so a tool's content is materialized before the tool reaches `PATH`. `always` composes a shim instead: the tool's declared names are on `PATH` immediately, and its content downloads the first time one of those names runs.
+          
+          When omitted, the value is read from `ocx.toml` (the package entry first, then the group, then the top-level `lazy-mode` key), then from the `OCX_LAZY_MODE` environment variable, and finally defaults to `never`. Passing the flag overrides all of them.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-lazy-mode for the full resolution order.
+          
+          [possible values: never, always]
+
+  -h, --help
+          Print help (see a summary with '-h')

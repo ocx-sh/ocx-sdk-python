@@ -1,0 +1,30 @@
+Show the dependency tree for one or more installed packages
+
+Usage: ocx package deps [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...
+          Package identifiers to inspect
+
+Options:
+      --self
+          Expose the package's full dep set, including private (self-only) edges. Affects `--flat` (the resolved evaluation order is filtered through `tc_entry.visibility.has_private()` instead of `has_interface()`). See `ocx exec --help` for the full surface semantics.
+          
+          Generated launchers embed `--self` automatically; avoid passing it directly unless building a launcher equivalent.
+
+      --flat
+          Show the flattened evaluation order instead of the tree
+
+      --why <DEP>
+          Explain why a dependency is pulled in (matches by registry and repository; tag is ignored)
+
+      --depth <N>
+          Limit tree depth (default: unlimited). Only applies to tree view
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+  -h, --help
+          Print help (see a summary with '-h')

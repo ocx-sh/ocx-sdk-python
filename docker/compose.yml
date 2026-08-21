@@ -1,0 +1,58 @@
+# The registry pair the acceptance tier drives (design §14).
+#
+# Two registries, because the SDK has two registry-facing postures to prove:
+#
+# - `plain` is plaintext HTTP, which ocx refuses to talk to unless the caller
+#   opts in through `insecure_registries` — so it exercises that opt-in.
+# - `authed` is htpasswd basic auth behind self-signed TLS. The TLS is not
+#   decoration: registry:2 refuses htpasswd auth over plaintext, and ocx's
+#   insecure-registry list covers transport only, never certificate
+#   verification. `docker/certs/generate.sh` writes the material and the test
+#   session points `SSL_CERT_FILE` at the CA.
+#
+# Both keep their content in the container's own layer, so `down -v` leaves
+# nothing behind and every session starts empty. Ports bind to loopback only.
+#
+# The htpasswd entry is `testuser` with the password in
+# `tests/acceptance/conftest.py`; it was written with
+# `htpasswd -Bbn testuser <password>` (bcrypt — registry:2 rejects the other
+# schemes on anything but Linux, and the plaintext half has to live in the
+# test either way).
+
+name: ocx-sdk-acc
+
+services:
+  plain:
+    image: registry:2
+    ports:
+      - '127.0.0.1:5010:5000'
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--output-document', '/dev/null', 'http://127.0.0.1:5000/v2/']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 2s
+
+  authed:
+    image: registry:2
+    ports:
+      - '127.0.0.1:5011:5000'
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: ocx-sdk-acc
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/registry.crt
+      REGISTRY_HTTP_TLS_KEY: /certs/registry.key
+    volumes:
+      - ./auth:/auth:ro
+      - ./certs:/certs:ro
+    # A listening socket, not an HTTP round trip: every unauthenticated request
+    # to this service answers 401, which busybox wget reports the same way it
+    # reports a refused connection. Whether the credentials work is what the
+    # tests are for; readiness is what a healthcheck is for.
+    healthcheck:
+      test: ['CMD-SHELL', "netstat -ltn | grep -q ':5000'"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 2s

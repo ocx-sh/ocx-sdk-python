@@ -1,0 +1,22 @@
+Adopt (or clear) the corporate managed-config tier.
+
+The configuration-only counterpart to `ocx self setup --managed-config`: resolves the source (flag, then `OCX_MANAGED_CONFIG`, then the existing seed), synchronously fetches and persists a snapshot, then writes the `[managed]` seed fence. Installs no binary and touches no shell profile - built for automation and CI environments.
+
+Details: <https://ocx.sh/docs/reference/command-line#config-setup>
+
+Usage: ocx config setup [OPTIONS]
+
+Options:
+      --managed-config <REF>
+          Adopt (or clear) this managed-config source.
+          
+          An OCI reference to a managed-config artifact (published with `ocx config push`). Pass an empty string (`--managed-config ""`) to clear an existing seed and delete the snapshot. Omit to fall back to `OCX_MANAGED_CONFIG`, then the existing seed.
+
+      --dry-run
+          Report the intended actions without writing anything
+
+      --force
+          Overwrite a `[managed]` fence that carries user edits (the dirty state)
+
+  -h, --help
+          Print help (see a summary with '-h')

@@ -1,0 +1,16 @@
+Refresh patch descriptors and companion packages from the registry.
+
+Re-fetches every patch descriptor for all installed packages and the global descriptor. Installs any newly-referenced companion packages. Requires network access.
+
+This command also picks up patches for packages installed before patch configuration was added. All states are re-checked regardless of what was previously recorded.
+
+Usage: ocx patch sync [OPTIONS]
+
+Options:
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+  -h, --help
+          Print help (see a summary with '-h')

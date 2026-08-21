@@ -1,0 +1,28 @@
+Refresh the managed-config snapshot from the registry.
+
+Syncs the configured source (or an explicit VERSION - tag, digest, or `tag@digest` - for pins and rollbacks), always bypassing the background-refresh throttle. `--pause <duration>` holds the background tick for up to 7 days; `--resume` clears the pause and syncs; `--check` reports status (drift, pause, pin) without fetching or swapping.
+
+Details: <https://ocx.sh/docs/reference/command-line#config-update>
+
+Usage: ocx config update [OPTIONS] [VERSION]
+
+Arguments:
+  [VERSION]
+          Version to sync: tag, `sha256:<hex>`, or `tag@sha256:<hex>`.
+          
+          Omit to follow the seed's own source. A tag syncs that exact version (rollback included). A digest syncs the exact content. A `tag@digest` form verifies the tag resolves to the given digest before persisting.
+
+Options:
+      --check
+          Report the managed-config tier's status without fetching or swapping
+
+      --pause <DURATION>
+          Pause the background refresh for a duration (e.g. `4h`, `3d`; max `7d`).
+          
+          Without a VERSION, freezes the on-disk state as-is (no fetch). With a VERSION, syncs the pin first and records the pause only on success. A pause is a temporary hold - for a permanent opt-out set `refresh = "manual"` in the `[managed]` seed.
+
+      --resume
+          Clear an active pause and refresh immediately
+
+  -h, --help
+          Print help (see a summary with '-h')

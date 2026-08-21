@@ -1,0 +1,57 @@
+Runs installed packages
+
+Usage: ocx package exec [OPTIONS] <PACKAGES>... <COMMAND>...
+
+Arguments:
+  <PACKAGES>...
+          Package identifiers to layer environment from.
+          
+          Each value is a bare OCI identifier (e.g. `node:20`); identifiers are resolved through the index and auto-installed when missing.
+
+  <COMMAND>...
+          Command to execute, with arguments. The command will be executed with the environment with the packages.
+          
+          `required = true` + `num_args = 1..` means clap rejects the invocation before [`Self::execute`] runs when the slice would be empty, so the `.split_first().expect(...)` below is sound: clap is the single source of truth for non-emptiness, and we depend on its guarantee rather than duplicating the check.
+
+Options:
+      --clean
+          Start with a clean environment containing only the package variables, instead of inheriting the current shell environment
+
+      --self
+          Expose the package's full env, including its private (self-only) entries. Off by default: only public + interface entries are loaded (the consumer view). Generated launchers use `ocx launcher exec` which enables self-view internally.
+          
+          See https://ocx.sh/docs/in-depth/environments#visibility-views for the full view semantics.
+          
+          Cannot be combined with `--lazy-mode always`: a generated shim is a launcher, launchers are consumer-facing, and a package's private view bypasses them, so those two ask for contradictory things (exit 64). `--lazy-mode never` agrees with this view and is accepted, as is an `always` coming from `OCX_LAZY_MODE`, which composes eagerly.
+
+      --env <KEY[:TYPE[:SEP]]=VALUE>
+          Set an environment variable for this invocation, as `KEY[:TYPE[:SEP]]=VALUE`.
+          
+          Repeatable; a later `--env` for the same key wins. The value is split on the FIRST `=`, so `--env FOO=a=b` sets `FOO` to `a=b`. Values are literal - no interpolation.
+          
+          `TYPE` is `constant` (replace the existing value), `path` (prepend to it) or `list` (append to it), and defaults to `constant`. A relative `path` value resolves against the current directory, so `--env PATH:path=node_modules/.bin` puts a project-local directory in front of the composed `PATH`. Without `:path` a `PATH` override replaces the composed value outright, dropping every package directory.
+          
+          `SEP` is the string a `list` contribution is joined to the existing value with, as in `--env GODEBUG:list:,=gctrace=1`. It accepts any text, including a colon. Omitted, the key takes whatever separator another contributor to it declared, or a single space if none did.
+          
+          Applied last, so it overrides every package-declared variable - and, for the project toolchain, the project's `[env]` and any selected group's `[env]` as well.
+          
+          A bare `--env FOO` (pass the ambient value through) is not accepted; keys matching `OCX_*` or `__OCX_*` are rejected; so is a `TYPE` outside `constant`, `path` and `list`, a `SEP` that is empty or that qualifies any type but `list`, and a `list` value starting or ending with its own separator. All exit 64.
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --lazy-mode <MODE>
+          Control when a tool's content downloads: now, or on first use.
+          
+          `never` composes eagerly, so a tool's content is materialized before the tool reaches `PATH`. `always` composes a shim instead: the tool's declared names are on `PATH` immediately, and its content downloads the first time one of those names runs.
+          
+          When omitted, the value is read from `ocx.toml` (the package entry first, then the group, then the top-level `lazy-mode` key), then from the `OCX_LAZY_MODE` environment variable, and finally defaults to `never`. Passing the flag overrides all of them.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-lazy-mode for the full resolution order.
+          
+          [possible values: never, always]
+
+  -h, --help
+          Print help (see a summary with '-h')

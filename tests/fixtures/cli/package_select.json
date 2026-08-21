@@ -1,0 +1,22 @@
+{
+  "ocx.sh/go-task/task:3": {
+    "identifier": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+    "metadata": {
+      "type": "bundle",
+      "version": 1,
+      "env": [
+        {
+          "key": "PATH",
+          "type": "path",
+          "required": true,
+          "value": "${installPath}",
+          "visibility": "public"
+        }
+      ],
+      "binaries": [
+        "task"
+      ]
+    },
+    "path": "/tmp/wp00-home/symlinks/ocx.sh/go-task/task/current"
+  }
+}

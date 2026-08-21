@@ -1,0 +1,6 @@
+Print ocx version, registry, platform, shell, and home directory
+
+Usage: ocx about
+
+Options:
+  -h, --help  Print help

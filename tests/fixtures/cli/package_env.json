@@ -1,0 +1,18 @@
+{
+  "entries": [
+    {
+      "key": "PATH",
+      "value": "/tmp/wp00-home/packages/ocx.sh/sha256/df/420d1c99d7e80ce6366104af4e6b57/content",
+      "type": "path"
+    }
+  ],
+  "binaries": [
+    {
+      "name": "task",
+      "package": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee"
+    }
+  ],
+  "entrypoints": [],
+  "integrations": [],
+  "advisories": []
+}

@@ -1,0 +1,16 @@
+Set the current version of one or more packages
+
+Usage: ocx package select [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...
+          Package identifiers to select
+
+Options:
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+  -h, --help
+          Print help (see a summary with '-h')
