@@ -40,7 +40,17 @@ tasks:
   test:
     desc: Run pytest under coverage
     cmds:
-      - uv run --extra dev coverage run -m pytest
+      - uv run --extra dev coverage run -m pytest {{.CLI_ARGS}}
+
+  test:contract:
+    desc: Run contract-tier tests against the pinned ocx binary
+    cmds:
+      - OCX_SDK_CONTRACT=1 uv run --extra dev pytest tests/contract {{.CLI_ARGS}}
+
+  test:acceptance:
+    desc: Run acceptance-tier tests against a compose stack
+    cmds:
+      - OCX_SDK_ACCEPTANCE=1 uv run --extra dev pytest tests/acceptance {{.CLI_ARGS}}
 
   cov:report:
     desc: Print coverage report (enforces fail_under from pyproject.toml)
@@ -59,15 +69,11 @@ tasks:
 
   docs:serve:
     desc: Live-reload MkDocs server at http://127.0.0.1:8000
-    env:
-      DISABLE_MKDOCS_2_WARNING: 'true'
     cmds:
       - uv run --extra docs mkdocs serve -a 127.0.0.1:8000
 
   docs:build:
     desc: Build the static site into site/ (strict mode)
-    env:
-      DISABLE_MKDOCS_2_WARNING: 'true'
     cmds:
       - uv run --extra docs mkdocs build --strict
     sources:
@@ -81,6 +87,26 @@ tasks:
     desc: Remove the generated site/ directory
     cmds:
       - rm -rf site
+
+  lint:actions:
+    desc: Lint GitHub Actions workflows
+    cmds:
+      - actionlint
+
+  lint:links:
+    desc: Check for broken links (network; may be flaky offline)
+    cmds:
+      - lychee --cache --max-cache-age 1d .
+
+  secrets:
+    desc: Scan for committed secrets
+    cmds:
+      - gitleaks detect --source . --redact
+
+  build:
+    desc: Build wheel + sdist
+    cmds:
+      - uv build
 
   # Regenerate CHANGELOG.md from the full git history.
   changelog:

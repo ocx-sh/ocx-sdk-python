@@ -1,20 +1,22 @@
 [project]
 name = "ocx-sdk"
 version = "0.1.0"
-description = "Python SDK for OCX"
+description = "Typed Python SDK for OCX — bootstrap, drive, and author OCX toolchains and packages"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [{ name = "The OCX Authors" }]
-keywords = ["ocx", "oci", "registry", "sdk"]
+keywords = ["ocx", "oci", "registry", "packages", "sdk", "toolchain", "bootstrap"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Libraries",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Build Tools",
     "Typing :: Typed",
 ]
 dependencies = []
@@ -23,20 +25,24 @@ dependencies = []
 Homepage = "https://github.com/ocx-sh/ocx-sdk-python"
 Repository = "https://github.com/ocx-sh/ocx-sdk-python"
 Issues = "https://github.com/ocx-sh/ocx-sdk-python/issues"
+Documentation = "https://ocx-sh.github.io/ocx-sdk-python/"
+Changelog = "https://github.com/ocx-sh/ocx-sdk-python/blob/main/CHANGELOG.md"
+"OCX Project" = "https://github.com/ocx-sh/ocx"
 
 [project.optional-dependencies]
 dev = [
     "coverage>=7.6",
     "pyright>=1.1",
     "pytest>=8",
+    "pytest-asyncio>=0.24",
     "ruff>=0.9",
+    "sybil>=9",
 ]
 docs = [
     "mkdocs-material>=9.5,<10",
     "mkdocstrings[python]>=0.27,<0.30",
     "griffe>=1.5",
     "mkdocs-include-markdown-plugin>=7",
-    "mkdocs-section-index>=0.3",
     "mkdocs-git-revision-date-localized-plugin>=1.2",
     "pymdown-extensions>=10.7",
 ]
@@ -50,7 +56,7 @@ packages = ["src/ocx_sdk"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -62,20 +68,31 @@ select = [
     "UP",  # pyupgrade
     "ANN", # flake8-annotations (public-API annotations)
     "RUF", # ruff-specific
+    "D",   # pydocstyle
 ]
 ignore = ["ANN401"] # allow Any in narrow cases
+extend-ignore = ["D105", "D107"] # magic methods + __init__ (merged into class doc)
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN"] # tests don't need full annotations
+"tests/*" = ["ANN", "D"] # tests don't need full annotations or docstrings
 
 [tool.pyright]
 include = ["src", "tests"]
-pythonVersion = "3.13"
+strict = ["src"] # shipped code is strict; tests stay standard
+pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# "docs", "README.md", "src" are collected by the root conftest.py's Sybil
+# hook (doc-snippet + docstring testing, S-007) — pytest only walks a path
+# for collection if it is listed here.
+testpaths = ["tests", "docs", "README.md", "src"]
 addopts = ["-ra", "--strict-markers"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 branch = true
@@ -85,7 +102,7 @@ relative_files = true
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 80
+fail_under = 100
 exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
