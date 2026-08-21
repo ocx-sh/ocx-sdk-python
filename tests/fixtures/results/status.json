@@ -1,0 +1,31 @@
+{
+  "project": "/tmp/wp00-prj/ocx.toml",
+  "lock": {
+    "present": true,
+    "current": true,
+    "lock_version": 3,
+    "declaration_hash": "sha256:5eefe47629be1456ade99cd4ece4a677825baba7fcd39377a9b6b237c8c4fd79",
+    "declaration_hash_expected": "sha256:5eefe47629be1456ade99cd4ece4a677825baba7fcd39377a9b6b237c8c4fd79",
+    "generated_by": "ocx 0.5.8",
+    "generated_at": "2026-08-20T23:55:35Z"
+  },
+  "groups": {
+    "default": {
+      "tools": {
+        "task": {
+          "declared": "ocx.sh/go-task/task:3",
+          "platforms": {
+            "darwin/amd64": "sha256:958d2f88bec42ed62b3ab8e0435bffe5cecdfdad43055c3a8e7ec376564c4886",
+            "darwin/arm64": "sha256:5e4da091444fa604c41b9fb44b956fcdcc37a5f94b8a52c8240a8c3b0c1d7597",
+            "linux/amd64": "sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+            "linux/arm64": "sha256:f5440402699c1f53b2941aa6e26049747c56a10ba730ba9692ffeaea6f429454",
+            "windows/amd64": "sha256:ac4b71cb82926c9e282074ab218e75989efe243836c761a2f4974dd31d34d94c",
+            "windows/arm64": "sha256:4a29127f29db746ab7c1d3991e4b35caa61c0f6687cc4aa2914c6fbb63a7f527"
+          }
+        }
+      },
+      "env": {}
+    }
+  },
+  "package_settings": {}
+}

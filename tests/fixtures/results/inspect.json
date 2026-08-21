@@ -1,0 +1,41 @@
+{
+  "packages": [
+    {
+      "name": "task",
+      "identifier": "ocx.sh/go-task/task:3",
+      "candidates": [
+        {
+          "digest": "sha256:958d2f88bec42ed62b3ab8e0435bffe5cecdfdad43055c3a8e7ec376564c4886",
+          "pinned": "ocx.sh/go-task/task:3@sha256:958d2f88bec42ed62b3ab8e0435bffe5cecdfdad43055c3a8e7ec376564c4886",
+          "platform": "darwin/amd64"
+        },
+        {
+          "digest": "sha256:5e4da091444fa604c41b9fb44b956fcdcc37a5f94b8a52c8240a8c3b0c1d7597",
+          "pinned": "ocx.sh/go-task/task:3@sha256:5e4da091444fa604c41b9fb44b956fcdcc37a5f94b8a52c8240a8c3b0c1d7597",
+          "platform": "darwin/arm64"
+        },
+        {
+          "digest": "sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+          "pinned": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+          "platform": "linux/amd64"
+        },
+        {
+          "digest": "sha256:f5440402699c1f53b2941aa6e26049747c56a10ba730ba9692ffeaea6f429454",
+          "pinned": "ocx.sh/go-task/task:3@sha256:f5440402699c1f53b2941aa6e26049747c56a10ba730ba9692ffeaea6f429454",
+          "platform": "linux/arm64"
+        },
+        {
+          "digest": "sha256:ac4b71cb82926c9e282074ab218e75989efe243836c761a2f4974dd31d34d94c",
+          "pinned": "ocx.sh/go-task/task:3@sha256:ac4b71cb82926c9e282074ab218e75989efe243836c761a2f4974dd31d34d94c",
+          "platform": "windows/amd64"
+        },
+        {
+          "digest": "sha256:4a29127f29db746ab7c1d3991e4b35caa61c0f6687cc4aa2914c6fbb63a7f527",
+          "pinned": "ocx.sh/go-task/task:3@sha256:4a29127f29db746ab7c1d3991e4b35caa61c0f6687cc4aa2914c6fbb63a7f527",
+          "platform": "windows/arm64"
+        }
+      ]
+    }
+  ],
+  "env": []
+}
