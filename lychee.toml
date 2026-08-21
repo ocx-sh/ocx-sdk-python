@@ -1,0 +1,8 @@
+# The project's own docs site is excluded from remote checks: `docs.yml`
+# redeploys it on every push to main, so a deep link a docs PR just added
+# 404s here until that PR lands — a deployment-timing gap, not a broken
+# link. `task docs:build` (`mkdocs build --strict`) validates every such
+# link and heading anchor against the site this same PR builds, which is
+# the meaningful check for pages that don't exist on the live site yet.
+exclude = ["^https?://localhost", "^https?://127\\.0\\.0\\.1", "^https?://ocx-sh\\.github\\.io/ocx-sdk-python"]
+accept = [200, 429]

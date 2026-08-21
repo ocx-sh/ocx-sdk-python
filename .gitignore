@@ -23,6 +23,11 @@ htmlcov/
 # OCX caches
 .ocx/
 
+# Acceptance-tier TLS material — docker/certs/generate.sh writes it
+docker/certs/*.crt
+docker/certs/*.key
+docker/certs/*.srl
+
 # Editor / OS
 .DS_Store
 .idea/
@@ -31,3 +36,5 @@ site/
 
 # Local agent telemetry (model-routing hook)
 .claude/state/
+.lycheecache
+.agents/worktrees/

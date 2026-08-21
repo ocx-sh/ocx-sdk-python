@@ -1,9 +1,22 @@
 [metadata]
 lock_version = 3
 declaration_hash_version = 1
-declaration_hash = "sha256:c97dafb8702e9167199026791cf38b4c07f1d5cf77fd240ebd5c12f2463bc4e8"
-generated_by = "ocx 0.5.0"
-generated_at = "2026-08-02T14:41:13Z"
+declaration_hash = "sha256:a434bb9af8df47a348049d57f5ee65d93685eb8d828f06c0427752d0b11edc66"
+generated_by = "ocx 0.5.8"
+generated_at = "2026-08-20T23:55:56Z"
+
+[[tool]]
+name = "actionlint"
+group = "default"
+repository = "ocx.sh/actionlint/actionlint"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:6f439b6d7556a3824840608eaed7416177ade18d9cfa12eb7c3831caf2f44e3f"
+"darwin/arm64" = "sha256:7482930b8b28c119877a5e11a343995feadd805b6e320f78d8914e54a250d9ad"
+"linux/amd64" = "sha256:f5467fd4be6eebddb0e5eaf18a498f4e44bf3632cdc086c73acfbc271d7d2c64"
+"linux/arm64" = "sha256:85d7cd645e003fbf9b7484bafc9432558e584631006b6e5965fc170c8e6e032a"
+"windows/amd64" = "sha256:20fa0ea63ad2bdffd179c21371b6e9e47a9ec36a80064e88a6bfbe6a272297d0"
+"windows/arm64" = "sha256:686bd57c0af310a195b97b34e1821465a7c45c0c5ad8f47260993a104e07b45c"
 
 [[tool]]
 name = "git-cliff"
@@ -17,6 +30,30 @@ repository = "ocx.sh/git-cliff/git-cliff"
 "linux/arm64" = "sha256:b2e8bb993af7988798760e2a4d8d19a7004285440cab4b42cea9bf5b8abb0479"
 "windows/amd64" = "sha256:201c71efad91d1f0f1de48f50f5baafca7c46c15d20395dfb0de37c1e45fac2a"
 "windows/arm64" = "sha256:0f6e2d81d4f812991293b5b1e645eedbf7e3b0a7086b10a18d51d7f6dd055389"
+
+[[tool]]
+name = "gitleaks"
+group = "default"
+repository = "ocx.sh/gitleaks/gitleaks"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:34091f2a708065187d4ecd5173cc0e66aea3c1481df0e5f91e3b32fab9c4adcc"
+"darwin/arm64" = "sha256:52c0c23b047cefca86046e9f45dc8ae4163357bf0a4a17b223f9842b4b4bff74"
+"linux/amd64" = "sha256:6ac92f2da2ba0d678aed69d192c86f9db474f05034696f49bdbae41874a95d28"
+"linux/arm64" = "sha256:138185660364f678d35416d95c345e830a0d43a96c1fac1272ed3962260c25ed"
+"windows/amd64" = "sha256:8dc609427abed8a8688374c59ec93c93fc7bef8c73120d8e3ac946cd323ddc32"
+
+[[tool]]
+name = "lychee"
+group = "default"
+repository = "ocx.sh/lychee/lychee"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:69d2e005250872a67fc687cb88423baf25a496d5f2017aaacce7337d8dd4ef41"
+"darwin/arm64" = "sha256:5fc7b3640f5e5e5404b81baac2aa91acb87e5490a63c2ad79ce94906d4467a6e"
+"linux/amd64" = "sha256:fb090cfaa91ba0fcfbe963185add1c72a1a18a4cfcbe560d84bd003ab9ddbb81"
+"linux/arm64" = "sha256:9e78ff5b9e52cc69e8b8245e655663a462abc05c47d98c691e71d8ba1caa87fa"
+"windows/amd64" = "sha256:b0d8f87626a38fa2c58ff6f69671aa6090f7da791e4c3ae59158960eb809fc65"
 
 [[tool]]
 name = "task"

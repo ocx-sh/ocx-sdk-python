@@ -24,5 +24,5 @@ coverage:
         if_ci_failed: success  # do not double-report when CI already failed
     patch:
       default:
-        target: 80%            # new/changed lines must hit the same bar as overall
+        target: 100%           # new/changed lines must hit the same bar as overall
         if_ci_failed: success
