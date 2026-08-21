@@ -1,0 +1,80 @@
+{
+  "platform": "linux/amd64+libc.glibc",
+  "packages": [
+    {
+      "name": "task",
+      "identifier": "ocx.sh/go-task/task:3",
+      "pinned_identifier": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+      "pinned_digest": "sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+      "metadata": {
+        "type": "bundle",
+        "version": 1,
+        "env": [
+          {
+            "key": "PATH",
+            "type": "path",
+            "required": true,
+            "value": "${installPath}",
+            "visibility": "public"
+          }
+        ],
+        "binaries": [
+          "task"
+        ]
+      },
+      "layers": [
+        {
+          "digest": "sha256:6f67366c71abca9df09885555bc8043eac552606e4c4bf3ec35f5efd38bdc28b",
+          "media_type": "application/vnd.oci.image.layer.v1.tar+xz",
+          "size": 12522124
+        }
+      ],
+      "closure": {
+        "deps": [],
+        "surface": {
+          "interface": {
+            "binaries": [
+              {
+                "name": "task",
+                "package": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee"
+              }
+            ],
+            "entrypoints": [],
+            "env": [
+              {
+                "key": "PATH",
+                "type": "path",
+                "package": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee"
+              }
+            ],
+            "integrations": [],
+            "binaries_complete": true
+          },
+          "private": {
+            "binaries": [
+              {
+                "name": "task",
+                "package": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee"
+              }
+            ],
+            "entrypoints": [],
+            "env": [
+              {
+                "key": "PATH",
+                "type": "path",
+                "package": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee"
+              }
+            ],
+            "integrations": [],
+            "binaries_complete": true
+          }
+        },
+        "conflicts": {
+          "entrypoints": [],
+          "repositories": []
+        }
+      }
+    }
+  ],
+  "env": []
+}

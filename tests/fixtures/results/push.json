@@ -1,0 +1,14 @@
+{
+  "identifier": "127.0.0.1:5099/wp00/hello:1.0.0",
+  "status": "pushed",
+  "manifest_digest": "sha256:52882b1edfb0c37181ecdcf8dd3f737b703609fa0c6b4b3e81903f869396e3bb",
+  "cascade_tags_written": [],
+  "canonical_tags_written": [
+    "sha256.70e90fbac7643ea0daa7c692e593c3cc951316d30d22e017af39d51a9d294d4e"
+  ],
+  "layers": {
+    "mounted": 0,
+    "uploaded": 1,
+    "verified": 0
+  }
+}

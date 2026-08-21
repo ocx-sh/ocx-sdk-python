@@ -1,0 +1,35 @@
+{
+  "entries": [
+    {
+      "key": "WP10_COLON",
+      "value": "gamma",
+      "type": "list",
+      "separator": ":"
+    },
+    {
+      "key": "WP10_CONST",
+      "value": "hello",
+      "type": "constant"
+    },
+    {
+      "key": "WP10_CSV",
+      "value": "beta",
+      "type": "list",
+      "separator": ","
+    },
+    {
+      "key": "WP10_LIST",
+      "value": "alpha",
+      "type": "list"
+    },
+    {
+      "key": "WP10_PATH",
+      "value": "/opt/wp10/bin",
+      "type": "path"
+    }
+  ],
+  "binaries": [],
+  "entrypoints": [],
+  "integrations": [],
+  "advisories": []
+}
