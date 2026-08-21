@@ -153,7 +153,6 @@ tasks:
     cmds:
       - echo "Next version:{{.NEXT_VERSION}}"
       - uv version "{{.NEXT_VERSION | trimPrefix "v"}}"
-      - sed -i -E 's|ocx-sdk~=[0-9]+\.[0-9]+\.[0-9]+|ocx-sdk~={{.NEXT_VERSION | trimPrefix "v"}}|g' README.md docs/getting-started/install.md
       - git-cliff --tag "{{.NEXT_VERSION}}" -o CHANGELOG.md
       - task verify
       - |
