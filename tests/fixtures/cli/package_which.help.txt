@@ -1,0 +1,37 @@
+Resolve installed packages and print their package-root (or, with `--candidate`/`--current`, install-symlink) paths
+
+Usage: ocx package which [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...
+          Package identifiers to resolve
+
+Options:
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --candidate
+          Resolve the content path via the installed candidate symlink (`~/.ocx/symlinks/<registry>/<repo>/candidates/<tag>`).
+          
+          The package must be installed before this flag can be used. Digest identifiers are rejected - use a tag-only identifier instead. No auto-install is performed.
+
+      --current
+          Resolve the content path via the current-selected symlink (`~/.ocx/symlinks/<registry>/<repo>/current`).
+          
+          A version of the package must be selected before this flag can be used. Digest identifiers are rejected. The tag portion of the identifier is not validated against the selected version - only the registry and repository are used to locate the symlink. No auto-install is performed.
+
+      --lazy-mode <MODE>
+          Control when a tool's content downloads: now, or on first use.
+          
+          `never` composes eagerly, so a tool's content is materialized before the tool reaches `PATH`. `always` composes a shim instead: the tool's declared names are on `PATH` immediately, and its content downloads the first time one of those names runs.
+          
+          When omitted, the value is read from `ocx.toml` (the package entry first, then the group, then the top-level `lazy-mode` key), then from the `OCX_LAZY_MODE` environment variable, and finally defaults to `never`. Passing the flag overrides all of them.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-lazy-mode for the full resolution order.
+          
+          [possible values: never, always]
+
+  -h, --help
+          Print help (see a summary with '-h')

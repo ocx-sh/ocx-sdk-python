@@ -1,0 +1,65 @@
+{
+  "platform": "linux/amd64+libc.glibc",
+  "packages": [
+    {
+      "name": "ocx.sh/go-task/task:3",
+      "identifier": "ocx.sh/go-task/task:3",
+      "pinned_identifier": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+      "pinned_digest": "sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux",
+        "os.features": [
+          "libc.glibc"
+        ]
+      },
+      "metadata": {
+        "type": "bundle",
+        "version": 1,
+        "env": [
+          {
+            "key": "PATH",
+            "type": "path",
+            "required": true,
+            "value": "${installPath}",
+            "visibility": "public"
+          }
+        ],
+        "binaries": [
+          "task"
+        ]
+      },
+      "layers": [
+        {
+          "digest": "sha256:6f67366c71abca9df09885555bc8043eac552606e4c4bf3ec35f5efd38bdc28b",
+          "media_type": "application/vnd.oci.image.layer.v1.tar+xz",
+          "size": 12522124
+        }
+      ],
+      "resolution": {
+        "pinned": "ocx.sh/go-task/task:3@sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+        "chain": [
+          {
+            "digest": "sha256:732d0ca425495fd2c0a6ad19f20b34754005f3f257d00ab8977b8f14b8ad3001",
+            "role": "index",
+            "media_type": "application/vnd.oci.image.index.v1+json",
+            "size": 1575
+          },
+          {
+            "digest": "sha256:df420d1c99d7e80ce6366104af4e6b57135e95940763e235c907525c438effee",
+            "role": "manifest",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "size": 453
+          },
+          {
+            "digest": "sha256:d7376fbd3a828a90fce86cc7c7d9e4eb910e6326feec1201ea6f9c5c99ff2683",
+            "role": "config",
+            "media_type": "application/vnd.sh.ocx.package.v1+json",
+            "size": 149
+          }
+        ]
+      }
+    }
+  ],
+  "env": []
+}

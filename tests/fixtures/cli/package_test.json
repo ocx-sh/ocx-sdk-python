@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "assertion": null,
+  "run": {
+    "exit_code": 0,
+    "stdout": "hello from wp00 spike\n",
+    "stderr": "",
+    "duration_ms": 1,
+    "truncated": false
+  }
+}

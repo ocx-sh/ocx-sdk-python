@@ -1,0 +1,6 @@
+Create a minimal ocx.toml in the current directory
+
+Usage: ocx init
+
+Options:
+  -h, --help  Print help

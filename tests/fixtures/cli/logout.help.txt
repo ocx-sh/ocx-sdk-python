@@ -1,0 +1,9 @@
+Remove credentials for a registry
+
+Usage: ocx logout [REGISTRY]
+
+Arguments:
+  [REGISTRY]  Registry hostname (e.g. `ghcr.io`). Optional - falls back to `OCX_DEFAULT_REGISTRY`
+
+Options:
+  -h, --help  Print help

@@ -1,0 +1,14 @@
+Authenticate to a registry and persist credentials
+
+Usage: ocx login [OPTIONS] [REGISTRY]
+
+Arguments:
+  [REGISTRY]  Registry hostname (e.g. `ghcr.io`, `registry.example.com`). Optional - falls back to `OCX_DEFAULT_REGISTRY`
+
+Options:
+  -u, --username <USERNAME>   Username for the registry. Prompted when omitted on a TTY
+      --password-stdin        Read password/token from stdin. Required in non-interactive contexts
+      --allow-insecure-store  Allow plaintext fallback to `~/.docker/config.json` `auths` when no native helper is configured. Default: refuse, exit `ConfigError(78)` with install hint
+      --verify                Verify the operation against the registry before committing it (default)
+      --no-verify             Skip verification
+  -h, --help                  Print help

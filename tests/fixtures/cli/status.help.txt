@@ -1,0 +1,6 @@
+Show what ocx.toml and ocx.lock declare, without resolving anything
+
+Usage: ocx status
+
+Options:
+  -h, --help  Print help

@@ -1,0 +1,48 @@
+Inspect what the project toolchain resolves to, without installing
+
+Usage: ocx inspect [OPTIONS] [NAMES]...
+
+Arguments:
+  [NAMES]...
+          Binding names to inspect; defaults to every binding in the selected groups.
+          
+          Each name is an `ocx.toml` binding key. Only the named bindings are reported, so under `--resolve` an unrelated sibling that ships no leaf for this host does not block the report. An unknown name exits 64.
+
+Options:
+  -g, --group <GROUPS>
+          Restrict the composition to the named group(s).
+          
+          Repeatable and comma-separated: `-g ci,lint -g release`. The reserved name `default` selects the top-level `[tools]` table. The reserved name `all` expands to `default` plus every declared `[group.*]`. When omitted, scope is exactly `[tools]` - an omitted `-g` does not mean "everything", it means "the default group".
+          
+          A group's own `[env]` composes after the project's, in the order the groups are given, so a later `-g` wins.
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --env <KEY[:TYPE[:SEP]]=VALUE>
+          Set an environment variable for this invocation, as `KEY[:TYPE[:SEP]]=VALUE`.
+          
+          Repeatable; a later `--env` for the same key wins. The value is split on the FIRST `=`, so `--env FOO=a=b` sets `FOO` to `a=b`. Values are literal - no interpolation.
+          
+          `TYPE` is `constant` (replace the existing value), `path` (prepend to it) or `list` (append to it), and defaults to `constant`. A relative `path` value resolves against the current directory, so `--env PATH:path=node_modules/.bin` puts a project-local directory in front of the composed `PATH`. Without `:path` a `PATH` override replaces the composed value outright, dropping every package directory.
+          
+          `SEP` is the string a `list` contribution is joined to the existing value with, as in `--env GODEBUG:list:,=gctrace=1`. It accepts any text, including a colon. Omitted, the key takes whatever separator another contributor to it declared, or a single space if none did.
+          
+          Applied last, so it overrides every package-declared variable - and, for the project toolchain, the project's `[env]` and any selected group's `[env]` as well.
+          
+          A bare `--env FOO` (pass the ambient value through) is not accepted; keys matching `OCX_*` or `__OCX_*` are rejected; so is a `TYPE` outside `constant`, `path` and `list`, a `SEP` that is empty or that qualifies any type but `list`, and a `list` value starting or ending with its own separator. All exit 64.
+
+      --resolve
+          Select this host's leaf and emit its metadata plus the OCI resolution chain.
+          
+          Without it, a binding lists the platform candidates the lock pins for it and nothing is selected. The lock already pins a platform manifest, so the chain starts at that manifest and has no `index` entry.
+
+      --closure
+          Compute each binding's dependency closure from metadata alone, without installing.
+          
+          Adds a `closure` object per binding holding its transitive dependencies and the `interface` / `private` surface projections - the binaries, entrypoints and env keys that would reach a consumer versus stay internal, plus each side's declared integration namespaces. Reading declared dependencies means selecting a leaf, so this implies the same platform selection `--resolve` performs.
+
+  -h, --help
+          Print help (see a summary with '-h')

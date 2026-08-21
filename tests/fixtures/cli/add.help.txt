@@ -1,0 +1,25 @@
+Add one or more tool bindings to ocx.toml
+
+Usage: ocx add [OPTIONS] <[NAME=]IDENTIFIER>...
+
+Arguments:
+  <[NAME=]IDENTIFIER>...
+          Tool identifiers to add, each optionally prefixed with `NAME=` (e.g. `ocx.sh/cmake:3.28`, `glab=ocx.sh/gitlab/cli`)
+
+Options:
+  -g, --group <GROUP>
+          Named group to add the bindings to. Defaults to the implicit `[tools]` table when omitted
+
+      --pull
+          Materialize resolved packages into the object store, installing on a local miss
+
+      --no-pull
+          Skip materialization; resolve against local state only. Materialization is deferred to `ocx pull` or the first `ocx run` / direnv hit
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+  -h, --help
+          Print help (see a summary with '-h')

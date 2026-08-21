@@ -1,0 +1,39 @@
+Inspect one or more package references (candidates, metadata, or resolution chain)
+
+Usage: ocx package inspect [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...
+          Package identifiers to inspect (each a tag or `@digest`)
+
+Options:
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --env <KEY[:TYPE[:SEP]]=VALUE>
+          Set an environment variable for this invocation, as `KEY[:TYPE[:SEP]]=VALUE`.
+          
+          Repeatable; a later `--env` for the same key wins. The value is split on the FIRST `=`, so `--env FOO=a=b` sets `FOO` to `a=b`. Values are literal - no interpolation.
+          
+          `TYPE` is `constant` (replace the existing value), `path` (prepend to it) or `list` (append to it), and defaults to `constant`. A relative `path` value resolves against the current directory, so `--env PATH:path=node_modules/.bin` puts a project-local directory in front of the composed `PATH`. Without `:path` a `PATH` override replaces the composed value outright, dropping every package directory.
+          
+          `SEP` is the string a `list` contribution is joined to the existing value with, as in `--env GODEBUG:list:,=gctrace=1`. It accepts any text, including a colon. Omitted, the key takes whatever separator another contributor to it declared, or a single space if none did.
+          
+          Applied last, so it overrides every package-declared variable - and, for the project toolchain, the project's `[env]` and any selected group's `[env]` as well.
+          
+          A bare `--env FOO` (pass the ambient value through) is not accepted; keys matching `OCX_*` or `__OCX_*` are rejected; so is a `TYPE` outside `constant`, `path` and `list`, a `SEP` that is empty or that qualifies any type but `list`, and a `list` value starting or ending with its own separator. All exit 64.
+
+      --resolve
+          Platform-select through the index and emit the OCI resolution chain (pinned identifier and walk-order chain digests: index, manifest, config) alongside the metadata and layers. Without `--resolve` or `--closure`, an image-index reference lists its platform candidates instead
+
+      --closure
+          Compute the metadata-only dependency closure without installing.
+          
+          Adds one `closure` object to the output holding `deps` (the transitive dependencies in transitive-closure order, each with its effective visibility) and `surface` (the `interface` and `private` projections - the binaries, entrypoints and env keys that would land on PATH for a consumer versus internally, plus each side's declared integration namespaces). Plain output adds a `closure` branch with a flat dependency list and the two surface summaries.
+          
+          For a multi-platform reference, `--closure` first selects a platform (honoring `-p/--platform`, the host platform by default) to read the declared dependencies - the same selection `--resolve` performs.
+
+  -h, --help
+          Print help (see a summary with '-h')

@@ -1,0 +1,52 @@
+Run a command with the composed environment from the project toolchain
+
+Usage: ocx run [OPTIONS] [NAMES]... -- <ARGV>...
+
+Arguments:
+  [NAMES]...
+          Binding names to compose into the child env. Each name must resolve unambiguously inside the selected scope. Only the named tools are resolved to a host leaf, so an unrelated tool in scope that ships no leaf for this host does not block the run. An empty list means "every binding in scope"; then every tool must resolve.
+          
+          `value_terminator = "--"` so clap stops collecting names at the mandatory `--` separator without trying to interpret subsequent hyphen-prefixed argv as more names.
+
+  <ARGV>...
+          Command to execute, with arguments. The command runs with the composed package env. `--` is mandatory and at least one argv token is required (`required = true` + `num_args = 1..`).
+          
+          `allow_hyphen_values = true` so flag-prefixed argv like `--format json` is forwarded to the child unchanged. `last = true` makes clap parse everything before the first `--` into `names` and everything after into `argv`. `required = true` ensures clap rejects `ocx run` / `ocx run NAME` / `ocx run NAME --` with a usage error (exit 2) instead of letting an empty argv slip through to a runtime panic on `split_first`.
+
+Options:
+  -g, --group <GROUPS>
+          Restrict the composition to the named group(s).
+          
+          Repeatable and comma-separated: `-g ci,lint -g release`. The reserved name `default` selects the top-level `[tools]` table. The reserved name `all` expands to `default` plus every declared `[group.*]`. When omitted, scope is exactly `[tools]` - an omitted `-g` does not mean "everything", it means "the default group".
+          
+          A group's own `[env]` composes after the project's, in the order the groups are given, so a later `-g` wins.
+
+      --clean
+          Start with a clean environment containing only the package variables, instead of inheriting the current shell environment
+
+      --env <KEY[:TYPE[:SEP]]=VALUE>
+          Set an environment variable for this invocation, as `KEY[:TYPE[:SEP]]=VALUE`.
+          
+          Repeatable; a later `--env` for the same key wins. The value is split on the FIRST `=`, so `--env FOO=a=b` sets `FOO` to `a=b`. Values are literal - no interpolation.
+          
+          `TYPE` is `constant` (replace the existing value), `path` (prepend to it) or `list` (append to it), and defaults to `constant`. A relative `path` value resolves against the current directory, so `--env PATH:path=node_modules/.bin` puts a project-local directory in front of the composed `PATH`. Without `:path` a `PATH` override replaces the composed value outright, dropping every package directory.
+          
+          `SEP` is the string a `list` contribution is joined to the existing value with, as in `--env GODEBUG:list:,=gctrace=1`. It accepts any text, including a colon. Omitted, the key takes whatever separator another contributor to it declared, or a single space if none did.
+          
+          Applied last, so it overrides every package-declared variable - and, for the project toolchain, the project's `[env]` and any selected group's `[env]` as well.
+          
+          A bare `--env FOO` (pass the ambient value through) is not accepted; keys matching `OCX_*` or `__OCX_*` are rejected; so is a `TYPE` outside `constant`, `path` and `list`, a `SEP` that is empty or that qualifies any type but `list`, and a `list` value starting or ending with its own separator. All exit 64.
+
+      --lazy-mode <MODE>
+          Control when a tool's content downloads: now, or on first use.
+          
+          `never` composes eagerly, so a tool's content is materialized before the tool reaches `PATH`. `always` composes a shim instead: the tool's declared names are on `PATH` immediately, and its content downloads the first time one of those names runs.
+          
+          When omitted, the value is read from `ocx.toml` (the package entry first, then the group, then the top-level `lazy-mode` key), then from the `OCX_LAZY_MODE` environment variable, and finally defaults to `never`. Passing the flag overrides all of them.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-lazy-mode for the full resolution order.
+          
+          [possible values: never, always]
+
+  -h, --help
+          Print help (see a summary with '-h')

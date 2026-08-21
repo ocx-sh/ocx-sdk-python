@@ -1,0 +1,10 @@
+Remove one or more tool bindings from ocx.toml
+
+Usage: ocx remove [OPTIONS] <IDENTIFIER>...
+
+Arguments:
+  <IDENTIFIER>...  Identifiers of the tools to remove (binding name or fully-qualified identifier, e.g. `cmake` or `ocx.sh/cmake:3.28`)
+
+Options:
+  -g, --group <NAME>  Target a specific group. Use `default` to target the implicit `[tools]` table, or a named group (e.g. `ci`) to target `[group.ci]`. Without this flag, all groups are searched; if the binding appears in more than one group an error is returned
+  -h, --help          Print help

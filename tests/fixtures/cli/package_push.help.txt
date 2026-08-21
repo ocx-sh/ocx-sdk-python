@@ -1,0 +1,71 @@
+Publish a package's layers and metadata to a registry
+
+Usage: ocx package push [OPTIONS] [LAYERS]...
+
+Arguments:
+  [LAYERS]...
+          Layers to push, in order (base layer first, top layer last).
+          
+          Each layer is either: - a path to a pre-built archive file (`.tar.gz`, `.tar.xz`, `.tar.zst`), or - a digest reference to a layer already present in the target registry, written as `sha256:<hex>.<ext>` where `<ext>` declares the original archive format - one of `tar.gz`, `tgz`, `tar.xz`, `txz`, `tar.zst`, `tzst`, `tar.zstd`. The OCI distribution spec does not expose a layer's media type via blob HEAD, so the suffix is required: OCX refuses to guess.
+          
+          Either form may carry an optional layout tail `:strip=N,prefix=P,from=REPO` that controls how the layer is placed when the package is installed and where it uploads from: - `strip=N` drops the leading N path components (like `tar --strip-components=N`). - `prefix=P` relocates the layer under the relative subdirectory `P` (must stay inside the package; `..`, absolute, and Windows-style paths are rejected). - `from=REPO` attempts a cross-repository blob mount from `REPO` (same registry) before falling back to a normal upload. Use this to reuse a layer already pushed to another repository without re-uploading its bytes.
+          
+          All three keys are optional and comma-separated; omit the tail for the default (no strip, package root, no mount attempt).
+          
+          Digest references enable layer reuse: a base layer pushed once can be referenced by digest from many packages without re-uploading. Zero layers is valid (produces a config-only OCI artifact) when `--metadata` is supplied.
+          
+          Examples: ocx package push repo:2.0.0 ./libs.tar.gz:strip=1,prefix=share ocx package push repo:2.0.0 sha256:<hex>.tar.xz ./new.tar.zst ocx package push app:1.0.0 ./layer.tar.gz:from=base-images/layer
+
+Options:
+  -c, --cascade
+          Will cascade rolling releases, ie. pushing 1.2.3 will also update 1.2, 1, etc
+
+  -n, --new
+          Indicates that this is a new package that doesn't exist in the registry yet. This will skip some checks that requires an existing index
+
+      --canonical-tag
+          Push a `sha256.<hex>` tag pointing at each pushed platform manifest (default)
+
+      --no-canonical-tag
+          Skip the canonical tag push
+
+      --build-timestamp[=<BUILD_TIMESTAMP>]
+          Append a UTC build-metadata segment to the published tag.
+          
+          `datetime` appends `_YYYYMMDDhhmmss`, `date` appends `_YYYYMMDD`, `none` is a no-op. Passing the flag without a value defaults to `datetime`. Must use `=` when supplying an explicit value (`--build-timestamp=date`); bare `--build-timestamp` with no `=` uses the `datetime` default. The version core in `--identifier` must already be `X.Y.Z` (optionally with variant prefix or pre-release); pushing against a tag that already carries build metadata is rejected.
+          
+          Use this in continuous-deploy pipelines to publish rolling versions like `dev.ocx.sh/ocx:0.3.0-dev_<YYYYMMDDhhmmss>`.
+          
+          [possible values: datetime, date, none]
+
+  -m, --metadata <METADATA>
+          Path to the package metadata JSON file. Defaults to a sibling of the first file layer (e.g. `pkg.tar.gz` -> `pkg-metadata.json`). Required when no file layers are provided.
+          
+          This must be the compiled form `ocx package create --metadata` writes, with every dependency pinned to a digest; an authoring sidecar with tag-only dependencies is rejected. The build receipt is anchored to the bundle, so pointing this flag elsewhere does not move where an omitted `--platform` or `--identifier` is read from.
+
+      --annotation <KEY=VALUE>
+          Record an OCI annotation on the published image index. Repeatable.
+          
+          Written verbatim onto the index of every tag this push writes, including cascade tags. A repeated key keeps the last value. Omitting the flag writes no annotations and leaves any the registry already holds untouched.
+          
+          Set `org.opencontainers.image.source` to the HTTPS URL of the source repository: on GHCR this is what links the package to its repository and lets it inherit that repository's permissions. Registries derive nothing from the repository path, so state it explicitly - for example in GitHub Actions:
+          
+          --annotation org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+
+      --announce-file <PATH>
+          After a successful push, append the pushed tag and any cascade tags to this file (creating it if absent), so `ocx package announce --tags-from-file` can pick them up.
+          
+          This is a scratch file for one pipeline run, not a persistent list - a stale file left over from an earlier run could re-add a tag that was deliberately dropped from a later announce.
+
+  -p, --platform <PLATFORM>
+          Target platform (e.g. `linux/amd64`, or `any` for platform-agnostic content)
+          
+          The pushed manifest is scoped to this platform. An explicit value is used as given. Omit it to take the platform the build receipt beside the bundle recorded; a usage error (exit 64) when neither names one.
+
+  -i, --identifier <IDENTIFIER>
+          Identifier under which the package is published (e.g. `repo:2.0.0`)
+          
+          An explicit value is used as given. Omit it to take the identifier the build receipt beside the bundle recorded, which is what `ocx package create --identifier` wrote there; a usage error (exit 64) when neither names one. A value without a tag (`repo`) takes the version the receipt recorded when it names the same repository.
+
+  -h, --help
+          Print help (see a summary with '-h')

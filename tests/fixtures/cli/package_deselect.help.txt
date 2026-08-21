@@ -1,0 +1,9 @@
+Remove the current-version symlink for one or more packages
+
+Usage: ocx package deselect <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...  Package identifiers to deselect
+
+Options:
+  -h, --help  Print help

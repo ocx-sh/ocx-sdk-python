@@ -1,0 +1,11 @@
+Remove an installed candidate for one or more packages
+
+Usage: ocx package uninstall [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...  Package identifiers to uninstall
+
+Options:
+  -d, --deselect  Also remove the current symlink (equivalent to also running `ocx deselect`)
+      --purge     Delete the object from the store when no references remain after uninstall
+  -h, --help      Print help

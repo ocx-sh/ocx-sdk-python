@@ -1,0 +1,23 @@
+Resolve tool tags to digests and write ocx.lock
+
+Usage: ocx lock [OPTIONS]
+
+Options:
+      --check
+          Verify `ocx.lock` is current relative to `ocx.toml` and exit.
+          
+          Reads `ocx.toml` and `ocx.lock` from disk, compares the lock's stored `declaration_hash` against the current config's hash, and exits 0 if they match (lock is current) or 65 if they drift (lock is stale). No re-resolution, no writes, no network calls - strictly a CI primitive for "is the lock committed and current?" verification. When the lock file is absent, exits 78 (the canonical "lock missing" code shared with `ocx pull`).
+
+      --pull
+          Materialize resolved packages into the object store, installing on a local miss
+
+      --no-pull
+          Skip materialization; resolve against local state only. Materialization is deferred to `ocx pull` or the first `ocx run` / direnv hit
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+  -h, --help
+          Print help (see a summary with '-h')

@@ -1,0 +1,36 @@
+Re-resolve declared tags against the registry; whole file or a subset.
+
+Resolves declared tags live against the registry by default (the root `--remote` flag is redundant here, but accepted) and records the result in `ocx.lock` only - the local index tag snapshot is never modified. A moving tag (`:latest`, `:3`) advances to wherever it points today. Under `--frozen`, resolution is capped at the local index snapshot (an unsnapshotted tag exits 81); `--offline` forbids network access. Pass binding names or `-g/--group` to advance only part of the toolchain and freeze the rest: `ocx update ripgrep` advances one binding, `ocx update -g ci` advances a whole group. A scoped update needs an existing `ocx.lock` (exit 78), refuses a drifted `ocx.toml` (exit 65), and rejects an unknown group or name (exit 64).
+
+Usage: ocx update [OPTIONS] [NAMES]...
+
+Arguments:
+  [NAMES]...
+          Binding names to advance; freeze every other pin.
+          
+          Each name is the `ocx.toml` binding key and is advanced in every group it appears in (narrow with `-g`). Advancing moves the declared tag to today's resolution - it does not change the declaration; edit `ocx.toml` to pin a new explicit version. Scoped mode needs an existing `ocx.lock` (exit 78 when absent) and refuses a drifted `ocx.toml` (exit 65). An unknown name exits 64.
+
+Options:
+      --check
+          Verify the candidate lock would match the predecessor and exit.
+          
+          Re-resolves the selected scope (every declared tag, or only the bindings named by `-g`/positional names), compares the candidate to the predecessor, and exits 0 (matches) or 65 (`DataError`, a pin would change). No writes, no commit. When the predecessor lock is absent, exits 78 (`ConfigError`).
+
+      --pull
+          Materialize resolved packages into the object store, installing on a local miss
+
+      --no-pull
+          Skip materialization; resolve against local state only. Materialization is deferred to `ocx pull` or the first `ocx run` / direnv hit
+
+  -p, --platform <PLATFORM>
+          Target platform to resolve packages against.
+          
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+  -g, --group <GROUPS>
+          Advance every binding in the named group(s); freeze the rest.
+          
+          Repeatable and comma-separated: `-g ci,lint -g release`. The reserved name `default` selects the top-level `[tools]` table; `all` expands to `default` plus every declared `[group.*]`. Combine with binding names to advance only those bindings within the named groups. Omit both this flag and any names to re-resolve the whole file.
+
+  -h, --help
+          Print help (see a summary with '-h')

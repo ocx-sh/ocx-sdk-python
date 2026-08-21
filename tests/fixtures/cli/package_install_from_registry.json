@@ -1,0 +1,25 @@
+2026-08-20T23:57:37.460127Z  INFO Installing packages: 127.0.0.1:5099/wp00/hello:1.0.0
+2026-08-20T23:57:37.460184Z  INFO Pulling: pulling count=1 count=1
+2026-08-20T23:57:37.473758Z  INFO Downloading layer sha256:28799d3f717f to /tmp/wp00-home/temp/117f2093d5228d54261eb61704f2bf80
+{
+  "127.0.0.1:5099/wp00/hello:1.0.0": {
+    "identifier": "127.0.0.1:5099/wp00/hello:1.0.0@sha256:70e90fbac7643ea0daa7c692e593c3cc951316d30d22e017af39d51a9d294d4e",
+    "metadata": {
+      "type": "bundle",
+      "version": 1,
+      "env": [
+        {
+          "key": "PATH",
+          "type": "path",
+          "required": true,
+          "value": "${installPath}/bin",
+          "visibility": "public"
+        }
+      ],
+      "binaries": [
+        "hello"
+      ]
+    },
+    "path": "/tmp/wp00-home/symlinks/127.0.0.1_5099/wp00/hello/candidates/1.0.0"
+  }
+}

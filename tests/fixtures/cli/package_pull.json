@@ -1,0 +1,4 @@
+2026-08-20T23:56:05.019498Z  INFO Pulling: pulling count=1 count=1
+{
+  "ocx.sh/go-task/task:3": "/tmp/wp00-home/packages/ocx.sh/sha256/df/420d1c99d7e80ce6366104af4e6b57"
+}
