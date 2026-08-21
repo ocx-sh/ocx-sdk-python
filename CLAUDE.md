@@ -5,10 +5,14 @@ Guide for Claude Code when working in this repo.
 ## What this is
 
 `ocx-sdk` is the Python SDK for [OCX](https://github.com/ocx-sh/ocx), the
-OCI-registry-backed binary package manager. The repo is currently scaffolding
-only — `src/ocx_sdk/__init__.py` exposes `__version__` and nothing else. The
-toolchain, quality gate, docs site, and release pipeline are wired and green;
-the API lands on top.
+OCI-registry-backed binary package manager. It's a full v0.1 walking
+skeleton: bootstrap (download/verify/cache a pinned `ocx` binary), the
+`Ocx`/`Project` client with its command namespaces, the `[env]` merge +
+compose/activate model, and the full result/exception hierarchy — a CLI
+wrapper, not a reimplementation. Three test tiers (unit, contract against a
+pinned binary, acceptance against a compose stack) back it at 100% unit
+coverage. The toolchain, quality gate, docs site, and release pipeline are
+wired and green.
 
 Repo name carries the language (`ocx-sdk-python`) so `ocx-sdk-rust` /
 `ocx-sdk-go` can sit beside it. The PyPI distribution is `ocx-sdk`, the import
@@ -16,13 +20,24 @@ is `ocx_sdk`.
 
 ## Public API
 
-| Symbol | Purpose |
+Full surface, kept current, lives in
+[docs/reference/api.md](docs/reference/api.md) (auto-generated from
+docstrings) — this table is a compact orientation map, not the source of
+truth:
+
+| Symbol group | Purpose |
 |---|---|
+| `Ocx`, `Project` + namespaces (`package`, `config`, `patch`) | Typed client — one method per ocx command |
+| `bootstrap.ensure`, `DistSource` | Download, verify, cache a pinned `ocx` binary |
+| `HostEnv`, `OcxConfig`, `RetryPolicy` + env model types (`ConstVar`, `PathVar`, `ListVar`, `ComposedEnv`, ...) | Config, host-env selection, retry policy, `[env]` merge/compose/activate |
+| Result structs (`CommandResult`, `EnvReport`, `VersionInfo`, `StatusReport`, `InstallReport`, ...) | One frozen result struct per command |
+| Exception hierarchy (`OcxError` → `OcxExecutionError`/`OcxProcessError`/... ) | Exit-code-mapped errors, every `__str__` names an actionable next step |
 | `__version__` | Installed package version, resolved via `importlib.metadata` |
 
-Anything reachable through an underscored module path is package-private. When
-real modules land, add an `architecture.md` rule with the module map and keep
-this table in sync.
+Anything reachable through an underscored module path is package-private —
+the only guaranteed import path is the curated re-export list in
+`src/ocx_sdk/__init__.py`. See `.claude/rules/architecture.md` for the
+module map and design invariants.
 
 ## Toolchain bootstrap (OCX dogfood)
 
@@ -68,7 +83,9 @@ Not published yet. On the first `vX.Y.Z` tag, `.github/workflows/release.yml`
 validates tag ↔ `pyproject.toml`, runs verify, builds wheel + sdist via
 `uv build`, uploads both as GitHub Release assets, and publishes to PyPI via
 Trusted Publishing (OIDC, GitHub `pypi` environment, no stored tokens). The
-PyPI trusted publisher must be registered before that first tag.
+PyPI trusted publisher must be registered before that first tag — full
+one-time setup steps and the release flow are in
+[docs/contributing/releasing.md](docs/contributing/releasing.md).
 
 Release flow: `ocx run -- task release:prepare` (interactive menu, or
 `BUMP=auto|patch|minor|major`, or `VERSION=X.Y.Z`). It computes the next version
@@ -93,8 +110,9 @@ warnings, no compatibility layers.
 
 ## Rule catalog
 
+- `.claude/rules/architecture.md` — SDK design invariants (wrapper-not-reimplementation, zero deps, layering, API conventions, concurrency, compat) — distilled from `.claude/artifacts/sdk-design.md`
 - `.claude/rules/quality-core.md` — universal design principles (SOLID, DRY, KISS, YAGNI)
-- `.claude/rules/quality-python.md` — Python 3.13+ quality
+- `.claude/rules/quality-python.md` — Python 3.12+ quality
 - `.claude/rules/quality-tests.md` — pytest, fixtures, mocking standards (auto-loads on `tests/**`)
 - `.claude/rules/quality-security.md` — security-sensitive change checklist
 - `.claude/rules/subsystem-ci.md` — GitHub Actions conventions

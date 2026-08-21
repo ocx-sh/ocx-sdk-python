@@ -7,7 +7,7 @@ paths:
 
 # Python Code Quality
 
-Python-specific quality guide (Python 3.13+). Universal design principles
+Python-specific quality guide (Python 3.12+). Universal design principles
 (SOLID, DRY, YAGNI, severity tiers, review checklist) live in `quality-core.md` —
 this file cover **Python-specific applications** plus modern type system + tooling.
 
@@ -47,7 +47,7 @@ Project-independent, shareable.
 
 ---
 
-## Type System (Python 3.13+)
+## Type System (Python 3.12+)
 
 - **`Protocol`** over `ABC` for structural subtyping at module boundaries + DI
 - **`Iterable[T]` / `Sequence[T]`** over `list[T]` in function params when only iterating or indexing without mutation

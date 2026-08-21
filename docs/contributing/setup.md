@@ -16,7 +16,7 @@ OCX bootstraps:
 - `uv` — Python package manager + script runner
 - `git-cliff` — changelog generation
 
-`uv` provisions Python 3.13+ and installs the optional `dev` and
+`uv` provisions Python 3.12+ and installs the optional `dev` and
 `docs` dependency groups on demand.
 
 ## Optional: drop the `ocx run --` prefix
