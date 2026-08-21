@@ -46,7 +46,7 @@ jobs:
         with:
           # Auto-enable Pages on first run + select GitHub Actions as source.
           enablement: true
-      - uses: ocx-sh/setup-ocx@v1
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
       - name: Build docs (strict)
         run: ocx run -- task docs:build
       - name: Upload Pages artifact

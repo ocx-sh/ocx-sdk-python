@@ -30,13 +30,13 @@ jobs:
           fi
           echo "Tag $GITHUB_REF_NAME matches pyproject version $PYPROJ."
 
-      - uses: ocx-sh/setup-ocx@v1
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
 
       - name: Verify before release
         run: ocx run -- task verify
 
       - name: Build wheel + sdist
-        run: ocx run -- uv build
+        run: ocx run -- task build
 
       - name: Upload artifacts to release
         if: github.ref_type == 'tag'
