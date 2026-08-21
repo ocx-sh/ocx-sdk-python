@@ -1,0 +1,25 @@
+{
+  "source": {
+    "repo": "../ocx",
+    "function": "StringExt::to_slug (crates/ocx_lib/src/utility/string_ext.rs)",
+    "consumer": "auth::get_env_auth (crates/ocx_lib/src/auth.rs:121) — registry.to_slug() builds OCX_AUTH_<SLUG>_{TYPE,USER,TOKEN}",
+    "algorithm": "regex [^a-zA-Z0-9] replaced with '_' (strict slug: no dots, no dashes, no case-folding survive)",
+    "ocx_version": "0.5.8",
+    "commit_pinned_by_orchestrator": "10cc1ef0 (v0.5.8-8-g10cc1ef0)",
+    "note": "string_ext.rs and auth.rs are byte-identical between tag v0.5.8 and the pinned commit (git diff v0.5.8..HEAD -- these two files is empty), so this corpus is valid against the live-probed ocx 0.5.8 binary.",
+    "note_relaxed_slug": "A SEPARATE, more permissive transform (StringExt::to_relaxed_slug / file_structure::slugify, regex [^a-zA-Z0-9._-] -> '_', preserves dots and hyphens) is used for ON-DISK PATH components (package_store, layer_store, blob_store, shim_store, index_store, patch expand_patch_path). It is NOT the 'registry_slug' WP06 needs (that one is strictly to_slug(), used only for the OCX_AUTH_* env var name). Not included in this corpus — flag if a future WP needs it."
+  },
+  "cases": [
+    {"registry": "hello world", "slug": "hello_world", "provenance": "literal Rust test: string_ext.rs::to_slug_replaces_non_alphanumeric"},
+    {"registry": "foo-bar.baz", "slug": "foo_bar_baz", "provenance": "literal Rust test: string_ext.rs::to_slug_replaces_non_alphanumeric"},
+    {"registry": "test.registry", "slug": "test_registry", "provenance": "literal Rust test: auth.rs::test_get_env_auth_basic / test_get_env_auth_token (OCX_AUTH_test_registry_*)"},
+    {"registry": "ocx.sh", "slug": "ocx_sh", "provenance": "derived: default registry (OCX_DEFAULT_REGISTRY), regex-applied — dot edge case"},
+    {"registry": "ghcr.io", "slug": "ghcr_io", "provenance": "derived: common registry host, regex-applied — dot edge case"},
+    {"registry": "GHCR.io", "slug": "GHCR_io", "provenance": "derived: uppercase preserved (no case-folding in to_slug), regex-applied — uppercase edge case"},
+    {"registry": "localhost:5000", "slug": "localhost_5000", "provenance": "derived from confirmed algorithm; port-bearing registry — matches the SAME colon-to-underscore behavior asserted for to_relaxed_slug (string_ext.rs::to_relaxed_slug_replaces_colons) and for the sibling path-slug fn in package_store.rs::path_port_containing_registry_is_slugified / shim_store.rs::path_slugifies_a_port_bearing_registry — port edge case"},
+    {"registry": "127.0.0.1:5099", "slug": "127_0_0_1_5099", "provenance": "derived: live-verified during WP00 author-flow spike (see author_flow.sh) — IP:port registry actually pushed/installed against during this probe"},
+    {"registry": "docker.io", "slug": "docker_io", "provenance": "derived: NOTE — auth::get_env_auth does NOT call canonicalize_registry first (only get_docker_auth does), so docker.io is slugified as-is and is NOT rewritten to the index.docker.io/v1 alias before slugging — defaults edge case"},
+    {"registry": "a", "slug": "a", "provenance": "derived: single-char, no-op edge case"},
+    {"registry": "", "slug": "", "provenance": "derived: empty-string, no-op edge case"}
+  ]
+}
