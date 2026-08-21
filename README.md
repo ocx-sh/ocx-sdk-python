@@ -1,5 +1,7 @@
 # ocx-sdk
 
+[![PyPI](https://img.shields.io/pypi/v/ocx-sdk.svg)](https://pypi.org/project/ocx-sdk/)
+[![Python versions](https://img.shields.io/pypi/pyversions/ocx-sdk.svg)](https://pypi.org/project/ocx-sdk/)
 [![CI](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/ci.yml/badge.svg)](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/ci.yml)
 [![Docs](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/docs.yml/badge.svg)](https://ocx-sh.github.io/ocx-sdk-python/)
 [![codecov](https://codecov.io/gh/ocx-sh/ocx-sdk-python/branch/main/graph/badge.svg)](https://codecov.io/gh/ocx-sh/ocx-sdk-python)
@@ -27,12 +29,6 @@ result = project.run(["task", "verify"])
 [quickstart](https://ocx-sh.github.io/ocx-sdk-python/guide/quickstart/).
 
 ## Install
-
-Not published yet. On the first `vX.Y.Z` tag, the release pipeline builds
-and publishes to PyPI — until then the badges below will read "not found":
-
-[![PyPI](https://img.shields.io/pypi/v/ocx-sdk.svg)](https://pypi.org/project/ocx-sdk/)
-[![Python versions](https://img.shields.io/pypi/pyversions/ocx-sdk.svg)](https://pypi.org/project/ocx-sdk/)
 
 Requires Python 3.12+.
 
