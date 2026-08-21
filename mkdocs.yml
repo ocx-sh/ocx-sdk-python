@@ -66,7 +66,6 @@ extra_css:
 
 plugins:
   - search
-  - section-index
   - include-markdown
   - git-revision-date-localized:
       enabled: !ENV [CI, false]
@@ -80,12 +79,16 @@ plugins:
           paths: [src]
           options:
             docstring_style: google
+            docstring_options:
+              ignore_init_summary: true
             show_source: true
             show_root_heading: true
             show_root_toc_entry: false
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             show_signature_annotations: true
+            signature_crossrefs: true
+            show_if_no_docstring: false
             separate_signature: true
             line_length: 90
             merge_init_into_class: true
@@ -135,13 +138,25 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting started:
-      - getting-started/index.md
-      - Install: getting-started/install.md
-  - API reference:
-      - api/index.md
-  - Contributing:
-      - contributing/index.md
-      - Setup: contributing/setup.md
-      - Writing docs: contributing/docs.md
-  - Changelog: changelog.md
+  - Guide:
+      - Quickstart: guide/quickstart.md
+      - Bootstrap: guide/bootstrap.md
+      - Projects & toolchains: guide/projects.md
+      - Hermetic CI: guide/hermetic-ci.md
+      - Authoring packages: guide/authoring.md
+      - Vendoring a dist.json: guide/vendoring.md
+      - Concepts:
+          - Compatibility: guide/concepts/compatibility.md
+          - Concurrency & timeouts: guide/concepts/concurrency.md
+          - Errors & credentials: guide/concepts/errors-and-security.md
+  - Reference:
+      - API reference: reference/api.md
+      - Command ↔ method map: reference/command-map.md
+      - Environment & exit codes: reference/environment.md
+      - Compatibility checklist: reference/compatibility-checklist.md
+      - Contributing:
+          - Overview: contributing/index.md
+          - Setup: contributing/setup.md
+          - Writing docs: contributing/docs.md
+          - Releasing: contributing/releasing.md
+      - Changelog: changelog.md
