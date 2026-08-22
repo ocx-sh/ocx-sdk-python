@@ -28,7 +28,7 @@ jobs:
       # the compose stack is brought up by the pytest session fixture — so the
       # tier stays one command here and one command locally.
       - name: Acceptance tests
-        run: ocx run -- task test:acceptance
+        run: task test:acceptance
 
   # Same suite against whatever ocx released most recently, so a breaking
   # change upstream surfaces here instead of in a user's pipeline. Nightly
@@ -43,4 +43,4 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
       - name: Acceptance tests against the latest ocx
-        run: ocx run -- task test:acceptance
+        run: task test:acceptance
