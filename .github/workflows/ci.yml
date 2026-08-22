@@ -1,5 +1,12 @@
 name: CI
 
+# Every job provisions its toolchain with `ocx-sh/setup-ocx`, which ACTIVATES
+# the project when ocx.toml is present — the tools ocx.lock pins are on PATH
+# for every step that follows. So steps invoke `task <name>` directly: an
+# `ocx run -- task <name>` wrapper would be redundant indirection, not extra
+# safety. Locally, `.envrc` (direnv) activates the same project the same way,
+# so CI and a developer's shell run byte-identical commands.
+
 on:
   push:
     branches: [main]
@@ -20,10 +27,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
       - name: Verify
-        run: ocx run -- task verify
+        run: task verify
       - name: Coverage XML
         if: ${{ !cancelled() }}
-        run: ocx run -- task cov:xml
+        run: task cov:xml
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
@@ -52,13 +59,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
       - name: Test
-        run: ocx run -- task test -- --junitxml=test-results.xml
+        run: task test -- --junitxml=test-results.xml
       # Platform-specific branches (POSIX process groups, the Windows kill
       # path) make fail_under=100 unattainable off Linux. The Linux legs
       # enforce the gate; mac and windows legs prove functional correctness.
       - name: Coverage report
         if: runner.os == 'Linux'
-        run: ocx run -- task cov:report
+        run: task cov:report
       # Designated leg publishes the PR test-report annotation — one leg is
       # enough, and fork PRs get a read-only token so this stays same-repo only.
       - name: Publish test report
@@ -74,7 +81,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
       - name: Contract tests
-        run: ocx run -- task test:contract
+        run: task test:contract
 
   repo-checks:
     runs-on: ubuntu-latest
@@ -84,8 +91,8 @@ jobs:
           fetch-depth: 0
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
       - name: Lint GitHub Actions workflows
-        run: ocx run -- task lint:actions
+        run: task lint:actions
       - name: Check for broken links
-        run: ocx run -- task lint:links
+        run: task lint:links
       - name: Scan for committed secrets
-        run: ocx run -- task secrets
+        run: task secrets

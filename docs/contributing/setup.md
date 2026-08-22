@@ -21,11 +21,25 @@ OCX bootstraps:
 
 ## Optional: drop the `ocx run --` prefix
 
+The repo ships an `.envrc`, so with [direnv](https://direnv.net) the project
+activates whenever you `cd` into it — and re-activates on its own when
+`ocx.toml` or `ocx.lock` changes:
+
 ```bash
-eval "$(ocx env --shell=sh)"   # add to your shell profile if you like
+direnv allow
 task verify
 task docs:serve
 ```
+
+Without direnv, activate the current shell by hand:
+
+```bash
+eval "$(ocx env --shell=sh)"   # add to your shell profile if you like
+task verify
+```
+
+Either way you end up running the same bare `task <name>` that CI runs —
+there, `ocx-sh/setup-ocx` performs the identical activation.
 
 ## Tasks
 

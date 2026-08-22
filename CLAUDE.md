@@ -59,8 +59,11 @@ ocx run -- task format    # apply ruff formatter
 Python linters (`ruff`, `pyright`) live in `[project.optional-dependencies] dev`
 in `pyproject.toml` — `uv` pulls them at sync time.
 
-Optional shell convenience: `eval "$(ocx env --shell=sh)"` once per session,
-then drop the `ocx run --` prefix.
+Optional, and what CI does: activate the project instead of prefixing every
+command. `direnv allow` picks up the tracked `.envrc` on `cd`, or
+`eval "$(ocx env --shell=sh)"` activates the current shell once per session —
+then `task verify` works bare. CI reaches the same state through
+`ocx-sh/setup-ocx`, so its steps run `task <name>` with no wrapper.
 
 ## Build & dev commands
 

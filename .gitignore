@@ -38,3 +38,6 @@ site/
 .claude/state/
 .lycheecache
 .agents/worktrees/
+
+# direnv local activation state (.envrc itself IS tracked)
+.direnv/
