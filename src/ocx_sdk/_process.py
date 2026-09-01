@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Subprocess lifecycle for ocx-sdk (contract C-010).
+"""Subprocess lifecycle for ocx-sdk (contract v0.1 C-010).
 
 Every ocx spawn in this SDK goes through this module, and it takes
 **primitives only**: an argv sequence, a finished env mapping, a redaction
@@ -22,6 +22,15 @@ so a token that reached argv or the child env cannot escape through a log
 (CWE-532). Captured **stdout is deliberately never redacted** (§12): it is the
 raw JSON payload a parser consumes, and a substitution inside it would corrupt
 the document. Consumers must not paste raw stdout into error text.
+
+That rule binds the `OcxProcessError.stdout` **attribute** too (D10), not only
+the value `run_command` returns: a partial failure prints its full report and
+then exits non-zero, so the error carries that report verbatim for
+`_results.partial_report()` to parse. `_summary()` and `__str__` never read it,
+which is what keeps an unredacted payload out of every message and log. The
+same reasoning is why `Completed.__repr__` masks both captured streams — a
+`done` local rendered by a traceback viewer is not a surface a caller opted
+into.
 """
 
 from __future__ import annotations
@@ -40,7 +49,7 @@ from contextlib import ExitStack, contextmanager
 from typing import IO, TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 # _EXIT_CODE_ERRORS is package-internal, and this module is its one consumer:
-# C-010 pins the exit-code map as the seam between _errors and every spawn.
+# v0.1 C-010 pins the exit-code map as the seam between _errors and every spawn.
 from ._errors import (
     _EXIT_CODE_ERRORS,  # pyright: ignore[reportPrivateUsage]
     ExitCode,
@@ -113,6 +122,21 @@ class Completed(NamedTuple):
     exit_code: int
     stdout: str
     stderr: str
+
+    def __repr__(self) -> str:
+        """Report the sizes, never the bytes.
+
+        A `NamedTuple`'s default repr prints both captured streams verbatim,
+        and `done` is a live local in the frame that raises — so `pytest
+        --showlocals`, Sentry's `with_locals`, and `cgitb` would all render an
+        unredacted payload out of a traceback nobody opted into. `stderr` is
+        already scrubbed, but only for the secrets the SDK was given; `stdout`
+        is never scrubbed at all (D10).
+        """
+        return (
+            f"Completed(exit_code={self.exit_code}, "
+            f"stdout=<{len(self.stdout)} chars>, stderr=<{len(self.stderr)} chars>)"
+        )
 
 
 class _Killable(Protocol):
@@ -691,7 +715,7 @@ def _sigint_forwarded(proc: _Killable) -> Generator[None]:
 
     A passthrough child sits in its own session, so the terminal's Ctrl-C no
     longer reaches it on its own — without this it would ignore the interrupt
-    that a plain `ocx run` honors.
+    that a plain `ocx exec` honors.
     """
     if not _POSIX:  # pragma: no cover - Windows: the child keeps this console's group and gets Ctrl-C (§10)
         yield
@@ -800,8 +824,10 @@ def _exit_error(done: Completed, logged: tuple[str, ...]) -> OcxProcessError:
         code = ExitCode(done.exit_code)
     except ValueError:
         # A signal-killed ocx exits with a status ocx never assigns (137).
-        return OcxProcessError(done.exit_code, logged, done.stderr)
-    return _EXIT_CODE_ERRORS.get(code, OcxProcessError)(done.exit_code, logged, done.stderr)
+        # It still carries stdout: a sign or push killed mid-sweep is exactly
+        # where the report is hardest to reproduce (D10).
+        return OcxProcessError(done.exit_code, logged, done.stderr, stdout=done.stdout)
+    return _EXIT_CODE_ERRORS.get(code, OcxProcessError)(done.exit_code, logged, done.stderr, stdout=done.stdout)
 
 
 def _retryable(policy: RetryPolicy) -> Callable[[Exception], bool]:

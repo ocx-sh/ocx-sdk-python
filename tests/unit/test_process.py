@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Contract tests for `ocx_sdk._process` (C-010, S-004, S-006).
+"""Contract tests for `ocx_sdk._process` (v0.1 C-010, v0.1 S-004, v0.1 S-006; D10).
 
 Named rows from the design's mechanism matrix live here:
 `test_leading_dash_rejected`, `test_double_dash_emitted`,
@@ -55,6 +55,23 @@ def _interrupt(signum: int, frame: Any) -> None:
 def _redact_token(text: str) -> str:
     """Stand in for `build_spawn_env`'s exact-string scrubber."""
     return text.replace(_TOKEN, "***")
+
+
+def _sdk_frame_local_reprs(err: BaseException) -> list[str]:
+    """Every local in the SDK's own traceback frames, rendered as a debugger would.
+
+    `pytest --showlocals`, Sentry's `with_locals`, and `cgitb` all walk a
+    traceback and `repr()` what each frame holds. The caller's own frame is
+    skipped deliberately: a test that plants a token in its own local would
+    find it there whatever `_process` does, which would prove nothing.
+    """
+    rendered: list[str] = []
+    frame = err.__traceback__
+    while frame is not None:
+        if frame.tb_frame.f_globals.get("__name__", "").startswith("ocx_sdk"):
+            rendered += [f"{name}={value!r}" for name, value in frame.tb_frame.f_locals.items()]
+        frame = frame.tb_next
+    return rendered
 
 
 class _FakePopen:
@@ -289,7 +306,7 @@ def killpg(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, int]]:
     return sent
 
 
-# --- compose_argv (C-010 argv composition, CWE-88) -------------------------
+# --- compose_argv (v0.1 C-010 argv composition, CWE-88) --------------------
 
 
 def test_compose_argv_puts_global_flags_before_the_command() -> None:
@@ -357,6 +374,34 @@ def test_run_command_raises_the_error_the_exit_code_maps_to(exit_code: int, expe
     assert caught.value.exit_code == exit_code
     assert caught.value.stderr == "boom\n"
     assert caught.value.argv == ("ocx", "status")
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "expected"),
+    [
+        pytest.param(65, DataError, id="mapped-exit-code"),
+        pytest.param(137, OcxProcessError, id="signal-killed-exit-ocx-never-assigns"),
+    ],
+)
+def test_a_failing_command_carries_its_report_on_the_error(exit_code: int, expected: type[OcxProcessError]) -> None:
+    """D10: BOTH `_exit_error` returns pass `done.stdout`, not just the mapped one.
+
+    A partially-failed sign, sweep, push, or copy prints its full report and
+    then exits non-zero. 137 is the ragged half — a signal-killed ocx exits
+    with a status `ExitCode` cannot parse, and dropping the report there
+    would lose it exactly where it is hardest to reproduce.
+    """
+    report = '{"status": "partial_failure", "rows": [{"tag": "1.2", "status": "failed"}]}'
+    proc = _FakePopen(exit_code=exit_code, stdout=report, stderr="one leg failed\n")
+
+    with pytest.raises(expected, match="exited") as caught:
+        run_command(["ocx", "package", "sign"], {}, popen_factory=_factory(proc))
+
+    # `is`, not `isinstance`: DataError subclasses OcxProcessError, so the
+    # 137 row cannot tell a correct fallback from the mapped class otherwise.
+    assert type(caught.value) is expected
+    assert caught.value.stdout == report
+    assert report not in str(caught.value)
 
 
 def test_run_command_returns_the_failure_instead_of_raising_when_check_is_off() -> None:
@@ -447,7 +492,7 @@ def test_pump_captures_all_lines() -> None:
     assert done.stderr.splitlines() == [f"err {i:035d}" for i in range(2000)]
 
 
-# --- S-006: secrets never reach a log, a callback, or an error ------------
+# --- v0.1 S-006: secrets never reach a log, a callback, or an error -------
 
 
 def test_secrets_absent_from_logs_errors_and_on_log(caplog: pytest.LogCaptureFixture) -> None:
@@ -470,6 +515,60 @@ def test_secrets_absent_from_logs_errors_and_on_log(caplog: pytest.LogCaptureFix
     assert _TOKEN not in caught.value.stderr
     assert _TOKEN not in " ".join(caught.value.argv)
     assert caught.value.argv == ("ocx", "login", "--token", "***")
+    # CARVE-OUT (D10, architecture.md "Security"): `stdout` is deliberately
+    # absent from this list. It is the one recorded exemption to exact-string
+    # redaction, because substituting inside it would corrupt the JSON a
+    # caller is about to hand to `partial_report(err)`. Adding an
+    # `_TOKEN not in caught.value.stdout` row here would look like closing a
+    # gap and would in fact delete the feature — the exemption is proven
+    # deliberate by
+    # `test_the_error_carries_stdout_unredacted_and_never_in_its_message`.
+
+
+def test_the_error_carries_stdout_unredacted_and_never_in_its_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """D10: the guarantee on `stdout` is placement, not scrubbing.
+
+    Present verbatim on the attribute — `partial_report(err)` must be able to
+    parse it — and absent from every other surface: the message, the repr, and
+    the log. Deleting either half deletes the feature or the exemption.
+    """
+    caplog.set_level(logging.DEBUG, logger="ocx_sdk")
+    report = f'{{"error": {{"message": "registry rejected {_TOKEN}"}}}}'
+    proc = _FakePopen(exit_code=65, stdout=report, stderr=f"copy refused for {_TOKEN}\n")
+
+    with pytest.raises(DataError, match="exited 65") as caught:
+        run_command(["ocx", "package", "copy"], {}, redact=_redact_token, popen_factory=_factory(proc))
+
+    assert caught.value.stdout == report
+    assert _TOKEN not in str(caught.value)
+    assert _TOKEN not in repr(caught.value)
+    assert _TOKEN not in caught.value.stderr
+    assert _TOKEN not in caplog.text
+
+
+def test_a_raised_error_never_leaks_stdout_through_its_frame_locals() -> None:
+    """D10 obligation 4: `Completed.__repr__` masks both captured streams.
+
+    A pre-existing leak, not a new one: `Completed` is a plain `NamedTuple`,
+    and `done` and `finished` are live locals in the frames that raise. Any
+    traceback renderer that shows frame locals therefore prints the captured
+    stdout verbatim, exemption or not — `err.stdout` is a surface a caller
+    opts into, a rendered traceback is not.
+    """
+    report = f'{{"error": {{"message": "registry rejected {_TOKEN}"}}}}'
+    proc = _FakePopen(exit_code=65, stdout=report, stderr=f"copy refused for {_TOKEN}\n")
+
+    with pytest.raises(DataError, match="exited 65") as caught:
+        run_command(["ocx", "package", "copy"], {}, popen_factory=_factory(proc))
+
+    rendered = _sdk_frame_local_reprs(caught.value)
+    # Names the frame under test: a bare truthiness check passes on any SDK
+    # local at all, so it would survive `Completed` dropping out of the frame.
+    assert any("Completed(" in text for text in rendered), "the masked repr was never walked"
+    assert [text for text in rendered if _TOKEN in text] == []
+    assert caught.value.stdout == report
 
 
 def test_run_command_still_gives_the_child_the_unredacted_env_and_argv() -> None:
@@ -493,7 +592,7 @@ def test_timeout_error_carries_redacted_partial_stderr(killpg: list[tuple[int, i
     assert killpg == [(4321, signal.SIGTERM)]
 
 
-# --- S-004: the timeout kill ladder --------------------------------------
+# --- v0.1 S-004: the timeout kill ladder ---------------------------------
 
 
 def test_timeout_kill_ladder(killpg: list[tuple[int, int]]) -> None:
@@ -612,7 +711,7 @@ def test_run_command_captures_from_a_worker_thread() -> None:
     assert results == [Completed(0, "ok\n", "")]
 
 
-# --- S-004: retry hookup --------------------------------------------------
+# --- v0.1 S-004: retry hookup ---------------------------------------------
 
 
 def test_run_command_retries_a_transient_exit_and_then_succeeds() -> None:
@@ -738,6 +837,23 @@ async def test_run_command_async_raises_the_error_the_exit_code_maps_to() -> Non
     assert caught.value.stderr == "bad flag\n"
 
 
+async def test_run_command_async_carries_its_report_on_the_error() -> None:
+    """D10 obligation 5: the async raise site wires stdout too, proven, not inspected.
+
+    `run_command_async` has its own `raise _exit_error(...)`; a fix applied
+    only to the sync twin would leave every `await`ed sign, push, or copy
+    without its partial-failure report.
+    """
+    report = '{"status": "partial_failure", "rows": [{"tag": "1.2", "status": "failed"}]}'
+    proc = _FakeProcess(exit_code=65, stdout=report.encode(), stderr=b"one leg failed\n")
+
+    with pytest.raises(DataError, match="exited 65") as caught:
+        await run_command_async(["ocx", "package", "sign"], {}, exec_factory=_async_factory(proc))
+
+    assert caught.value.stdout == report
+    assert report not in str(caught.value)
+
+
 async def test_run_command_async_returns_the_failure_when_check_is_off() -> None:
     proc = _FakeProcess(exit_code=79, stdout=b"{}\n")
 
@@ -766,12 +882,20 @@ async def test_run_command_async_without_capture_leaves_both_streams_inherited()
 async def test_run_command_async_timeout_terminates_the_child_and_keeps_partial_stderr(
     killpg: list[tuple[int, int]],
 ) -> None:
-    proc = _FakeProcess(pid=999, stderr=b"resolving\n", hangs=1)
+    """The partial stderr a timeout keeps goes through the redactor too.
+
+    It is the same `_decode(err, redact)` the success path uses, but on a
+    branch a plain-payload fixture cannot tell apart from one that dropped
+    the redactor — so the payload carries a secret.
+    """
+    proc = _FakeProcess(pid=999, stderr=f"resolving {_TOKEN}\n".encode(), hangs=1)
 
     with pytest.raises(OcxTimeoutError, match=r"timed out after 0\.01s") as caught:
-        await run_command_async(["ocx", "pull"], {}, timeout=0.01, exec_factory=_async_factory(proc))
+        await run_command_async(
+            ["ocx", "pull"], {}, timeout=0.01, redact=_redact_token, exec_factory=_async_factory(proc)
+        )
 
-    assert caught.value.stderr == "resolving\n"
+    assert caught.value.stderr == "resolving ***\n"
     assert killpg == [(999, signal.SIGTERM)]
 
 
@@ -905,8 +1029,11 @@ async def test_a_read_that_blows_up_still_reaps_the_child(killpg: list[tuple[int
 
 
 async def test_run_command_async_cancellation_keeps_the_partial_stderr(killpg: list[tuple[int, int]]) -> None:
-    proc = _FakeProcess(pid=999, stderr=b"resolving uv\n", suspend=True)
-    task = asyncio.create_task(run_command_async(["ocx", "pull"], {}, exec_factory=_async_factory(proc)))
+    """The cancellation note is redacted — a secret must not ride out on it."""
+    proc = _FakeProcess(pid=999, stderr=f"resolving uv {_TOKEN}\n".encode(), suspend=True)
+    task = asyncio.create_task(
+        run_command_async(["ocx", "pull"], {}, redact=_redact_token, exec_factory=_async_factory(proc))
+    )
     for _ in range(6):
         await asyncio.sleep(0)
 
@@ -915,7 +1042,7 @@ async def test_run_command_async_cancellation_keeps_the_partial_stderr(killpg: l
         await task
 
     assert killpg == [(999, signal.SIGTERM)]
-    assert caught.value.__notes__ == ["partial ocx stderr before cancellation: resolving uv\n"]
+    assert caught.value.__notes__ == ["partial ocx stderr before cancellation: resolving uv ***\n"]
 
 
 # --- stdin: the `login --password-stdin` shape ---------------------------

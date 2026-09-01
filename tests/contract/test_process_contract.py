@@ -54,7 +54,7 @@ def test_timeout_kill_ladder(project_factory: Callable[..., Project]) -> None:
 
     started = time.monotonic()
     with pytest.raises(OcxTimeoutError, match=f"timed out after {_TIMEOUT}s") as caught:
-        project.run(["sh", "-c", "sleep 60"], timeout=_TIMEOUT)
+        project.exec(["sh", "-c", "sleep 60"], timeout=_TIMEOUT)
     elapsed = time.monotonic() - started
 
     assert caught.value.timeout == _TIMEOUT
@@ -75,7 +75,7 @@ def test_pump_captures_all_lines(ocx_exe: Path, host_env: HostEnv, config: OcxCo
     project = Ocx(exe=ocx_exe, host_env=host_env, config=config, on_log=collected.append).project(project_file(root))
     project.lock()
 
-    result = project.run(["sh", "-c", f"for i in $(seq 1 {_LINES}); do echo wp10-line-$i >&2; done"])
+    result = project.exec(["sh", "-c", f"for i in $(seq 1 {_LINES}); do echo wp10-line-$i >&2; done"])
 
     expected = [f"wp10-line-{index}" for index in range(1, _LINES + 1)]
     assert [line for line in result.stderr.splitlines() if line.startswith("wp10-line-")] == expected
