@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Contract tests for `ocx_sdk._config` (C-007).
+"""Contract tests for `ocx_sdk._config` (v0.1 C-007; D13).
 
 Named row from the design's mechanism matrix: `test_config_fail_closed_insecure_registries`
 (§14) — the field-level half, where an explicit `()` is a different answer than
@@ -31,6 +31,13 @@ _DEFAULTS = {
     "managed_config": None,
     "auth": {},
     "insecure_registries": None,
+    # D13. `None` is not "leave the ambient value" here, unlike the other
+    # path-shaped fields — `_env` pops an ambient OCX_SIGSTORE_TRUSTED_ROOT on
+    # this arm, so the default means ocx's own root of trust. The field exists
+    # so that neutralizing the variable removes a channel rather than the
+    # air-gapped-verification capability; `tests/unit/test_env.py` holds the
+    # spawn-side halves.
+    "sigstore_trusted_root": None,
     "docker_config": None,
     "index": None,
     "jobs": None,

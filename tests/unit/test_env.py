@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Contract tests for `ocx_sdk._env` (C-009, S-006).
+"""Contract tests for `ocx_sdk._env` (v0.1 C-009, v0.1 S-006; D12, D13).
 
 Named rows from the design's mechanism matrix live here:
-`test_secrets_absent_from_repr_logs_errors` (S-006 — the secret-hygiene
+`test_secrets_absent_from_repr_logs_errors` (v0.1 S-006 — the secret-hygiene
 scenario), `test_registry_slug_fixtures` (the §9 slug carve-out, pinned
 against the WP00 corpus and failing closed on mismatch), and
 `test_ocx_keys_rejected_in_project_env` (the reserved-namespace gate, here
@@ -49,6 +49,7 @@ _HOME = Path("/opt/ocx-home")
 _CONFIG_FILE = Path("/etc/ocx/config.toml")
 _INDEX = Path("/var/ocx/index")
 _DOCKER = Path("/run/docker")
+_TRUST_ROOT = Path("/etc/ocx/air-gapped-trusted-root.json")
 
 
 def _spawn(config: OcxConfig | None = None, /, **ambient: str) -> Mapping[str, str]:
@@ -104,6 +105,19 @@ def test_registries_sharing_one_slug_are_refused() -> None:
         pytest.param("OCX_PROJECT", id="project"),
         pytest.param("OCX_GLOBAL", id="global"),
         pytest.param("OCX_QUIET", id="quiet"),
+        # D12. `OCX_NO_VERIFY` is the fail-open one and the reason the tuple
+        # grew: it is inert below the old 0.5.8 floor and live at 0.6.0, so
+        # raising MIN_SUPPORTED is what created the hole. It silently skips
+        # signature verification — no error, no exit code, no output the SDK
+        # could see — and ocx re-exports it to its own children, so it rides
+        # through nested invocations and into every `exec`ed child command.
+        # Neutralizing removes a channel, not a capability: `verify=False` on
+        # `install`/`pull` still says it, at the call site, where it is
+        # reviewable. The two hook variables are their inert siblings — an
+        # SDK-spawned child renders no prompt and offers no completions.
+        pytest.param("OCX_NO_VERIFY", id="no-verify"),
+        pytest.param("OCX_NO_HOOK", id="no-hook"),
+        pytest.param("OCX_NO_COMPLETIONS", id="no-completions"),
     ],
 )
 def test_neutralized_keys_never_reach_the_child(key: str) -> None:
@@ -113,12 +127,51 @@ def test_neutralized_keys_never_reach_the_child(key: str) -> None:
 
 
 def test_neutralization_leaves_unrelated_ambient_variables_alone() -> None:
-    # Only the three neutralized keys are dropped; everything else the caller
-    # chose to inherit survives verbatim.
+    # Only the neutralized keys are dropped; everything else the caller chose
+    # to inherit survives verbatim.
     mapping = _spawn(PATH="/usr/bin", CI="true", OCX_PROJECT="/elsewhere")
 
     assert {"PATH": "/usr/bin", "CI": "true"}.items() <= mapping.items()
     assert "OCX_PROJECT" not in mapping
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        pytest.param("ocx_project", id="project"),
+        pytest.param("ocx_global", id="global"),
+        pytest.param("ocx_quiet", id="quiet"),
+        pytest.param("ocx_no_verify", id="no-verify"),
+        pytest.param("Ocx_No_Hook", id="no-hook"),
+        pytest.param("Ocx_No_Completions", id="no-completions"),
+    ],
+)
+def test_a_neutralized_key_is_dropped_whatever_case_the_host_spelled_it(spelling: str) -> None:
+    """The drop matches on `key.upper()`, as `_clear_claimed_triples` casefolds.
+
+    `HostEnv.current()` cannot produce these spellings — Windows upper-cases
+    its env names and POSIX would not resolve a lower-cased one — but a
+    hand-built `HostEnv` can, and a Windows child looks env vars up
+    case-insensitively, so `ocx_no_verify=1` would arrive live and disable
+    signature verification.
+
+    Asserted as the property (no spelling of the name reaches the child), not
+    as the mechanism: reading `_NEUTRALIZED_KEYS` back would keep passing if
+    someone moved the drop to a place it no longer runs.
+    """
+    mapping = _spawn(**{spelling: "1"})
+
+    assert [key for key in mapping if key.upper() == spelling.upper()] == []
+
+
+def test_a_neutralized_verification_switch_is_dropped_even_alongside_a_full_config() -> None:
+    # D12: neutralization runs before `_apply_config`, so a config that writes
+    # its own OCX_* vars cannot reintroduce the ambient kill switch by
+    # arriving later in the assembly.
+    mapping = _spawn(OcxConfig(offline=True, home=_HOME), OCX_NO_VERIFY="1", OCX_OFFLINE="0")
+
+    assert "OCX_NO_VERIFY" not in mapping
+    assert mapping["OCX_OFFLINE"] == "1"
 
 
 # ── config → wire variables (§7) ─────────────────────────────────────────────
@@ -217,12 +270,152 @@ def test_managed_config_disabled_sentinel_travels_as_an_empty_string() -> None:
     assert mapping["OCX_MANAGED_CONFIG"] == ""
 
 
+def test_sigstore_trusted_root_travels_as_the_wire_variable() -> None:
+    # D13: the capability half. Air-gapped verification against a private root
+    # of trust is a legitimate workflow with no other SDK surface, and adding
+    # the field is what turns neutralizing the ambient variable from a
+    # capability-removal into a channel-removal.
+    mapping = _spawn(OcxConfig(sigstore_trusted_root=_TRUST_ROOT))
+
+    assert mapping["OCX_SIGSTORE_TRUSTED_ROOT"] == str(_TRUST_ROOT)
+
+
+def test_sigstore_trusted_root_accepts_a_plain_string_path() -> None:
+    # Typed `str | Path | None`, unlike the other path fields, because the
+    # value is frequently interpolated from CI configuration as text.
+    mapping = _spawn(OcxConfig(sigstore_trusted_root="/etc/ocx/root.json"))
+
+    assert mapping["OCX_SIGSTORE_TRUSTED_ROOT"] == "/etc/ocx/root.json"
+
+
+def test_sigstore_trusted_root_none_clears_an_ambient_root_of_trust() -> None:
+    # D13: the security half, and the arm a set-only write would fail. This
+    # variable does not disable verification, it REDEFINES what "trusted"
+    # means, and its precedence is env -> [trust.sigstore] -> default, so it
+    # beats the config file. A hostile ambient value points Fulcio, CT, and
+    # Rekor at an attacker's material and every install still reports
+    # verified — failure presenting as success. Saying nothing therefore has
+    # to mean ocx's default trust root, not the host's.
+    mapping = _spawn(OcxConfig(), OCX_SIGSTORE_TRUSTED_ROOT="/tmp/attacker-root.json")
+
+    assert "OCX_SIGSTORE_TRUSTED_ROOT" not in mapping
+
+
+def test_an_explicit_sigstore_trusted_root_beats_an_ambient_one() -> None:
+    # Explicit config wins over ambient env, the standing rule
+    # `insecure_registries=()` already carries.
+    mapping = _spawn(OcxConfig(sigstore_trusted_root=_TRUST_ROOT), OCX_SIGSTORE_TRUSTED_ROOT="/tmp/attacker-root.json")
+
+    assert mapping["OCX_SIGSTORE_TRUSTED_ROOT"] == str(_TRUST_ROOT)
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        pytest.param(OcxConfig(), None, id="none-clears"),
+        pytest.param(OcxConfig(sigstore_trusted_root=_TRUST_ROOT), str(_TRUST_ROOT), id="explicit-replaces"),
+    ],
+)
+def test_an_ambient_root_of_trust_is_cleared_whatever_case_it_was_spelled_in(
+    config: OcxConfig, expected: str | None
+) -> None:
+    """The D13 clear matches on `.upper()`, like the neutralization pass.
+
+    A lower-cased spelling surviving here is worse than a surviving
+    `ocx_no_verify`: on Windows the child resolves it, and it repoints
+    Fulcio, CT, and Rekor rather than merely skipping the check. Left as an
+    exact match it would also outlive the explicit arm, since the SDK's
+    upper-cased write and the host's spelling are two distinct dict keys that
+    a case-insensitive child cannot tell apart.
+    """
+    mapping = _spawn(config, ocx_sigstore_trusted_root="/tmp/attacker-root.json")
+
+    assert [mapping[key] for key in mapping if key.upper() == "OCX_SIGSTORE_TRUSTED_ROOT"] == (
+        [] if expected is None else [expected]
+    )
+
+
 def test_no_config_refresh_false_clears_an_ambient_suppression() -> None:
     # The `| None` tier is what makes False meaningful: None defers to the
     # ambient policy owner, False actively asks for the refresh back.
     mapping = _spawn(OcxConfig(no_config_refresh=False), OCX_NO_CONFIG_REFRESH="1")
 
     assert "OCX_NO_CONFIG_REFRESH" not in mapping
+
+
+# ── ambient matching is case-insensitive everywhere (D14) ────────────────────
+
+
+@pytest.mark.parametrize(
+    ("config", "key", "expected"),
+    [
+        pytest.param(OcxConfig(offline=True), "OCX_OFFLINE", "1", id="offline"),
+        pytest.param(OcxConfig(frozen=True), "OCX_FROZEN", "1", id="frozen"),
+        pytest.param(OcxConfig(no_config=True), "OCX_NO_CONFIG", "1", id="no-config"),
+        pytest.param(OcxConfig(no_update_check=False), "OCX_NO_UPDATE_CHECK", "0", id="update-check-opt-in"),
+        pytest.param(OcxConfig(home=_HOME), "OCX_HOME", str(_HOME), id="home"),
+        pytest.param(OcxConfig(config=_CONFIG_FILE), "OCX_CONFIG", str(_CONFIG_FILE), id="config"),
+        pytest.param(OcxConfig(index=_INDEX), "OCX_INDEX", str(_INDEX), id="index"),
+        pytest.param(OcxConfig(docker_config=_DOCKER), "DOCKER_CONFIG", str(_DOCKER), id="docker-config"),
+        pytest.param(OcxConfig(jobs=4), "OCX_JOBS", "4", id="jobs"),
+        pytest.param(OcxConfig(mirrors={"ghcr.io": "m.corp"}), "OCX_MIRRORS", '{"ghcr.io": "m.corp"}', id="mirrors"),
+        pytest.param(
+            OcxConfig(managed_config="ocx.sh/acme/cfg:1"),
+            "OCX_MANAGED_CONFIG",
+            "ocx.sh/acme/cfg:1",
+            id="managed-config",
+        ),
+        pytest.param(OcxConfig(no_config_refresh=True), "OCX_NO_CONFIG_REFRESH", "1", id="no-config-refresh"),
+        pytest.param(
+            OcxConfig(insecure_registries=("only.corp",)),
+            "OCX_INSECURE_REGISTRIES",
+            "only.corp",
+            id="insecure-registries",
+        ),
+        pytest.param(
+            OcxConfig(sigstore_trusted_root=_TRUST_ROOT),
+            "OCX_SIGSTORE_TRUSTED_ROOT",
+            str(_TRUST_ROOT),
+            id="sigstore-trusted-root",
+        ),
+    ],
+)
+def test_a_written_variable_replaces_every_spelling_of_the_ambient_one(
+    config: OcxConfig, key: str, expected: str
+) -> None:
+    """One answer per name reaches the child, whatever case the host used.
+
+    Two dict keys differing only in case are one variable to a Windows child,
+    which resolves env lookups case-insensitively, so leaving the host's
+    spelling beside the SDK's hands the outcome to whichever the child
+    happens to read first. The assertion is the property — exactly one
+    surviving spelling, carrying the SDK's value — so a stray ambient
+    survivor fails on the count and a lost write fails on the value.
+    """
+    mapping = _spawn(config, **{key.lower(): "ambient-must-lose"})
+
+    assert [value for name, value in mapping.items() if name.upper() == key] == [expected]
+
+
+def test_a_config_refresh_opt_in_clears_every_spelling_of_the_ambient_suppression() -> None:
+    # The clear arm of a `| None` field, matched case-insensitively for the
+    # same reason the write arm is: `False` asks for the refresh back, and a
+    # surviving `ocx_no_config_refresh=1` would keep it suppressed on a child
+    # that resolves the name case-insensitively.
+    mapping = _spawn(OcxConfig(no_config_refresh=False), ocx_no_config_refresh="1")
+
+    assert [name for name in mapping if name.upper() == "OCX_NO_CONFIG_REFRESH"] == []
+
+
+def test_insecure_registries_fail_closed_against_a_case_variant_ambient_allowlist() -> None:
+    # `()` is documented as THE answer to a CI image exporting a plaintext
+    # registry: "plaintext nowhere". A surviving `ocx_insecure_registries`
+    # keeps `evil.example` reachable over plain HTTP and defeats the control
+    # outright, so the property is that no spelling of the name still names
+    # that host.
+    mapping = _spawn(OcxConfig(insecure_registries=()), ocx_insecure_registries="evil.example")
+
+    assert [value for name, value in mapping.items() if name.upper() == "OCX_INSECURE_REGISTRIES"] == [""]
 
 
 def test_mirrors_travel_as_one_json_object() -> None:
@@ -322,20 +515,26 @@ def test_replacing_basic_with_bearer_removes_the_stale_user() -> None:
     assert mapping["OCX_AUTH_ghcr_io_TYPE"] == "token"
 
 
-def test_a_case_variant_ambient_triple_loses_to_the_configured_one() -> None:
-    # Registry hosts are case-insensitive, so an ambient OCX_AUTH_GHCR_IO_* is
-    # a credential for the same registry a configured `ghcr.io` covers.
-    # Leaving it in place would ship two credential sets for one registry and
-    # hand the outcome to whichever spelling ocx slugs. Fail closed: an
-    # explicit config clears the ambient triple whatever its case.
+@pytest.mark.parametrize(
+    ("type_key", "token_key"),
+    [
+        pytest.param("ocx_auth_ghcr_io_type", "ocx_auth_ghcr_io_token", id="lower-cased"),
+        pytest.param("OCX_AUTH_GHCR_IO_TYPE", "OCX_AUTH_GHCR_IO_TOKEN", id="upper-cased"),
+        pytest.param("Ocx_Auth_Ghcr_Io_Type", "Ocx_Auth_Ghcr_Io_Token", id="mixed-case"),
+    ],
+)
+def test_a_configured_credential_shadows_every_spelling_of_the_ambient_triple(type_key: str, token_key: str) -> None:
+    # Registry hosts are case-insensitive, so any spelling of an ambient
+    # OCX_AUTH_GHCR_IO_* is a credential for the registry a configured
+    # `ghcr.io` covers. Leaving one in place ships two credential sets for one
+    # registry and hands the winner to whichever spelling the child resolves.
     mapping = _spawn(
         OcxConfig(auth={"ghcr.io": BearerAuth("explicit")}),
-        OCX_AUTH_GHCR_IO_TYPE="token",
-        OCX_AUTH_GHCR_IO_TOKEN="ambient",
+        **{type_key: "token", token_key: "ambient"},
     )
 
-    assert mapping["OCX_AUTH_ghcr_io_TOKEN"] == "explicit"
-    assert [key for key in mapping if key.startswith("OCX_AUTH_")] == [
+    assert [value for name, value in mapping.items() if name.upper() == "OCX_AUTH_GHCR_IO_TOKEN"] == ["explicit"]
+    assert [name for name in mapping if name.upper().startswith("OCX_AUTH_")] == [
         "OCX_AUTH_ghcr_io_TYPE",
         "OCX_AUTH_ghcr_io_TOKEN",
     ]
@@ -363,7 +562,7 @@ def test_auth_for_one_registry_leaves_another_registrys_ambient_credentials() ->
     assert mapping["OCX_AUTH_docker_io_TOKEN"] == "untouched"
 
 
-# ── secret hygiene (S-006, §12) ──────────────────────────────────────────────
+# ── secret hygiene (v0.1 S-006, §12) ────────────────────────────────────────
 
 
 def _env_carrying_exports() -> list[type]:
@@ -474,6 +673,60 @@ def test_redact_scrubs_a_credential_the_host_exported() -> None:
     redact = build_spawn_env(host, OcxConfig()).redact
 
     assert redact("pulling with ambient-token") == "pulling with ***"
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        pytest.param("ocx_auth_ghcr_io_token", id="lower-cased"),
+        pytest.param("OCX_AUTH_GHCR_IO_TOKEN", id="upper-cased-control"),
+        pytest.param("Ocx_Auth_Ghcr_Io_Token", id="mixed-case"),
+    ],
+)
+def test_an_ambient_credential_is_redacted_whatever_case_it_was_spelled_in(spelling: str) -> None:
+    """D14, the severe arm: `_secrets` matched the prefix case-exactly.
+
+    A lower-cased ambient token never entered the redaction set and then
+    reached captured stderr, `on_log`, logged argv and exception text —
+    CWE-532, and platform-independent, since the leak is in the SDK's own
+    scrubber rather than in what the child resolves. The upper-cased row is
+    the control that proves case-matching is the only variable.
+    """
+    host = HostEnv({spelling: "sekret-token-123"})
+
+    redact = build_spawn_env(host, OcxConfig()).redact
+
+    assert redact("pulling with sekret-token-123") == "pulling with ***"
+
+
+def test_the_header_form_of_a_case_variant_ambient_basic_credential_is_redacted() -> None:
+    # The `_USER` companion is looked up under the token key's own case, so a
+    # lower-cased pair would otherwise contribute its raw password but not the
+    # base64 an `Authorization: Basic` header carries.
+    encoded = base64.b64encode(b"ci:hunter2").decode()
+    host = HostEnv({"ocx_auth_ghcr_io_user": "ci", "ocx_auth_ghcr_io_token": "hunter2"})
+
+    redact = build_spawn_env(host, OcxConfig()).redact
+
+    assert redact(f"Authorization: Basic {encoded}") == "Authorization: Basic ***"
+
+
+def test_every_case_spelling_of_an_ambient_user_gets_its_header_form_redacted() -> None:
+    # One token, two spellings of its `_USER`. A last-wins index keeps one
+    # pair and drops the other — and the one it drops can be the live one,
+    # since a POSIX child resolves the exact-case companion. Both header forms
+    # are reachable in a trace log, so both are scrubbed.
+    host = HostEnv(
+        {
+            "OCX_AUTH_GHCR_IO_USER": "alice",
+            "ocx_auth_ghcr_io_user": "bob",
+            "OCX_AUTH_GHCR_IO_TOKEN": "T1",
+        }
+    )
+
+    redact = build_spawn_env(host, OcxConfig()).redact
+
+    assert [redact(base64.b64encode(f"{user}:T1".encode()).decode()) for user in ("alice", "bob")] == ["***", "***"]
 
 
 def test_redact_scrubs_the_basic_authorization_header_form() -> None:

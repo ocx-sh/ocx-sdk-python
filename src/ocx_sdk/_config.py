@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Session configuration for the runtime layer (contract C-007).
+"""Session configuration for the runtime layer (contract v0.1 C-007).
 
 `OcxConfig` is the one place a caller states policy for everything a handle
 spawns: which ocx home, which config tier, which credentials, how long to wait.
@@ -9,12 +9,16 @@ It carries data only — `_env.build_spawn_env()` turns it into argv globals and
 child environment variables, and nothing here touches a process, a file, or the
 ambient environment.
 
-Two fields decide security posture and are worth reading twice:
+Three fields decide security posture and are worth reading twice:
 
 - `insecure_registries` is `None` to inherit whatever the ambient environment
   allows, and any explicit value — **including the empty tuple** — to replace
   the ambient set entirely. `()` is therefore "plaintext nowhere", the
   fail-closed answer to an `OCX_INSECURE_REGISTRIES` a CI image exported.
+- `sigstore_trusted_root` is `None` to mean ocx's own root of trust, which
+  `_env` enforces by *clearing* an ambient `OCX_SIGSTORE_TRUSTED_ROOT` rather
+  than inheriting it — the variable outranks the config file, so inheriting it
+  would let the host redefine what "trusted" means with no visible symptom.
 - `auth` and `insecure_registries` naming the same registry means credentials
   would travel over plaintext HTTP (CWE-319), so the constructor warns. It
   warns again on a non-lowercase `auth` key, which would export credentials
@@ -72,6 +76,7 @@ class ConfigOverrides(TypedDict, total=False):
     managed_config: str | None
     auth: Mapping[str, Auth]
     insecure_registries: Collection[str] | None
+    sigstore_trusted_root: str | Path | None
     docker_config: Path | None
     index: Path | None
     jobs: int | None
@@ -110,6 +115,26 @@ class OcxConfig:
         insecure_registries: Registries reachable over plaintext HTTP. `None`
             inherits the ambient set; any explicit value replaces it entirely,
             so `()` blocks an ambient re-enable (fail-closed).
+        sigstore_trusted_root: The Sigstore trusted root to verify signatures
+            against, for air-gapped verification against a private root of
+            trust. `None` is **not** "leave the ambient value" here, unlike
+            the other path-shaped fields: it means ocx's own default root, and
+            `_env` pops an ambient `OCX_SIGSTORE_TRUSTED_ROOT` to enforce that.
+            The variable redefines what "trusted" means and outranks the
+            config file, so an ambient one could otherwise repoint Fulcio, CT,
+            and Rekor at an attacker's material while every install still
+            reported verified.
+            The path travels verbatim, as `home`, `config`, `index` and
+            `docker_config` do: `~` is not expanded, and a relative path
+            resolves against the *child's* working directory, not the
+            caller's. That is acceptable rather than sloppy, because a path
+            ocx cannot read is not a path it falls back from — an explicit
+            override is read with `?`, so an unreadable one aborts the command
+            at exit 74 (`IoError`) instead of quietly verifying against the
+            default root. A wrong value fails loudly; it never becomes a
+            silent trust substitution, which is the hazard this field exists
+            to close. Pass an absolute path when the call must not depend on
+            where the child starts.
         docker_config: Directory for `DOCKER_CONFIG`. Keep it `0700` — it holds
             registry credentials.
         index: Explicit index path; `None` keeps ocx's default.
@@ -140,6 +165,7 @@ class OcxConfig:
     managed_config: str | None = None
     auth: Mapping[str, Auth] = field(default_factory=dict[str, Auth])
     insecure_registries: Collection[str] | None = None
+    sigstore_trusted_root: str | Path | None = None
     docker_config: Path | None = None
     index: Path | None = None
     jobs: int | None = None

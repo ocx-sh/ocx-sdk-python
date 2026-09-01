@@ -5,7 +5,7 @@
 
 The SDK reimplements exactly one merge algorithm, and this file is the reason
 it is allowed to: every fold `ComposedEnv` performs is diffed against what a
-child actually sees under `ocx run -- printenv`. Nothing else in the suite can
+child actually sees under `ocx exec -- printenv`. Nothing else in the suite can
 catch a divergence here — the unit tier tests the SDK's model of the fold, and
 the model is precisely what could be wrong.
 
@@ -97,7 +97,7 @@ def _divergence(project: Project) -> Mapping[str, tuple[str | None, str]]:
     """
     report = project.env()
     composed = report.compose().mapping
-    actual = child_env(project.run(["printenv"]).stdout)
+    actual = child_env(project.exec(["printenv"]).stdout)
     return {
         entry.key: (composed.get(entry.key), actual[entry.key])
         for entry in report.entries
@@ -154,9 +154,9 @@ def test_ocx_keys_rejected_in_project_env(project_factory: Callable[..., Project
     project = project_factory(_PLAIN_ENV)
 
     with pytest.raises(OcxError, match="reserved"):
-        project.run(["true"], env={"OCX_SMUGGLED": "1"})
+        project.exec(["true"], env={"OCX_SMUGGLED": "1"})
 
-    smuggled = ["--project", str(project.path), "run", "--env", "OCX_SMUGGLED=1", "--", "true"]
+    smuggled = ["--project", str(project.path), "exec", "--env", "OCX_SMUGGLED=1", "--", "true"]
     with pytest.raises(UsageError, match="exited 64"):
         ocx.invoke(smuggled)
 
@@ -182,7 +182,7 @@ def test_auth_env_propagation_pinned(
     )
     project.lock()
 
-    seen = child_env(project.run(["printenv"]).stdout)
+    seen = child_env(project.exec(["printenv"]).stdout)
 
     assert {key: seen.get(key) for key in secrets} == secrets
 
@@ -207,7 +207,7 @@ def test_registry_slug_fixtures(
     auth = {case["registry"]: BearerAuth(f"token-for-{case['slug']}") for case in lowercase}
     project = project_factory(_PLAIN_ENV)
 
-    seen = child_env(project.with_config(auth=auth).run(["printenv"]).stdout)
+    seen = child_env(project.with_config(auth=auth).exec(["printenv"]).stdout)
 
     expected: dict[str, str] = {}
     for case in lowercase:
@@ -224,4 +224,4 @@ def test_registry_slug_empty_fails_closed(project_factory: Callable[..., Project
     project = project_factory(_PLAIN_ENV)
 
     with pytest.raises(OcxError, match="empty slug"):
-        project.with_config(auth={"": BearerAuth("unreachable")}).run(["true"])
+        project.with_config(auth={"": BearerAuth("unreachable")}).exec(["true"])

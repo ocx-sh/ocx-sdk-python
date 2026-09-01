@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Contract tests for `ocx_sdk._envmodel` (C-008, S-002).
+"""Contract tests for `ocx_sdk._envmodel` (v0.1 C-008, v0.1 S-002).
 
 Named rows from the design's mechanism matrix: `test_activate_diff_revert`
 (absent-key delete, unrelated mutation survives, exception inside the block)
@@ -11,7 +11,7 @@ carried verbatim.
 
 The oracle for every expectation here is ocx itself (`Env::apply_entries`,
 `move_to_front`, `append_unique`, `reconcile_list_separators`); the contract
-tier re-checks the same fold against `ocx run -- printenv`.
+tier re-checks the same fold against `ocx exec -- printenv`.
 """
 
 from __future__ import annotations

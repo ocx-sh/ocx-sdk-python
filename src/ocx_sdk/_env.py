@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Spawn environment assembly and secret redaction (contract C-009).
+"""Spawn environment assembly and secret redaction (contract v0.1 C-009).
 
 Every child environment this SDK hands to a process is composed here, and
 every secret that env carries is scrubbed through the `redact` callable
@@ -14,17 +14,26 @@ true: no other module composes a child env or reads a credential value.
 
 Three transformations happen, in order:
 
-1. **Neutralize.** Ambient `OCX_PROJECT`/`OCX_GLOBAL`/`OCX_QUIET` are always
-   dropped — the SDK targets a project through an explicit `--project`, and
-   an inherited one would silently retarget every call.
+1. **Neutralize.** Every key in `_NEUTRALIZED_KEYS` is always dropped,
+   whatever case the host spelled it in — the SDK targets a project through
+   an explicit `--project`, and an inherited `OCX_PROJECT` would silently
+   retarget every call; an inherited `OCX_NO_VERIFY` would silently disable
+   signature verification.
 2. **Apply the config.** `OcxConfig` fields map onto the `OCX_*` wire vars
    ocx reads. A field typed `X | None` uses `None` for "leave whatever the
    host had"; a plain `bool` has no such tier, so `False` means "not
    requested" and leaves the ambient value alone.
 3. **Apply auth.** Ambient `OCX_AUTH_*` passes through untouched, except
    where `config.auth` names the same registry — explicit configuration wins
-   over the ambient environment, per slug and regardless of the case the
-   ambient variable spells that slug in.
+   over the ambient environment, per slug.
+
+**The case rule (D14), stated once for the whole module.** Ambient names are
+matched on `key.upper()` everywhere: all three passes and the redaction set.
+`HostEnv.current()` cannot hand us a lower-cased `ocx_no_verify` (Windows
+upper-cases its env names, POSIX would not resolve one), but a hand-built
+`HostEnv` can — and a Windows child resolves env lookups case-insensitively,
+so two dict keys differing only in case are one variable to it and that
+spelling arrives live.
 """
 
 from __future__ import annotations
@@ -41,8 +50,25 @@ from ._config import OcxConfig
 from ._errors import OcxError
 from ._types import Auth, BasicAuth, EnvValue, HostEnv, ListVar, PathVar
 
-_NEUTRALIZED_KEYS: Final = ("OCX_PROJECT", "OCX_GLOBAL", "OCX_QUIET")
-"""Ambient variables dropped from every spawn, whatever the config says."""
+_NEUTRALIZED_KEYS: Final = (
+    "OCX_PROJECT",
+    "OCX_GLOBAL",
+    "OCX_QUIET",
+    "OCX_NO_VERIFY",
+    "OCX_NO_HOOK",
+    "OCX_NO_COMPLETIONS",
+)
+"""Ambient variables dropped from every spawn, whatever the config says.
+
+`OCX_NO_VERIFY` is the security one (D12): ambient, it silently disables
+signature verification, and a skipped verification is byte-identical to a
+passed one from the SDK side. Nothing is lost by dropping it — `install` and
+`pull` take `verify=`, and the argv flag outranks the variable, so a caller who
+means it says so at the call site. `OCX_NO_HOOK` and `OCX_NO_COMPLETIONS`
+govern interactive-shell affordances a spawned child never renders.
+
+Spelled uppercase here, but matched case-insensitively — see `build_spawn_env`.
+"""
 
 _AUTH_PREFIX: Final = "OCX_AUTH_"
 """Namespace of the credential variables ocx reads."""
@@ -113,9 +139,9 @@ def build_spawn_env(host: HostEnv, config: OcxConfig) -> SpawnEnv:
             cannot name an environment variable. Refused rather than
             emitted anonymously.
     """
-    mapping = dict(host.source)
-    for key in _NEUTRALIZED_KEYS:
-        mapping.pop(key, None)
+    # Case rule, module docstring. Over-dropping a variable nothing reads is
+    # the cheap direction; leaking the kill switch is not.
+    mapping = {key: value for key, value in host.source.items() if key.upper() not in _NEUTRALIZED_KEYS}
 
     _apply_config(mapping, config)
     _apply_auth(mapping, config.auth)
@@ -134,16 +160,48 @@ def _secrets(mapping: Mapping[str, str]) -> list[str]:
     Each basic credential also contributes the base64 of `user:password` —
     the form an `Authorization: Basic` header carries, so a trace-level log
     of the request would otherwise leak it past a plaintext-only scrub.
+
+    Names are matched per the module's case rule. A credential left out of
+    this set by a case mismatch reaches captured stderr, `on_log`, logged argv
+    and exception text — CWE-532. The `_USER` companion is therefore indexed
+    to **every** value spelled under that name, each contributing its own
+    header form: a last-wins index would drop precisely the live pair, since
+    on POSIX the child resolves the exact-case companion.
     """
+    users: dict[str, list[str]] = {}
+    for key, value in mapping.items():
+        users.setdefault(key.upper(), []).append(value)
+
     secrets: list[str] = []
     for key, token in mapping.items():
-        if not (key.startswith(_AUTH_PREFIX) and key.endswith("_TOKEN")):
+        name = key.upper()
+        if not (name.startswith(_AUTH_PREFIX) and name.endswith("_TOKEN")):
             continue
         secrets.append(token)
-        user = mapping.get(f"{key.removesuffix('TOKEN')}USER")
-        if user is not None:
-            secrets.append(base64.b64encode(f"{user}:{token}".encode()).decode())
+        secrets.extend(
+            base64.b64encode(f"{user}:{token}".encode()).decode()
+            for user in users.get(f"{name.removesuffix('TOKEN')}USER", ())
+        )
     return secrets
+
+
+def _put(mapping: dict[str, str], key: str, value: str | None) -> None:
+    """Write (or clear) one wire variable, dropping every ambient spelling of it.
+
+    `key` is the uppercase name ocx documents; every key the host exported
+    that differs from it only in case goes first, per the module's case rule.
+    `value=None` clears the name outright.
+
+    Set-only semantics live at the **call sites**, not here: a field the
+    caller never set must not reach `_put` at all, or an unrequested flag
+    would silently clear a value the host meant to keep. That is why the
+    `if requested:` / `if value is not None:` guards in `_apply_config` sit
+    outside the call rather than folding into this `None` arm.
+    """
+    for spelling in [name for name in mapping if name.upper() == key]:
+        del mapping[spelling]
+    if value is not None:
+        mapping[key] = value
 
 
 def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
@@ -152,7 +210,14 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
     A plain `bool` is set-only: `False` carries no "leave the ambient value"
     tier, so it means "not requested" and the host's value survives. The
     fields that can actively clear an ambient value are typed `| None`, and
-    the `None` arm is what defers to the host.
+    the `None` arm is what defers to the host — except on the two variables
+    written either way, `OCX_NO_UPDATE_CHECK` and `OCX_SIGSTORE_TRUSTED_ROOT`,
+    where saying nothing has to mean ocx's default rather than the host's
+    value. Both carry the reason at their write site.
+
+    Every write and clear **in this function** goes through `_put`, so the
+    SDK's answer replaces the host's in any spelling. `_apply_auth` writes
+    directly; `_clear_claimed_triples` says why that is safe.
     """
     for key, requested in (
         ("OCX_OFFLINE", config.offline),
@@ -160,13 +225,13 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         ("OCX_NO_CONFIG", config.no_config),
     ):
         if requested:
-            mapping[key] = "1"
+            _put(mapping, key, "1")
 
     # The one flag whose default is True, so it is written either way: a
     # caller asking for the update check back has to beat an ambient
     # OCX_NO_UPDATE_CHECK=1, which a set-only write could not do. ocx parses
     # "0" as false through env::flag → BooleanString.
-    mapping["OCX_NO_UPDATE_CHECK"] = "1" if config.no_update_check else "0"
+    _put(mapping, "OCX_NO_UPDATE_CHECK", "1" if config.no_update_check else "0")
 
     for key, value in (
         ("OCX_HOME", config.home),
@@ -176,10 +241,10 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         ("OCX_JOBS", config.jobs),
     ):
         if value is not None:
-            mapping[key] = str(value)
+            _put(mapping, key, str(value))
 
     if config.mirrors is not None:
-        mapping["OCX_MIRRORS"] = json.dumps(dict(config.mirrors))
+        _put(mapping, "OCX_MIRRORS", json.dumps(dict(config.mirrors)))
 
     if config.managed_config is not None and not config.no_config:
         # `MANAGED_CONFIG_DISABLED` travels as the empty string on purpose:
@@ -187,13 +252,24 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         # a config file would otherwise switch on. Skipped entirely under
         # `no_config`, which suppresses the managed tier on ocx's own read
         # side — naming a source beside it would describe a tier already off.
-        mapping["OCX_MANAGED_CONFIG"] = config.managed_config
+        _put(mapping, "OCX_MANAGED_CONFIG", config.managed_config)
+
+    # D13: written either way, like OCX_NO_UPDATE_CHECK and for the same
+    # reason — a caller asking for ocx's own root of trust back has to beat an
+    # ambient OCX_SIGSTORE_TRUSTED_ROOT, which a set-only write could not do.
+    # This variable does not disable verification, it redefines what "trusted"
+    # means, and it outranks `[trust.sigstore]`, so a hostile ambient value
+    # repoints Fulcio, CT, and Rekor while every install still reports
+    # verified — failure presenting as success. `None` therefore clears rather
+    # than defers, which is the `_put` arm that takes no value.
+    root = config.sigstore_trusted_root
+    _put(mapping, "OCX_SIGSTORE_TRUSTED_ROOT", None if root is None else str(root))
 
     if config.no_config_refresh is not None:
         if config.no_config_refresh:
-            mapping["OCX_NO_CONFIG_REFRESH"] = "1"
+            _put(mapping, "OCX_NO_CONFIG_REFRESH", "1")
         else:
-            mapping.pop("OCX_NO_CONFIG_REFRESH", None)
+            _put(mapping, "OCX_NO_CONFIG_REFRESH", None)
 
     if config.insecure_registries is not None:
         for registry in config.insecure_registries:
@@ -206,7 +282,7 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         # Fail-closed: an explicit value replaces the ambient set outright, so
         # `()` blocks a plaintext registry a CI image exported instead of
         # quietly inheriting it.
-        mapping["OCX_INSECURE_REGISTRIES"] = ",".join(config.insecure_registries)
+        _put(mapping, "OCX_INSECURE_REGISTRIES", ",".join(config.insecure_registries))
 
 
 def _apply_auth(mapping: dict[str, str], auth: Mapping[str, Auth]) -> None:
@@ -258,18 +334,20 @@ def _clear_claimed_triples(mapping: dict[str, str], claimed: Mapping[str, str]) 
     inert rather than a live confusion. This is defense in depth against that
     precedence changing, not a fix for a bug that exists now.
 
-    Slugs are matched **case-insensitively**. Registry hosts are, so an
-    ambient `OCX_AUTH_GHCR_IO_*` is a credential for the same registry a
-    configured `ghcr.io` covers; `to_slug` deliberately does not case-fold, so
-    the two spellings would otherwise both survive and the outcome would
-    depend on which one ocx happens to slug. Fail closed — explicit
-    configuration wins over the ambient environment, whatever the case.
+    Prefix, slug and suffix are all matched per the module's case rule, which
+    matters doubly here: registry hosts are case-insensitive, so an ambient
+    `ocx_auth_ghcr_io_*` is a credential for the registry a configured
+    `ghcr.io` covers, yet `to_slug` deliberately does not case-fold. Fail
+    closed — explicit configuration wins over the ambient environment. This
+    sweep is also what lets `_apply_auth` write its triple without `_put`:
+    every ambient spelling of the claimed slug is already gone.
     """
     wanted = {slug.casefold() for slug in claimed}
     for key in list(mapping):
-        if not key.startswith(_AUTH_PREFIX):
+        name = key.upper()
+        if not name.startswith(_AUTH_PREFIX):
             continue
-        slug, _, suffix = key.removeprefix(_AUTH_PREFIX).rpartition("_")
+        slug, _, suffix = name.removeprefix(_AUTH_PREFIX).rpartition("_")
         if suffix in _AUTH_SUFFIXES and slug.casefold() in wanted:
             mapping.pop(key)
 
