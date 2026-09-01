@@ -45,6 +45,9 @@ class ExitCode(IntEnum):
     AUTH = 80
     POLICY_BLOCKED = 81
     DIRTY_RC_BLOCK = 82
+    TRANSPARENCY_LOG_UNAVAILABLE = 83
+    REFERRERS_UNSUPPORTED = 84
+    UNSUPPORTED_KEY_BACKEND = 85
 
 
 def _rebuild(cls: type[OcxError], args: tuple[object, ...], state: dict[str, object]) -> OcxError:
@@ -120,17 +123,36 @@ class OcxProcessError(OcxExecutionError):
             and building an error must not itself raise.
         attempts: Attempts made; greater than 1 when a retry policy was
             active. `_retry` sets it on the final failure.
+        stdout: Captured stdout in full, verbatim. Never read by `_summary()`
+            or `__str__` — that is the entire point: a partial-failure report
+            on stdout can carry data that must not reach a log through the
+            exception message. Never redacted either, unlike `stderr` —
+            substituting inside it would corrupt the JSON a caller is about
+            to parse. Read it through `partial_report(err)`, which is the
+            sanctioned consumer; never hand the raw error or this attribute
+            to a log sink, to a logger that serializes `__dict__`, or to a
+            pickle crossing into a lower-trust process.
     """
 
     _hint = "Inspect `.stderr` for the ocx log, or re-run with log_level='debug' for more detail."
 
     exit_code: int
     attempts: int
+    stdout: str
 
-    def __init__(self, exit_code: int, argv: Sequence[str], stderr: str = "", *, attempts: int = 1) -> None:
+    def __init__(
+        self,
+        exit_code: int,
+        argv: Sequence[str],
+        stderr: str = "",
+        *,
+        attempts: int = 1,
+        stdout: str = "",
+    ) -> None:
         super().__init__(argv, stderr)
         self.exit_code = exit_code
         self.attempts = attempts
+        self.stdout = stdout
 
     @property
     def retryable(self) -> bool:
@@ -220,6 +242,37 @@ class DirtyRcBlockError(OcxProcessError):
     """A managed-config fence carried local edits and refused to overwrite them (exit 82)."""
 
     _hint = "Review the local edits inside the managed fence, then re-run with `force=True`."
+
+
+class TransparencyLogUnavailableError(OcxProcessError):
+    """Rekor was unreachable during a signing or verification operation (exit 83)."""
+
+    _hint = (
+        "Rekor was unreachable — this is not a claim that the signature is untrusted. Retry later, "
+        "or point `--rekor-url` at a reachable instance. Do not reach for "
+        "`--allow-unlogged-signature` or a relaxed `[[trust.policy]]` to get past it: those accept "
+        "a signature no transparency log timestamps."
+    )
+
+
+class ReferrersUnsupportedError(OcxProcessError):
+    """The registry served neither the OCI 1.1 Referrers API nor the Referrers Tag Schema fallback (exit 84)."""
+
+    _hint = (
+        "Check for a read-only mirror or an immutable-tag policy blocking the fallback tag push: the "
+        "Referrers Tag Schema needs no server support, so a registry serving neither it nor the OCI 1.1 "
+        "Referrers API is usually write-restricted or misconfigured rather than old."
+    )
+
+
+class UnsupportedKeyBackendError(OcxProcessError):
+    """ocx recognized the key backend scheme but has not implemented it (exit 85)."""
+
+    _hint = (
+        "Use a `file://` or `env://` key, or sign keyless: `awskms://`, `gcpkms://`, `azurekms://`, "
+        "`hashivault://`, and `k8s://` are recognized but not implemented, so no configuration makes "
+        "them work."
+    )
 
 
 class OcxTimeoutError(OcxExecutionError):
@@ -313,6 +366,9 @@ _EXIT_CODE_ERRORS: dict[ExitCode, type[OcxProcessError]] = {
     ExitCode.AUTH: AuthError,
     ExitCode.POLICY_BLOCKED: PolicyBlockedError,
     ExitCode.DIRTY_RC_BLOCK: DirtyRcBlockError,
+    ExitCode.TRANSPARENCY_LOG_UNAVAILABLE: TransparencyLogUnavailableError,
+    ExitCode.REFERRERS_UNSUPPORTED: ReferrersUnsupportedError,
+    ExitCode.UNSUPPORTED_KEY_BACKEND: UnsupportedKeyBackendError,
 }
 """Exit code to exception class, for `_process`. Codes absent here (notably the
 generic `FAILURE`) raise a plain `OcxProcessError`."""

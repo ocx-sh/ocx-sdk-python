@@ -11,7 +11,7 @@ site:
 ```python
 from ocx_sdk import Ocx, bootstrap
 
-ocx = Ocx(exe=bootstrap.ensure(version="0.5.8"))
+ocx = Ocx(exe=bootstrap.ensure(version="0.6.0"))
 ```
 
 `ensure` and `DistSource` are also re-exported at the top level for callers

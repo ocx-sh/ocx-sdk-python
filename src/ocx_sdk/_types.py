@@ -27,10 +27,10 @@ from typing import Final, Literal
 
 from ._errors import ExitCode
 
-TESTED_OCX_VERSION: Final = "0.5.8"
+TESTED_OCX_VERSION: Final = "0.6.0"
 """The ocx version this SDK's contract tests run against."""
 
-MIN_SUPPORTED: Final = "0.5.8"
+MIN_SUPPORTED: Final = "0.6.0"
 """Oldest ocx the SDK accepts; below it the compat gate raises `VersionCompatError`."""
 
 MANAGED_CONFIG_DISABLED: Final = ""
@@ -38,6 +38,9 @@ MANAGED_CONFIG_DISABLED: Final = ""
 
 type LogLevel = Literal["off", "error", "warn", "info", "debug", "trace"]
 """ocx `--log-level` values. A `Literal` because nothing but argv consumes it."""
+
+type SignatureFormat = Literal["bundle", "simplesigning", "both"]
+"""ocx `--signature-format` values. A `Literal` because nothing but argv consumes it."""
 
 
 class Channel(StrEnum):

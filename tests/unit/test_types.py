@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Contract tests for `ocx_sdk._types` (C-002, S-006).
+"""Contract tests for `ocx_sdk._types` (v0.1 C-002, v0.1 S-006; C-007, D6).
+
+Every release plan restarts numbering at C-001/S-001, so a citation to a
+superseded plan carries its version and a bare ID means the current plan.
+v0.1's S-006 is the credential-repr scenario below; 0.2.0's S-006 is a
+different thing entirely and is pinned in `test_errors.py`.
 
 Named rows from the design's mechanism matrix live here:
-`test_packageref_byte_roundtrip` (§14), and the repr half of S-006 — a
+`test_packageref_byte_roundtrip` (§14), and the repr half of v0.1 S-006 — a
 credential must not be reconstructable from a log line, a traceback, or a
-pytest diff. The spawn-env half of S-006 belongs to `_env`.
+pytest diff. The spawn-env half of v0.1 S-006 belongs to `_env`.
 
 Also pins the frozen+slots invariant across the whole vocabulary, the
 `HostEnv` recipes of §6, and the `RetryPolicy` defaults of §10.
@@ -39,6 +44,7 @@ from ocx_sdk._types import (
     PackageRef,
     PathVar,
     RetryPolicy,
+    SignatureFormat,
 )
 
 _PLATFORM_KEYS = ("PATH", "HOME", "TMPDIR", "SYSTEMROOT", "TEMP")
@@ -282,6 +288,13 @@ def test_log_level_alias_matches_the_cli_flag() -> None:
     assert get_args(LogLevel.__value__) == ("off", "error", "warn", "info", "debug", "trace")
 
 
+def test_signature_format_alias_matches_the_cli_flag() -> None:
+    # `type X = ...` executes at import, so coverage stays 100% with no test at
+    # all — and these values travel straight into argv, where a wrong member
+    # ships an invalid `--signature-format` and comes back as a bare exit 64.
+    assert get_args(SignatureFormat.__value__) == ("bundle", "simplesigning", "both")
+
+
 @pytest.mark.parametrize(
     "identifier",
     [
@@ -338,6 +351,19 @@ def test_retry_policy_defaults_to_the_transient_exit_code_only() -> None:
     assert ExitCode.UNAVAILABLE not in RetryPolicy().retry_on
 
 
+def test_signing_exit_codes_do_not_join_the_default_retry_set() -> None:
+    # D6 (regression lock): architecture.md fixes the default at TEMP_FAIL
+    # alone, and 83/84/85 must not drift into it — auto-retrying a Rekor
+    # outage amplifies the public instance's rate limiting, and 84/85 are
+    # configuration facts that no amount of retrying changes.
+    retry_on = RetryPolicy().retry_on
+
+    assert retry_on == frozenset({ExitCode.TEMP_FAIL})
+    assert ExitCode.TRANSPARENCY_LOG_UNAVAILABLE not in retry_on
+    assert ExitCode.REFERRERS_UNSUPPORTED not in retry_on
+    assert ExitCode.UNSUPPORTED_KEY_BACKEND not in retry_on
+
+
 def test_channel_values() -> None:
     assert (Channel.STABLE, Channel.NEXT) == ("stable", "next")
 
@@ -359,6 +385,14 @@ def test_compat_window_is_semver_and_ordered() -> None:
 
     assert len(tested) == len(minimum) == 3
     assert minimum <= tested
+
+
+def test_compat_window_pins_ocx_0_6() -> None:
+    # C-007: 0.2.0 adopts ocx 0.6 wholesale. A 0.5.x binary must fail the gate
+    # with VersionCompatError naming 0.6.0, rather than composing 0.6-only argv
+    # and coming back as a bare exit 64.
+    assert MIN_SUPPORTED == "0.6.0"
+    assert TESTED_OCX_VERSION == "0.6.0"
 
 
 def test_managed_config_disabled_is_the_empty_wire_sentinel() -> None:
