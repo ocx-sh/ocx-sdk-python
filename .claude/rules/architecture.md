@@ -77,8 +77,10 @@ Every change and every review is checked against these.
 ## API conventions
 
 - **Command alignment**: one ocx command = one method, named after the
-  command (`prj.run` ↔ `ocx run`, `ocx.package.exec` ↔ `ocx package
-  exec`). Command groups = stateless namespace `@property` wrappers:
+  command (`prj.exec` ↔ `ocx exec`, `ocx.package.exec` ↔ `ocx package
+  exec`). `spawn`/`spawn_async` are the exception: they name a process
+  disposition, not a CLI verb, so they did not follow `run`→`exec`.
+  Command groups = stateless namespace `@property` wrappers:
   `package`, `config`, `patch` ship in v0.1; `index` and `self_` are **T2,
   post-v0.1** (trailing underscore on `self_` per PEP 8 name-clash
   convention — an attribute literally named `self` reads as a bug; note:
@@ -99,7 +101,7 @@ Every change and every review is checked against these.
   filtered: `args`/`shell`/`executable`/`env` rejected; `shell=False`
   invariant.
 - Argv safety: positional identifiers starting with `-` rejected on every
-  typed positional group; `--` emitted before child-argv groups (`run`,
+  typed positional group; `--` emitted before child-argv groups (`exec`,
   `package exec`) — the only groups the CLI documents it for (amended WP09;
   the leading-dash guard covers typed ref groups).
 - Errors: exit code → exception subclass; never classify by stderr text.
@@ -126,20 +128,27 @@ Every change and every review is checked against these.
 
 - Credentials: env-only per spawn (`OCX_AUTH_<SLUG>_*`), never persisted,
   never in argv. Secret dataclass fields are `field(repr=False)` with
-  masked `__repr__`. Every secret value is exact-string-redacted from
-  captured stderr, `on_log`, logged argv, and exception text — inside the
-  `build_spawn_env`/`_process` choke path. A secrecy test asserts absence
-  from `repr()`/logs/errors.
+  masked `__repr__`.
+  Every secret value is exact-string-redacted from captured stderr, `on_log`, logged
+  argv, and exception *messages* — inside the `build_spawn_env`/`_process` choke path.
+  **`OcxProcessError.stdout` is the one recorded exemption: it carries the raw JSON
+  report a partial failure emits, unredacted because exact-string substitution would
+  corrupt the document a caller is about to parse. It is never read by `_summary()` or
+  `__str__`; callers feed it to `_results.partial_report()` and never to a log sink, a
+  `__dict__`-serializing logger, or a pickle crossing into a lower-trust process.**
+  A secrecy test asserts absence from `repr()`, from logs, and from every error surface
+  except that attribute — where a companion test asserts it is present, so the exemption
+  stays deliberate rather than drifting into an accident.
 - Explicit config wins over ambient env (auth per slug;
   `insecure_registries=()` blocks ambient re-enable — fail-closed).
-- `OCX_AUTH_*` reaches tools spawned via `run`/`exec` (ocx does not scrub —
+- `OCX_AUTH_*` reaches tools spawned via `exec` (ocx does not scrub —
   pinned by contract test). Credential-free pattern: pull first, then run
   through `with_config(auth={})`.
 - Retry: default `retry_on` = `TEMP_FAIL(75)` only. Auth errors (80),
   checksum mismatches, 401/403/404 never retryable. **Mutating commands
-  (`push`, `publish`, `announce`, `describe`, `login`) default
-  `retry=None`** regardless of session config. Never retry
-  `run`/`exec`/`spawn` children. `Retry-After` honored up to its own
+  (`push`, `publish`, `announce`, `description push`, `sign`, `attest`,
+  `copy` unless `dry_run`, `login`) default `retry=None`** regardless of
+  session config. Never retry `exec`/`spawn` children. `Retry-After` honored up to its own
   ceiling (`max_retry_after`), never truncated to `max_backoff`.
 
 ## Testing

@@ -48,19 +48,20 @@ curl -sSL https://setup.ocx.sh | sh
 ```
 
 `ocx.toml` declares `task`, `uv`, and `git-cliff`. Run every command through
-`ocx run`:
+`ocx exec`:
 
 ```bash
-ocx run -- task verify    # format check + lint + types + tests + coverage
-ocx run -- task test
-ocx run -- task format    # apply ruff formatter
+ocx exec -- task verify    # format check + lint + types + tests + coverage
+ocx exec -- task test
+ocx exec -- task format    # apply ruff formatter
 ```
 
 Python linters (`ruff`, `pyright`) live in `[project.optional-dependencies] dev`
 in `pyproject.toml` — `uv` pulls them at sync time.
 
 Optional, and what CI does: activate the project instead of prefixing every
-command. `direnv allow` picks up the tracked `.envrc` on `cd`, or
+command. `ocx shell allow` records the consent stamp that lets a new prompt
+activate the project, `direnv allow` picks up the tracked `.envrc` on `cd`, or
 `eval "$(ocx env --shell=sh)"` activates the current shell once per session —
 then `task verify` works bare. CI reaches the same state through
 `ocx-sh/setup-ocx`, so its steps run `task <name>` with no wrapper.
@@ -90,11 +91,10 @@ PyPI trusted publisher must be registered before that first tag — full
 one-time setup steps and the release flow are in
 [docs/contributing/releasing.md](docs/contributing/releasing.md).
 
-Release flow: `ocx run -- task release:prepare` (interactive menu, or
+Release flow: `ocx exec -- task release:prepare` (interactive menu, or
 `BUMP=auto|patch|minor|major`, or `VERSION=X.Y.Z`). It computes the next version
-from conventional commits via git-cliff, bumps `pyproject.toml` (`uv version`)
-and the `~=` install snippets, regenerates `CHANGELOG.md`, and runs
-`task verify`. Review, commit `chore(release): vX.Y.Z`, tag,
+from conventional commits via git-cliff, bumps `pyproject.toml` (`uv version`),
+regenerates `CHANGELOG.md`, and runs `task verify`. Review, commit `chore(release): vX.Y.Z`, tag,
 `git push --atomic origin main vX.Y.Z`.
 
 `CHANGELOG.md` is git-cliff-generated (`cliff.toml`) — never edit it by hand.

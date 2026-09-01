@@ -17,10 +17,10 @@ Every check dev runs locally MUST be a Taskfile task. CI calls `task`, never raw
 
 ```yaml
 # CORRECT
-- run: ocx run -- task verify
+- run: task verify
 
 # WRONG — will drift from taskfile
-- run: ocx run -- uv run ruff check src tests
+- run: uv run ruff check src tests
 ```
 
 Raw commands in CI OK only for CI-only glue (artifact paths, GitHub annotations, `${{ steps.*.outcome }}`).
@@ -35,8 +35,10 @@ This repo dogfoods OCX. CI uses `ocx-sh/setup-ocx@v1` exactly like local dev:
 steps:
   - uses: actions/checkout@v4
   - uses: ocx-sh/setup-ocx@v1
-  - run: ocx run -- task verify
+  - run: task verify
 ```
+
+`setup-ocx` ACTIVATES the project when `ocx.toml` is present, so the tools `ocx.lock` pins are already on `PATH` for every step that follows — an `ocx exec -- task <name>` wrapper would be redundant indirection, not extra safety. Reach for `ocx exec --` only in a job that deliberately skips activation.
 
 `ocx.toml` resolves `task` and `uv` from `ocx.sh`; `uv` resolves Python linters from `pyproject.toml`'s `dev` extra. Three layers, one bootstrap.
 
@@ -47,11 +49,11 @@ Test results > lint results. Pattern: `continue-on-error: true` on linters + fin
 ```yaml
 - name: Lint
   id: lint
-  run: ocx run -- task lint
+  run: task lint
   continue-on-error: true
 
 - name: Test
-  run: ocx run -- task test
+  run: task test
 
 - name: Check lint outcome
   if: ${{ !cancelled() }}
