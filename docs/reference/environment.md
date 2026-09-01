@@ -100,14 +100,24 @@ Read by [`bootstrap.ensure`](api.md#ocx_sdk.ensure), one rung below
 its explicit keyword arguments and one above its own defaults. Never written
 by the SDK.
 
+This is the same `OCX_INSTALL_*` grammar
+`setup.ocx.sh` defines, so an environment already
+configured for the shell installer needs no code change here — export the
+variable and `bootstrap.ensure()` picks it up. The two exceptions are called
+out as **No-op** below, and the setup script's remaining variables
+(`OCX_INSTALL_NO_SETUP`, `OCX_INSTALL_NO_SMOKETEST`, `OCX_INSTALL_PRINT_PATH`,
+`OCX_INSTALL_DOWNLOADER`, `OCX_NO_MODIFY_PATH`) have no meaning here: this SDK
+never runs setup, never prints, never modifies `PATH`, and has no
+curl-or-wget choice to make.
+
 | Variable | `ensure()` argument |
 |---|---|
-| `OCX_INSTALL_VERSION` | `version` |
+| `OCX_INSTALL_VERSION` | `version` — pins an exact release. Empty or unset takes the channel's latest. |
 | `OCX_INSTALL_DIST_URL` | consulted by the *default* `DistSource` only — an explicitly constructed one does not honor it |
-| `OCX_INSTALL_MIRROR_URL` | `mirror_url` |
+| `OCX_INSTALL_MIRROR_URL` | `mirror_url` — relocates the artifact host, as `<mirror_url>/<tag>/<filename>`. The manifest digest is still enforced, so a mirror moves bytes and never revalidates them; the manifest itself keeps coming from `dist`. Setting this makes the manifest `sha256=` mandatory — see [the off-canonical rule](../guide/bootstrap.md#the-sha256-off-canonical-rule). |
 | `OCX_INSTALL_CA_BUNDLE` | `ca_bundle` — a PEM file trusted for the manifest and artifact downloads *instead of* the system store, for a TLS-intercepting proxy. Transport trust only: the manifest pin and the artifact digest are still enforced, so the bundle changes who may serve the bytes, never which bytes are accepted. |
 | `OCX_INSTALL_REPO` | **No-op.** Listed for grammar parity with the setup script's `OCX_INSTALL_*` vars only — this SDK resolves artifact URLs from the manifest, never from a GitHub repository guess. |
-| `OCX_INSTALL_FORCE` | forces a fresh install even on a cache hit |
+| `OCX_INSTALL_FORCE` | no argument — forces a fresh download and install even when the cache already holds a correct binary |
 | `OCX_INSTALL_QUIET` | **No-op.** Listed for grammar parity only — this module never prints, so there is nothing to quiet. |
 
 ## Discovery

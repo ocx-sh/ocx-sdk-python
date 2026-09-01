@@ -165,22 +165,27 @@ def ensure(
     the matching `OCX_INSTALL_*` variable from `env`, then the default.
 
     Args:
-        version: Exact version to install. `None` takes the channel's latest.
-        channel: Channel consulted when `version` is `None`.
+        version: Exact version to install. `None` takes the channel's latest,
+            then `OCX_INSTALL_VERSION`.
+        channel: Channel consulted when `version` is `None`. No variable — the
+            setup script has none either.
         dist: Where the manifest comes from. `None` builds the default source,
             which honors `OCX_INSTALL_DIST_URL`; an explicitly constructed
             source does not.
         mirror_url: Base URL that replaces the artifact host, as
-            `<mirror_url>/<tag>/<filename>`. The manifest digest is still
-            enforced — a mirror relocates bytes, it never revalidates them.
+            `<mirror_url>/<tag>/<filename>`, falling back to
+            `OCX_INSTALL_MIRROR_URL`. The manifest digest is still enforced —
+            a mirror relocates bytes, it never revalidates them.
         ca_bundle: PEM file trusted for every download, replacing the system
-            trust store. For a TLS-intercepting proxy; the digest checks are
-            unaffected.
+            trust store, falling back to `OCX_INSTALL_CA_BUNDLE`. For a
+            TLS-intercepting proxy; the digest checks are unaffected.
         min_version: Operator floor. A resolved version below it fails loudly
             instead of installing something older than the caller allows.
         cache_dir: Cache root. `None` uses the per-user cache directory.
         env: Environment snapshot. `None` reads the ambient one.
-        trust_cache: Skip the digest re-check on a cache hit.
+        trust_cache: Skip the digest re-check on a cache hit. Orthogonal to
+            `OCX_INSTALL_FORCE`, which reinstalls even on a cache hit and has
+            no argument of its own.
         retry: Policy for transient transport failures; `None` tries once.
         timeout: Per-attempt network budget in seconds.
 

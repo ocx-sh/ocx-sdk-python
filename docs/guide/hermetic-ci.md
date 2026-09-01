@@ -19,7 +19,7 @@ three — all opt-in, all composable.
 
 | Trust boundary | Default | Hardening lever |
 |---|---|---|
-| What `bootstrap.ensure()` downloads | Ambient `OCX_INSTALL_*` honored | Pass `version=`, `dist=`, `mirror_url=` explicitly; construct `DistSource` with an explicit `sha256=` |
+| What `bootstrap.ensure()` downloads | Ambient `OCX_INSTALL_*` honored ([which ones](../reference/environment.md#bootstrap-only-ocx_install_)) | Pass `version=`, `dist=`, `mirror_url=`, `ca_bundle=` explicitly; construct `DistSource` with an explicit `sha256=` |
 | Which credentials a spawn carries | Ambient `OCX_AUTH_*` passes through | `Ocx(host_env=HostEnv.clean())` or `.without(...)`; explicit `OcxConfig.auth` always wins over ambient for the same registry |
 | Which binary runs | `PATH` search | `Ocx(exe=...)` — the hardened form: it trusts a location without inspecting how it was reached |
 | Registry transport | Whatever `insecure_registries` the ambient env allows | `OcxConfig(insecure_registries=())` — **fail-closed**: an explicit value, including the empty tuple, replaces the ambient set entirely rather than merging with it |

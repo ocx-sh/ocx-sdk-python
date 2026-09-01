@@ -18,6 +18,23 @@ It is idempotent and offline-friendly: a cache hit that still hashes
 correctly needs no network at all, and every knob resolves explicit
 argument first, then the matching `OCX_INSTALL_*` variable, then a default.
 
+Those variables are the same ones
+`setup.ocx.sh` reads, so a machine already set up for
+the shell installer needs no code change:
+
+| Variable | Argument | Effect |
+|---|---|---|
+| `OCX_INSTALL_VERSION` | `version=` | Pin an exact release |
+| `OCX_INSTALL_DIST_URL` | `dist=` | Where the manifest comes from (default source only) |
+| `OCX_INSTALL_MIRROR_URL` | `mirror_url=` | Where the artifact bytes come from |
+| `OCX_INSTALL_CA_BUNDLE` | `ca_bundle=` | PEM file trusted for the downloads |
+| `OCX_INSTALL_FORCE` | — | Reinstall even on a cache hit |
+
+`OCX_INSTALL_REPO` and `OCX_INSTALL_QUIET` are accepted and do nothing —
+artifact URLs come from the manifest rather than a repository guess, and this
+module prints nothing to quiet. Every variable is in
+[Environment](../reference/environment.md#bootstrap-only-ocx_install_).
+
 ## Pinning
 
 Pass `version=` for an exact release, or `channel=` to follow a channel's
@@ -60,7 +77,28 @@ exe = bootstrap.ensure(dist=source, mirror_url="https://artifacts.internal.examp
 
 `mirror_url=` relocates *where the artifact bytes come from* — the manifest
 digest is still enforced, because a mirror moves bytes, it never revalidates
-them.
+them. Setting `OCX_INSTALL_MIRROR_URL` in the environment does the same thing
+without touching the call, which is how a CI image points every build at an
+internal mirror; the explicit argument wins where both are set.
+
+### Behind a TLS-intercepting proxy
+
+`ca_bundle=` (or `OCX_INSTALL_CA_BUNDLE`) names a PEM file trusted for the
+manifest and artifact downloads *instead of* the system store — the case
+where an interception appliance presents a certificate no default trust store
+knows:
+
+```python-no-run
+# illustrative: needs network access.
+from ocx_sdk import bootstrap
+
+exe = bootstrap.ensure(ca_bundle="/etc/ssl/corp/root.pem")
+```
+
+This is transport trust only. The manifest pin and the artifact digest are
+untouched, so a bundle changes *who may serve* the bytes and never *which
+bytes are accepted*. An unreadable or non-PEM file raises `DownloadError`
+naming the variable, rather than failing later inside a fetch.
 
 Ambient `HTTP_PROXY`/`HTTPS_PROXY` is honored without any SDK configuration:
 the opener is built with `urllib.request.build_opener`, whose default
