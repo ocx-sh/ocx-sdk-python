@@ -20,14 +20,11 @@ Options:
   -c, --cascade
           Will cascade rolling releases, ie. pushing 1.2.3 will also update 1.2, 1, etc
 
-  -n, --new
-          Indicates that this is a new package that doesn't exist in the registry yet. This will skip some checks that requires an existing index
+      --keep-tag
+          Write a `__ocx.keep.sha256-<hex>` tag for each platform manifest published (default)
 
-      --canonical-tag
-          Push a `sha256.<hex>` tag pointing at each pushed platform manifest (default)
-
-      --no-canonical-tag
-          Skip the canonical tag push
+      --no-keep-tag
+          Skip the keep tag
 
       --build-timestamp[=<BUILD_TIMESTAMP>]
           Append a UTC build-metadata segment to the published tag.
@@ -52,10 +49,48 @@ Options:
           
           --annotation org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY
 
-      --announce-file <PATH>
-          After a successful push, append the pushed tag and any cascade tags to this file (creating it if absent), so `ocx package announce --tags-from-file` can pick them up.
+      --tags-file <PATH>
+          After a successful push, append the pushed tag and any cascade tags to this file (creating it if absent), so `ocx package announce --tags-file` can pick them up.
           
           This is a scratch file for one pipeline run, not a persistent list - a stale file left over from an earlier run could re-add a tag that was deliberately dropped from a later announce.
+
+      --sbom <PATH>
+          After the push, attest this CycloneDX SBOM against the pushed manifest.
+          
+          Sugar for `ocx package attest --type cyclonedx` on the digest this push just wrote. The file is read before the push, so a bad path costs no upload; the OIDC token comes from OCX_IDENTITY_TOKEN or from ambient CI detection, as `ocx package attest` resolves it.
+          
+          A push that lands followed by an attestation that fails is not rolled back: a pushed manifest is immutable and OCI offers no un-push. The push report is still emitted, with the attestation outcome recorded, and the attestation failure decides the exit code.
+
+      --sign
+          Sign each platform manifest this push writes, inline.
+          
+          Opt-in: a push without it signs nothing. The signature covers the platform manifest, whose digest is final the moment it is pushed -- never the image index, whose digest is rewritten every time another platform merges into it. Sign the index afterwards with `ocx package sign --tags-file`, using the file `--tags-file` wrote.
+          
+          Keyless by default; `--key` selects a key pair. A push that lands and then fails to sign is not rolled back: the push report is still emitted, with the per-platform signing outcome recorded, and the failure decides the exit code.
+
+      --signature-format <FORMAT>
+          Signature wire format: bundle (default), simplesigning, or both.
+          
+          `bundle` writes an OCI 1.1 referrer carrying a Sigstore bundle. `simplesigning` writes the cosign `sha256-<hex>.sig` sidecar tag instead. `both` writes each of them. When verifying, this pins the one shape to accept, and `both` is not a pin.
+          
+          [possible values: bundle, simplesigning, both]
+
+      --key <REF>
+          Sign or verify with a key pair instead of keyless Sigstore.
+          
+          Takes a key reference, `[scheme://]<rest>`. A bare path, or a `file://` one, names a file. `env://VAR` reads the key PEM out of the environment variable `VAR` itself -- the variable holds the key, not a path to it -- for a runner with no writable disk. The `awskms`, `gcpkms`, `azurekms`, `hashivault` and `k8s` schemes are recognised and rejected by name. Leave it unset to sign or verify keyless. The password for an encrypted private key is read from `OCX_KEY_PASSWORD`.
+          
+          Name the variable `OCX_SIGNING_KEY` unless you have a reason not to: that one is stripped from every child process ocx spawns, and a name ocx does not know is inherited by plugins and generated launchers.
+
+      --rekor-upload
+          Record the signature in the Rekor transparency log.
+          
+          Keyless signatures are always recorded, so this only has an effect alongside `--key`, where uploading is off by default.
+
+      --no-rekor-upload
+          Skip the Rekor entry.
+          
+          Only valid alongside `--key`. A keyless signature must be recorded: its Fulcio certificate is valid for about ten minutes, and the log entry's timestamp is the only lasting proof the signature was made while it was.
 
   -p, --platform <PLATFORM>
           Target platform (e.g. `linux/amd64`, or `any` for platform-agnostic content)

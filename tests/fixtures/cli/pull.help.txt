@@ -16,7 +16,7 @@ Options:
   -p, --platform <PLATFORM>
           Target platform to resolve packages against.
           
-          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. WebAssembly targets are `wasip1/wasm` and `wasip2/wasm`; no host reports either, so they are reachable only by naming them here. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
 
       --lazy-mode <MODE>
           Control when a tool's content downloads: now, or on first use.

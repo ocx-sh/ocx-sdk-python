@@ -1,0 +1,84 @@
+Sign a published package's manifest (keyless Sigstore, via OCI Referrers)
+
+Usage: ocx package sign [OPTIONS] <IDENTIFIER>
+
+Arguments:
+  <IDENTIFIER>
+          Package identifier to sign (`registry/repo:tag[@digest]`)
+
+Options:
+  -p, --platform <PLATFORM>
+          Narrow into one platform of an image index.
+          
+          Omit it to act on whatever the reference resolves to: an index is then the subject itself, which is where cosign puts a multi-platform tag's signature. Given against a reference that resolves to a single manifest, there is nothing to narrow and the command fails.
+          
+          Refused alongside `--tags` / `--tags-file`: a sweep is about indices by definition, and narrowing into one index to reach a child `push` already signed contradicts it.
+
+      --fulcio-url <URL>
+          Fulcio CA endpoint (the keyless certificate issuer)
+          
+          Defaults to [trust.sigstore].fulcio_url, else public Fulcio.
+          
+          Keyless-only: an error alongside `--key`, never silently ignored. A flag that does nothing is the failure mode this command refuses everywhere.
+
+      --rekor-url <URL>
+          Rekor transparency-log endpoint
+          
+          Defaults to [trust.sigstore].rekor_url, else public Rekor.
+
+      --identity-token-file <PATH>
+          Read the OIDC identity token from this file (highest precedence).
+          
+          Use this when the CI system writes the token to a file instead of the environment (GitHub Actions `$ACTIONS_ID_TOKEN_REQUEST_TOKEN` flow is env-based; other systems write the token out).
+          
+          Security: `--identity-token-file` does not follow symlinks. On Unix the file is opened with `O_NOFOLLOW` and rejected if not owned by the effective user or if group/other permission bits are set.
+
+      --identity-token-stdin
+          Read the OIDC identity token from stdin (second precedence).
+          
+          Mutually exclusive with `--identity-token-file`. Accepts a newline-terminated token on stdin; trailing whitespace is trimmed.
+
+      --no-tty
+          Suppress the interactive browser OAuth fallback (CI / headless).
+          
+          When set, ambient detection must succeed or the override flags must supply a token; there is no interactive recovery path.
+
+      --no-cache
+          Bypass the referrers-capability cache for this invocation.
+          
+          Default: the per-registry capability probe is cached in `$OCX_HOME/state/referrers/<registry>.json` to avoid repeated 404 probes. `--no-cache` forces a fresh probe, useful after a registry upgrades to OCI 1.1.
+
+      --signature-format <FORMAT>
+          Signature wire format: bundle (default), simplesigning, or both.
+          
+          `bundle` writes an OCI 1.1 referrer carrying a Sigstore bundle. `simplesigning` writes the cosign `sha256-<hex>.sig` sidecar tag instead. `both` writes each of them. When verifying, this pins the one shape to accept, and `both` is not a pin.
+          
+          [possible values: bundle, simplesigning, both]
+
+      --key <REF>
+          Sign or verify with a key pair instead of keyless Sigstore.
+          
+          Takes a key reference, `[scheme://]<rest>`. A bare path, or a `file://` one, names a file. `env://VAR` reads the key PEM out of the environment variable `VAR` itself -- the variable holds the key, not a path to it -- for a runner with no writable disk. The `awskms`, `gcpkms`, `azurekms`, `hashivault` and `k8s` schemes are recognised and rejected by name. Leave it unset to sign or verify keyless. The password for an encrypted private key is read from `OCX_KEY_PASSWORD`.
+          
+          Name the variable `OCX_SIGNING_KEY` unless you have a reason not to: that one is stripped from every child process ocx spawns, and a name ocx does not know is inherited by plugins and generated launchers.
+
+      --rekor-upload
+          Record the signature in the Rekor transparency log.
+          
+          Keyless signatures are always recorded, so this only has an effect alongside `--key`, where uploading is off by default.
+
+      --no-rekor-upload
+          Skip the Rekor entry.
+          
+          Only valid alongside `--key`. A keyless signature must be recorded: its Fulcio certificate is valid for about ten minutes, and the log entry's timestamp is the only lasting proof the signature was made while it was.
+
+      --tags <TAG>
+          Tags to sweep. Repeatable, and accepts a comma-separated list
+
+      --tags-file <PATH>
+          Read tags from a file, one per line or comma-separated.
+          
+          The same file `ocx package push --tags-file` writes, so a publish step can hand its tag list to a later step verbatim.
+
+  -h, --help
+          Print help (see a summary with '-h')

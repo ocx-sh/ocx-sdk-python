@@ -1,0 +1,35 @@
+Push or update description metadata for a package repository.
+
+Pushes a README, optional logo, and catalog annotations to the __ocx.desc tag. When updating an existing description, only the provided fields are changed - omitted fields are preserved from the current description.
+
+Usage: ocx package description push [OPTIONS] <IDENTIFIER>
+
+Arguments:
+  <IDENTIFIER>
+          The package repository. Tag is ignored; always pushes to __ocx.desc
+
+Options:
+      --from <SOURCE>
+          Copy the whole description from another package repository.
+          
+          Promotes README, logo and catalog annotations verbatim, so a staging repository's catalog page can be published to production without re-authoring it. Mutually exclusive with the field flags: this is a copy, not a merge, and mixing the two would silently pick a winner.
+
+      --readme <README>
+          Path to the README markdown file
+
+      --logo <LOGO>
+          Path to an optional logo image (PNG or SVG).
+          
+          The file's bytes must be the format its extension names. A file that is not a real PNG or SVG fails the command without touching the published description, so a broken checkout cannot blank a catalog logo.
+
+      --title <TITLE>
+          Short title for catalog display (sets org.opencontainers.image.title)
+
+      --description <DESCRIPTION>
+          One-line summary for catalog display (sets org.opencontainers.image.description)
+
+      --keywords <KEYWORDS>
+          Comma-separated search keywords (sets sh.ocx.keywords)
+
+  -h, --help
+          Print help (see a summary with '-h')

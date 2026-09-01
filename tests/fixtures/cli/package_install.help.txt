@@ -13,7 +13,15 @@ Options:
   -p, --platform <PLATFORM>
           Target platform to resolve packages against.
           
-          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+          The value is `os/arch[/variant][+feature[,feature...]]`, for example `linux/amd64`, `linux/arm64`, or `linux/amd64+libc.glibc`. The optional `+feature` suffix filters by `os.features`: OCX selects the manifest whose features are a subset of the value you pass, so `+libc.glibc` or `+libc.musl` forces a specific libc variant. WebAssembly targets are `wasip1/wasm` and `wasip2/wasm`; no host reports either, so they are reachable only by naming them here. Defaults to the auto-detected host platform. Details: <https://ocx.sh/docs/authoring/multi-platform>
+
+      --verify
+          Verify the package's Sigstore signature before installing (default).
+          
+          When a `[[trust.policy]]` covers the package, its keyless Sigstore signature is verified before the package is installed; a failure aborts the install fail-closed. Overrides an `OCX_NO_VERIFY` opt-out for this invocation.
+
+      --no-verify
+          Skip Sigstore signature verification. Equivalent env var: `OCX_NO_VERIFY`
 
   -h, --help
           Print help (see a summary with '-h')

@@ -66,10 +66,13 @@ STAR
 ocx --format json package test -i wp00/hello:1.0.0-test -p linux/amd64 \
   out/hello-1.0.0.tar.xz --script smoke.star
 
-# 3. Push to the registry (-n = new repo, skips existing-tag lookup).
-ocx --format json package push -n out/hello-1.0.0.tar.xz
+# 3. Push to the registry. `-n`/`--new` no longer exists in 0.6.0 (it used to
+#    skip the existing-tag lookup for a brand-new repo) - push handles both
+#    cases unconditionally now.
+ocx --format json package push out/hello-1.0.0.tar.xz
 # -> {"identifier","status":"pushed","manifest_digest","cascade_tags_written":[],
-#     "canonical_tags_written":[...],"layers":{"mounted","uploaded","verified"}}
+#     "keep_tags_written":[...],"layers":{"mounted","uploaded","verified"},
+#     "platform_digests":{"linux/amd64":"sha256:..."}}
 
 # 4. Install FROM the registry (fresh identifier, no local build artifacts
 #    referenced — proves the push round-tripped).

@@ -1,6 +1,6 @@
 Run a command with the composed environment from the project toolchain
 
-Usage: ocx run [OPTIONS] [NAMES]... -- <ARGV>...
+Usage: ocx exec [OPTIONS] [NAMES]... -- <ARGV>...
 
 Arguments:
   [NAMES]...
@@ -11,7 +11,7 @@ Arguments:
   <ARGV>...
           Command to execute, with arguments. The command runs with the composed package env. `--` is mandatory and at least one argv token is required (`required = true` + `num_args = 1..`).
           
-          `allow_hyphen_values = true` so flag-prefixed argv like `--format json` is forwarded to the child unchanged. `last = true` makes clap parse everything before the first `--` into `names` and everything after into `argv`. `required = true` ensures clap rejects `ocx run` / `ocx run NAME` / `ocx run NAME --` with a usage error (exit 2) instead of letting an empty argv slip through to a runtime panic on `split_first`.
+          `allow_hyphen_values = true` so flag-prefixed argv like `--format json` is forwarded to the child unchanged. `last = true` makes clap parse everything before the first `--` into `names` and everything after into `argv`. `required = true` ensures clap rejects `ocx exec` / `ocx exec NAME` / `ocx exec NAME --` with a usage error (exit 2) instead of letting an empty argv slip through to a runtime panic on `split_first`.
 
 Options:
   -g, --group <GROUPS>

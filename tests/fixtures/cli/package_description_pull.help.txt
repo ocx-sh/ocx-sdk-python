@@ -1,0 +1,21 @@
+Show description metadata (title, description, keywords) for one or more packages.
+
+Reads each description from the `__ocx.desc` tag in the registry. With multiple packages, JSON output is an object keyed by the requested identifier (`{"<id>": {...}|null}`); plain output prints a header line per package.
+
+`--save-readme` / `--save-logo` write a fixed filename and so require exactly one package.
+
+Usage: ocx package description pull [OPTIONS] <PACKAGE>...
+
+Arguments:
+  <PACKAGE>...
+          Package repositories to query
+
+Options:
+      --save-readme <SAVE_README>
+          Save the README to this file or directory (single package only)
+
+      --save-logo <SAVE_LOGO>
+          Save the logo to this file or directory (single package only)
+
+  -h, --help
+          Print help (see a summary with '-h')

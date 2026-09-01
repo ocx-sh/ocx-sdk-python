@@ -1,0 +1,60 @@
+Promote an already-published package to another registry or repository.
+
+Copies the platform manifests, their blobs and their referrers verbatim, so the digest never moves and every signature and lock pin naming it still resolves. The target's index is merged one platform at a time, never overwritten.
+
+Usage: ocx package copy [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+          Package to copy: `registry/repository:tag` or `registry/repository@sha256:...`
+
+Options:
+      --to <REGISTRY>
+          Rewrite only the registry host, keeping the repository path and tag.
+          
+          The promotion shape: `dev.example.com/team/tool:1.4.2` to `prod.example.com` lands at `prod.example.com/team/tool:1.4.2`. Mutually exclusive with `--identifier`.
+
+  -i, --identifier <IDENTIFIER>
+          Full target reference, when the repository path or tag changes too.
+          
+          Required when the source names a digest: a digest carries no tag for `--to` to preserve.
+
+  -p, --platform <PLATFORM>
+          Platform to copy. Repeatable.
+          
+          Against a tag this filters the source index; omit it to copy every platform the source offers. Against a digest it *declares* the platform, and exactly one is required - a leaf manifest carries no platform of its own, so there is nothing to read it from.
+
+  -c, --cascade
+          Recompute the rolling tags (`1.4`, `1`, `latest`) at the target.
+          
+          Computed against the target's own tag list, not the source's: whether `1.4` should move depends on what the target already publishes, and a staging registry ahead of production has a different answer.
+
+      --keep-tag
+          Write a `__ocx.keep.sha256-<hex>` tag for each platform manifest published (default)
+
+      --no-keep-tag
+          Skip the keep tag
+
+      --referrers
+          Carry the signatures, SBOMs and attestations anchored to each manifest (default).
+          
+          Requires the OCI 1.1 Referrers API at both ends; a registry without it fails rather than silently moving an artifact whose signature stayed behind.
+
+      --no-referrers
+          Leave the signatures, SBOMs and attestations behind
+
+      --description
+          Also copy the repository description (`__ocx.desc`): README and logo.
+          
+          Off by default, because a description is repository-level prose rather than part of the version being promoted, and environments legitimately carry different ones. `ocx package description push --from` copies it alone.
+
+      --annotation <KEY=VALUE>
+          Record an OCI annotation on the target's image index. Repeatable.
+          
+          Merged into whatever the index already carries; a repeated key keeps the last value. Leaf manifests are never touched - annotating one would change its digest, which is the one thing a copy must not do.
+
+      --dry-run
+          Report what would be copied and write nothing
+
+  -h, --help
+          Print help (see a summary with '-h')

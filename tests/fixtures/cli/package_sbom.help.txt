@@ -1,0 +1,76 @@
+List or extract the SBOM attestations a published package carries
+
+Usage: ocx package sbom [OPTIONS] <IDENTIFIER>
+
+Arguments:
+  <IDENTIFIER>
+          Package identifier to read (`registry/repo:tag[@digest]`)
+
+Options:
+  -p, --platform <PLATFORM>
+          Narrow into one platform of an image index.
+          
+          Omit it to act on whatever the reference resolves to: an index is then the subject itself, which is where cosign puts a multi-platform tag's signature. Given against a reference that resolves to a single manifest, there is nothing to narrow and the command fails.
+
+  -o, --output <PATH>
+          Write the SBOM document to PATH ("-" for stdout).
+          
+          The bytes are exactly what was attached, never a re-serialization. Under --no-verify nothing was checked, so the document is written with a warning on stderr saying so. More than one candidate of the requested type is a refusal, not a choice: narrow with --type. Writing raw predicate bytes to a terminal is refused - redirect to a file or a pipe.
+
+      --summary
+          Parse each SBOM and report component counts (CycloneDX 1.5-1.7 only).
+          
+          A predicate outside that range refuses that entry - it moves to the refused list, naming the type it could not read - never an empty summary, and never the rest of the listing. The listing still works without this flag.
+
+      --type <TYPE>
+          Restrict to one predicate type (for example cyclonedx or spdx)
+
+      --certificate-identity <IDENTITY>
+          Expected certificate SAN (exact match).
+          
+          Optional when a `[trust.policy]` whose scope covers the target supplies the identity; when given, this flag and `--certificate-oidc-issuer` override any policy. The two flags are used together; supplying one without the other is an error. Not usable with `--key`: a key signature carries no certificate, so there is no SAN to match.
+
+      --certificate-oidc-issuer <URL>
+          Expected certificate OIDC issuer (exact match).
+          
+          Optional when a matching `[trust.policy]` supplies the issuer; used together with `--certificate-identity` to override any policy. Not usable with `--key`, which names a public key rather than an issuer.
+
+      --key <REF>
+          Sign or verify with a key pair instead of keyless Sigstore.
+          
+          Takes a key reference, `[scheme://]<rest>`. A bare path, or a `file://` one, names a file. `env://VAR` reads the key PEM out of the environment variable `VAR` itself -- the variable holds the key, not a path to it -- for a runner with no writable disk. The `awskms`, `gcpkms`, `azurekms`, `hashivault` and `k8s` schemes are recognised and rejected by name. Leave it unset to sign or verify keyless. The password for an encrypted private key is read from `OCX_KEY_PASSWORD`.
+          
+          Name the variable `OCX_SIGNING_KEY` unless you have a reason not to: that one is stripped from every child process ocx spawns, and a name ocx does not know is inherited by plugins and generated launchers.
+
+      --signature-format <FORMAT>
+          Signature wire format: bundle (default), simplesigning, or both.
+          
+          `bundle` writes an OCI 1.1 referrer carrying a Sigstore bundle. `simplesigning` writes the cosign `sha256-<hex>.sig` sidecar tag instead. `both` writes each of them. When verifying, this pins the one shape to accept, and `both` is not a pin.
+          
+          [possible values: bundle, simplesigning, both]
+
+      --sigstore-trusted-root <PATH>
+          Trust-root override: a Sigstore trusted-root JSON (or a directory holding trusted_root.json), named by a bare path or a file:// one.
+          
+          Supplies the Fulcio CA, the CT-log key and the pinned Rekor public key for air-gapped verification against a local trust-root mirror. No TUF network fetch is performed. Takes precedence over the OCX_SIGSTORE_TRUSTED_ROOT env var and over [trust.sigstore] in config.toml. See https://ocx.sh/docs/in-depth/self-hosted-sigstore
+
+      --rekor-url <URL>
+          Rekor transparency-log endpoint
+          
+          Defaults to [trust.sigstore].rekor_url, else public Rekor.
+
+      --no-cache
+          Bypass the referrers-capability cache for this invocation
+
+      --verify
+          Require a verified signature; refuse unsigned attachments.
+          
+          The default when identity flags are given, or when a [trust.policy] covers the package. Without either, there is nothing to verify against and this is a usage error.
+
+      --no-verify
+          List documents without verifying anything.
+          
+          Reads signed and unsigned SBOMs alike and marks every one unverified. No signer identity is reported, because none was checked. Cannot be combined with the certificate flags.
+
+  -h, --help
+          Print help (see a summary with '-h')

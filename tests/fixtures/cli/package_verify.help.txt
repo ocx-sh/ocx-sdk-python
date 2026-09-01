@@ -1,0 +1,72 @@
+Verify a published package's Sigstore signature (keyless, via OCI Referrers)
+
+Usage: ocx package verify [OPTIONS] <IDENTIFIER>
+
+Arguments:
+  <IDENTIFIER>
+          Package identifier to verify (`registry/repo:tag[@digest]`)
+
+Options:
+  -p, --platform <PLATFORM>
+          Narrow into one platform of an image index.
+          
+          Omit it to act on whatever the reference resolves to: an index is then the subject itself, which is where cosign puts a multi-platform tag's signature. Given against a reference that resolves to a single manifest, there is nothing to narrow and the command fails.
+
+      --certificate-identity <IDENTITY>
+          Expected certificate SAN (exact match).
+          
+          Optional when a `[trust.policy]` whose scope covers the target supplies the identity; when given, this flag and `--certificate-oidc-issuer` override any policy. The two flags are used together; supplying one without the other is an error. Not usable with `--key`: a key signature carries no certificate, so there is no SAN to match.
+          
+          Example: `you@example.com`, `https://github.com/org/repo/.github/workflows/build.yml@refs/heads/main`.
+
+      --certificate-oidc-issuer <URL>
+          Expected certificate OIDC issuer (exact match).
+          
+          Optional when a matching `[trust.policy]` supplies the issuer; used together with `--certificate-identity` to override any policy. Not usable with `--key`, which names a public key rather than an issuer.
+          
+          Example: `https://github.com/login/oauth`, `https://token.actions.githubusercontent.com`.
+
+      --key <REF>
+          Sign or verify with a key pair instead of keyless Sigstore.
+          
+          Takes a key reference, `[scheme://]<rest>`. A bare path, or a `file://` one, names a file. `env://VAR` reads the key PEM out of the environment variable `VAR` itself -- the variable holds the key, not a path to it -- for a runner with no writable disk. The `awskms`, `gcpkms`, `azurekms`, `hashivault` and `k8s` schemes are recognised and rejected by name. Leave it unset to sign or verify keyless. The password for an encrypted private key is read from `OCX_KEY_PASSWORD`.
+          
+          Name the variable `OCX_SIGNING_KEY` unless you have a reason not to: that one is stripped from every child process ocx spawns, and a name ocx does not know is inherited by plugins and generated launchers.
+
+      --signature-format <FORMAT>
+          Signature wire format: bundle (default), simplesigning, or both.
+          
+          `bundle` writes an OCI 1.1 referrer carrying a Sigstore bundle. `simplesigning` writes the cosign `sha256-<hex>.sig` sidecar tag instead. `both` writes each of them. When verifying, this pins the one shape to accept, and `both` is not a pin.
+          
+          [possible values: bundle, simplesigning, both]
+
+      --rekor-url <URL>
+          Rekor transparency-log endpoint
+          
+          Defaults to [trust.sigstore].rekor_url, else public Rekor.
+
+      --attestation
+          Verify a signed in-toto attestation instead of an artifact signature.
+          
+          Same trust material and same identity resolution; a different kind of signed content. Use `ocx package sbom` to list or extract what an artifact carries.
+
+      --type <TYPE>
+          Restrict to one predicate type (for example cyclonedx or spdx).
+          
+          Narrowing is by the signed payload, never by a referrer annotation.
+
+      --allow-unlogged-signature
+          Accept a keyless cosign sidecar that carries no transparency-log entry.
+          
+          A keyless `sha256-<hex>.sig` or `sha256-<hex>.att` proves nothing about *when* it was signed unless its layer carries a `dev.sigstore.cosign/bundle` annotation: the Fulcio certificate it names lived about ten minutes, so without an entry a long-expired certificate is indistinguishable from a live one. Verify refuses both shapes (exit 65). Pass this in air-gapped CI, where the entry could not be fetched or was never written, and you accept a signature nothing timestamps. Inert everywhere else: a bundle's transparency evidence stays mandatory under keyless and optional under `--key`.
+
+      --no-cache
+          Bypass the referrers-capability cache for this invocation
+
+      --sigstore-trusted-root <PATH>
+          Trust-root override: a Sigstore trusted-root JSON (or a directory holding trusted_root.json), named by a bare path or a file:// one.
+          
+          Supplies the Fulcio CA, the CT-log key and the pinned Rekor public key for air-gapped verification against a local trust-root mirror. No TUF network fetch is performed. Takes precedence over the OCX_SIGSTORE_TRUSTED_ROOT env var and over [trust.sigstore] in config.toml. See https://ocx.sh/docs/in-depth/self-hosted-sigstore
+
+  -h, --help
+          Print help (see a summary with '-h')
