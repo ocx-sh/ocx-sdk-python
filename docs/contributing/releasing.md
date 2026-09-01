@@ -23,14 +23,13 @@ pending publisher into a permanent one automatically — no further action.
 ## Release flow
 
 ```bash
-ocx run -- task release:prepare
+ocx exec -- task release:prepare
 ```
 
 Interactive by default (pick `auto | patch | minor | major`), or force a
 level with `BUMP=<level>` / pin an exact version with `VERSION=x.y.z`. It
 computes the next version from conventional commits via git-cliff, bumps
-`pyproject.toml` and the `~=` install snippets, regenerates `CHANGELOG.md`,
-and runs `task verify`.
+`pyproject.toml`, regenerates `CHANGELOG.md`, and runs `task verify`.
 
 Then, by hand:
 

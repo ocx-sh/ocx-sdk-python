@@ -38,6 +38,39 @@ are a separate, non-process branch under `OcxError` — failures while
 resolving, downloading, or installing a binary, before any typed command
 ever runs.
 
+### Verification makes `install` and `pull` fail where they used to pass
+
+ocx 0.6 verifies a package's Sigstore signature *before* installing it,
+whenever a `[[trust.policy]]` in the host's `config.toml` covers that
+package. This SDK's 0.2.0 floor bump to ocx 0.6.0 is what puts that gate in
+every caller's path, so
+[`package.install`](../../reference/api.md#ocx_sdk.PackageCommands.install)
+and [`package.pull`](../../reference/api.md#ocx_sdk.PackageCommands.pull)
+can now raise where the identical call succeeded before — no code change on
+your side, only a newer binary underneath. The failures are the ordinary
+exit-code-mapped ones: `DataError` (65) for a signature that did not hold
+up, `PermissionDeniedError` (77) for an identity or issuer the policy
+refuses, `NotFoundError` (79) when a covered package carries no signature at
+all, and `TransparencyLogUnavailableError` (83) when Rekor is unreachable.
+None of them retry by default — the default `retry_on` is exit 75 alone —
+and 83 in particular is deliberately excluded, because retrying a
+transparency-log outage amplifies it for everyone else.
+
+The trust policy is ambient host state: it lives in a config file the SDK
+does not own, read, or write, so the SDK cannot tell you in advance whether
+the gate applies to your packages. That is why this is documented rather
+than detected. To find out, run the install and catch the error.
+
+The `verify` parameter on both methods is a three-state override —
+`True` demands the check, `False` (`--no-verify`) skips it, `None` leaves
+ocx's own default, which is on. `True` is not enforcement: against a package
+no policy covers there is nothing to verify against, and the flag is a
+documented no-op rather than a promise that unsigned content will be
+refused. `False` is the only way to skip verification through this SDK: the
+ambient `OCX_NO_VERIFY` escape hatch is neutralized on every spawn, so an
+opt-out has to be visible at the call site rather than in whatever exported
+a variable three CI layers up.
+
 ## `PackageRef`: carried, never parsed
 
 ocx owns the package-identifier grammar. [`PackageRef`](../../reference/api.md#ocx_sdk.PackageRef)
@@ -90,11 +123,11 @@ One caveat the redaction can't reach: at `log_level="trace"`, ocx itself may
 print secrets it holds that never passed through the SDK's own composition
 — the scrub only catches values the SDK was given.
 
-### Blast radius under `run` and `exec`
+### Blast radius under `exec`
 
 ocx does not scrub non-forwarded environment variables from a spawned
 child — so a tool started through
-[`Project.run`](../../reference/api.md#ocx_sdk.Project.run) or
+[`Project.exec`](../../reference/api.md#ocx_sdk.Project.exec) or
 [`package.exec`](../../reference/api.md#ocx_sdk.PackageCommands.exec)
 inherits `OCX_AUTH_*`, whatever set it to (ambient environment or explicit
 `OcxConfig.auth`). This is pinned by a contract test against the real
@@ -106,11 +139,11 @@ cleared —
 ```python-no-run
 # illustrative: needs a real Project handle.
 project.pull()                                       # needs the token
-project.with_config(auth={}).run(["task", "build"])   # the build step doesn't see it
+project.with_config(auth={}).exec(["task", "build"])  # the build step doesn't see it
 ```
 
 — covered in full, with the rest of the hermetic-CI threat model, in
-[Hermetic CI](../hermetic-ci.md#the-one-thing-hardening-does-not-cover-ocx_auth_-under-run).
+[Hermetic CI](../hermetic-ci.md#the-one-thing-hardening-does-not-cover-ocx_auth_-under-exec).
 
 ### Persistent credentials
 

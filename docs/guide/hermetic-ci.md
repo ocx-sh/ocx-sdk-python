@@ -48,7 +48,7 @@ whatever the ambient environment allows).
 from ocx_sdk import HostEnv, Ocx, OcxConfig, bootstrap
 
 ocx = Ocx(
-    exe=bootstrap.ensure(version="0.5.8"),        # pinned, not "latest"
+    exe=bootstrap.ensure(version="0.6.0"),        # pinned, not "latest"
     host_env=HostEnv.minimal(),                   # PATH/HOME/TMPDIR only
     config=OcxConfig(
         insecure_registries=(),                   # fail-closed
@@ -61,12 +61,12 @@ ocx = Ocx(
 still needs `PATH` to find its own dependencies, and `clean()` drops it —
 see [Bootstrap](bootstrap.md#hostenv-tiers) for the full tier list.
 
-## The one thing hardening does not cover: `OCX_AUTH_*` under `run`
+## The one thing hardening does not cover: `OCX_AUTH_*` under `exec`
 
 ocx does not scrub non-forwarded variables from a spawned child's
 environment — "non-forwarded is not the same as scrubbed." That means a
 tool started through
-[`Project.run`](../reference/api.md#ocx_sdk.Project.run) or
+[`Project.exec`](../reference/api.md#ocx_sdk.Project.exec) or
 [`package.exec`](../reference/api.md#ocx_sdk.PackageCommands.exec)
 **inherits whatever `OCX_AUTH_*` the handle's environment carries**, whether
 that came from ambient env or explicit `OcxConfig.auth`. This is ocx's
@@ -83,7 +83,7 @@ credentials cleared.
 ```python-no-run
 # illustrative: needs a real Project handle.
 project.pull()                              # authenticated — needs the token
-project.with_config(auth={}).run(["task", "build"])   # the build step does not
+project.with_config(auth={}).exec(["task", "build"])  # the build step does not
 ```
 
 See [Errors & credentials](concepts/errors-and-security.md) for the full

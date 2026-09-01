@@ -22,7 +22,7 @@ from ocx_sdk import Ocx, bootstrap
 ocx = Ocx(exe=bootstrap.ensure())    # download, verify, cache a pinned binary
 project = ocx.project("/srv/build")  # /srv/build holds ocx.toml
 project.pull()                       # materialize the declared toolchain
-result = project.run(["task", "verify"])
+result = project.exec(["task", "verify"])
 ```
 
 📖 **Docs: <https://ocx-sh.github.io/ocx-sdk-python/>** — start at the
@@ -68,8 +68,8 @@ This repo dogfoods OCX. Install OCX once, then run everything through it:
 
 ```bash
 curl -sSL https://setup.ocx.sh | sh
-ocx run -- task verify      # format check + lint + types + tests + coverage
-ocx run -- task docs:serve  # live-preview the docs site at localhost:8000
+ocx exec -- task verify      # format check + lint + types + tests + coverage
+ocx exec -- task docs:serve  # live-preview the docs site at localhost:8000
 ```
 
 OCX bootstraps `task`, `uv`, and `git-cliff`; `uv` pulls `ruff` + `pyright`

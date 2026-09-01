@@ -50,11 +50,12 @@ import os
 
 from ocx_sdk import EnvReport
 
+# ocx always writes all five arrays, so a hand-built payload carries them too.
 report = EnvReport.from_json(
     '{"entries": ['
     '{"key": "JAVA_HOME", "type": "constant", "value": "/opt/jdk"},'
     '{"key": "PATH", "type": "path", "value": "/opt/jdk/bin"}'
-    "]}"
+    '], "binaries": [], "entrypoints": [], "integrations": [], "advisories": []}'
 )
 composed = report.compose(base={"PATH": "/usr/bin"})
 assert composed.mapping["JAVA_HOME"] == "/opt/jdk"
@@ -88,15 +89,15 @@ with composed.activate():
 # keys `composed` touched.
 ```
 
-## `run` vs `spawn`
+## `exec` vs `spawn`
 
-Both compose `ocx run --project ... [NAMES] -- ARGV` under the hood, and
+Both compose `ocx exec --project ... [NAMES] -- ARGV` under the hood, and
 both accept `names=`, `groups=`, `clean=` (strip the ambient parent
 environment before composing), `env=` (extra `[env]` entries for this call
 only), and `lazy_mode=`.
 
-- [`run`](../reference/api.md#ocx_sdk.Project.run) /
-  [`run_async`](../reference/api.md#ocx_sdk.Project.run_async) — a
+- [`exec`](../reference/api.md#ocx_sdk.Project.exec) /
+  [`exec_async`](../reference/api.md#ocx_sdk.Project.exec_async) — a
   one-shot: waits, captures (unless `capture=False`), and by default raises
   `OcxProcessError` on a non-zero child exit. `check=False` is how you
   inspect a failing build instead of catching an exception. Child processes
@@ -109,7 +110,7 @@ only), and `lazy_mode=`.
   draining pipes, and killing belong to the caller, exactly like a bare
   `Popen`.
 
-`capture=False` on `run` inherits stdio and forwards `SIGINT` to the child —
+`capture=False` on `exec` inherits stdio and forwards `SIGINT` to the child —
 the shape you want for a long-running build step whose output should stream
 straight to the terminal.
 

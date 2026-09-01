@@ -50,7 +50,8 @@ bump. `status` decides pass or fail; when it fails,
 from ocx_sdk import TestResult
 
 result = TestResult.from_json(
-    '{"status": "failed", "run": {"exit_code": 1}, '
+    '{"status": "failed", '
+    '"run": {"exit_code": 1, "stdout": "", "stderr": "", "duration_ms": 3, "truncated": false}, '
     '"assertion": {"kind": "exit_code_mismatch", "message": "expected 0, got 1"}}'
 )
 assert not result.passed
@@ -74,8 +75,7 @@ its per-call `retry` to `None` regardless of session policy: a push is a
 registry write, and re-sending one after a timeout risks publishing twice.
 Pass `retry=` explicitly when the target registry is known to be
 idempotent-safe. `cascade=True` also advances the rolling tags above this
-version; `new=True` skips the checks that expect an existing index, for a
-package's first publish.
+version.
 
 ## Consuming what you just published
 

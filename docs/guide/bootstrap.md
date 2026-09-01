@@ -27,7 +27,7 @@ latest (`Channel.STABLE` is the default; `Channel.NEXT` tracks pre-releases):
 # illustrative: needs network access.
 from ocx_sdk import Channel, bootstrap
 
-exe = bootstrap.ensure(version="0.5.8")
+exe = bootstrap.ensure(version="0.6.0")
 next_exe = bootstrap.ensure(channel=Channel.NEXT)
 ```
 

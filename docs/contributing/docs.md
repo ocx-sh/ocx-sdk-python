@@ -7,7 +7,7 @@ The docs site is [MkDocs](https://www.mkdocs.org/) with
 ## Preview locally
 
 ```bash
-ocx run -- task docs:serve
+ocx exec -- task docs:serve
 ```
 
 Browse to <http://127.0.0.1:8000>. Pages live-reload on file changes.
@@ -15,7 +15,7 @@ Browse to <http://127.0.0.1:8000>. Pages live-reload on file changes.
 ## Strict build (CI parity)
 
 ```bash
-ocx run -- task docs:build
+ocx exec -- task docs:build
 ```
 
 `--strict` flips any broken cross-reference, missing nav entry, or

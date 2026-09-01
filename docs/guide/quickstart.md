@@ -30,7 +30,7 @@ from ocx_sdk import Ocx, bootstrap
 ocx = Ocx(exe=bootstrap.ensure())
 project = ocx.project("/srv/build")
 project.pull()
-result = project.run(["task", "verify"])
+result = project.exec(["task", "verify"])
 print(result.exit_code, result.stdout)
 ```
 
@@ -47,7 +47,7 @@ print(result.exit_code, result.stdout)
   directory. See [Projects & toolchains](projects.md).
 - [`project.pull()`](../reference/api.md#ocx_sdk.Project.pull) materializes
   everything `ocx.lock` declares — the "install" step of the journey.
-- [`project.run([...])`](../reference/api.md#ocx_sdk.Project.run) runs a
+- [`project.exec([...])`](../reference/api.md#ocx_sdk.Project.exec) runs a
   command inside the project's composed environment and hands back its exit
   code and output.
 
@@ -64,14 +64,14 @@ print(ocx.version())
 
 ## Two things to unlearn from the CLI
 
-!!! note "There is no `ocx.run`"
+!!! note "There is no `ocx.exec`"
     Raw argv — anything the SDK doesn't type — goes through
     [`ocx.invoke(argv)`](../reference/api.md#ocx_sdk.Ocx.invoke) (or
     `invoke_async`/`spawn`/`spawn_async`). The toolchain runner that mirrors
-    `ocx run` on the CLI is project-tier: `ocx.project(path).run(argv)`.
-    Reaching for `ocx.run` or `ocx.exec` raises `AttributeError` with a
-    pointer to the right method — the SDK reserves those two names on
-    purpose.
+    `ocx exec` on the CLI is project-tier: `ocx.project(path).exec(argv)`.
+    Reaching for `ocx.exec` — or `ocx.run`, the name that verb carried before
+    ocx 0.6 — raises `AttributeError` with a pointer to the right method; the
+    SDK reserves both names on purpose.
 
 !!! note "Package-tier commands are machine tier"
     [`ocx.package`](../reference/api.md#ocx_sdk.Ocx.package) — install,
@@ -83,7 +83,7 @@ print(ocx.version())
 
 - [Bootstrap](bootstrap.md) — pinning, corporate mirrors, `HostEnv` tiers.
 - [Projects & toolchains](projects.md) — `Project` in full: env composition,
-  `run` vs `spawn`.
+  `exec` vs `spawn`.
 - [Hermetic CI](hermetic-ci.md) — the threat-model levers for a build that
   doesn't trust its ambient environment.
 - [Authoring packages](authoring.md) — `create` → `test` → `push`.

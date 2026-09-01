@@ -62,7 +62,7 @@ A few things are true regardless of policy:
   never-retry-auth rule exists to prevent; a push is a registry write, and
   a retried timeout risks publishing twice. Pass `retry=` explicitly on
   either call to opt back in.
-- **Child processes started through `run`, `exec`, or `spawn` are never
+- **Child processes started through `exec` or `spawn` are never
   retried**, ever — there is no session policy that reaches them. Retrying
   a build step could re-run side effects the first attempt already caused.
 - A retry's delay is full jitter (drawn uniformly from `[0, delay]`), and a
@@ -106,7 +106,7 @@ workaround, because subprocess creation on Windows is Proactor-only.
 ocx is a Rust binary, so its own stdout and stderr are always valid UTF-8 —
 the SDK decodes captured output with `.decode("utf-8", "replace")` and
 never sniffs a locale. That guarantee covers only what ocx itself writes: a
-hosted child started through `run`, `exec`, or `spawn` that writes bytes in
+hosted child started through `exec` or `spawn` that writes bytes in
 the host's console codepage (a non-UTF-8 Windows console, say) degrades to
 `�` replacement characters wherever the SDK captures its output. `capture=False`
 sidesteps this entirely — stdio passes through to the terminal raw, never

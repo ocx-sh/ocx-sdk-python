@@ -12,4 +12,4 @@ non-trivial code:
 - [`.claude/rules/quality-tests.md`](https://github.com/ocx-sh/ocx-sdk-python/blob/main/.claude/rules/quality-tests.md) — pytest standards
 - [`.claude/rules/workflow-git.md`](https://github.com/ocx-sh/ocx-sdk-python/blob/main/.claude/rules/workflow-git.md) — branches + conventional commits
 
-Every change lands through `ocx run -- task verify`.
+Every change lands through `ocx exec -- task verify`.

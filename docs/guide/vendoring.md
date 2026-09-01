@@ -22,7 +22,7 @@ import hashlib
 from ocx_sdk import DistSource
 
 # Step 1, done once when the snapshot is captured — not at runtime.
-raw = b'{"latest": {"channel": "stable", "version": "0.5.8"}, "releases": []}'
+raw = b'{"latest": {"channel": "stable", "version": "0.6.0"}, "releases": []}'
 digest = hashlib.sha256(raw).hexdigest()
 snapshot_filename = f"dist/{digest}.json"
 

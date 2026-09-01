@@ -22,8 +22,9 @@ No project path; operates on `$OCX_HOME`.
 | `ocx status` | [`Ocx.project(path).status`](api.md#ocx_sdk.Project.status) | T1 |
 | `ocx clean` | — | T2 |
 | any command | [`Ocx.invoke`](api.md#ocx_sdk.Ocx.invoke) / [`invoke_async`](api.md#ocx_sdk.Ocx.invoke_async) / [`spawn`](api.md#ocx_sdk.Ocx.spawn) / [`spawn_async`](api.md#ocx_sdk.Ocx.spawn_async) | raw escape hatch |
-| `shell hook` / `shell env` / `shell init`, `ci*`, bare aliases | — | ✗ dead stubs |
+| `ci*`, bare aliases | — | ✗ dead stubs |
 | `direnv*` | — | T3, needs human `direnv allow` |
+| `shell allow` / `shell revoke` / `shell state` | — | T3, shell-session, needs human consent |
 | `self activate`, `shell completion` | — | T3, shell-session only |
 
 ## Project tier — `Ocx.project(path)`
@@ -42,7 +43,7 @@ working directory.
 | `ocx status --project` | [`Project.status`](api.md#ocx_sdk.Project.status) | T1 |
 | `ocx inspect --project` | [`Project.inspect`](api.md#ocx_sdk.Project.inspect) | T1 |
 | `ocx env --project` | [`Project.env`](api.md#ocx_sdk.Project.env) | T1 |
-| `ocx run --project -- CMD` | [`Project.run`](api.md#ocx_sdk.Project.run) / [`run_async`](api.md#ocx_sdk.Project.run_async) / [`spawn`](api.md#ocx_sdk.Project.spawn) / [`spawn_async`](api.md#ocx_sdk.Project.spawn_async) | T1 |
+| `ocx exec --project -- CMD` | [`Project.exec`](api.md#ocx_sdk.Project.exec) / [`exec_async`](api.md#ocx_sdk.Project.exec_async) / [`spawn`](api.md#ocx_sdk.Project.spawn) / [`spawn_async`](api.md#ocx_sdk.Project.spawn_async) | T1 |
 
 ## Package tier — `Ocx.package`
 
@@ -59,14 +60,20 @@ project path.
 | `ocx package exec` | [`package.exec`](api.md#ocx_sdk.PackageCommands.exec) / [`exec_async`](api.md#ocx_sdk.PackageCommands.exec_async) / [`spawn`](api.md#ocx_sdk.PackageCommands.spawn) / [`spawn_async`](api.md#ocx_sdk.PackageCommands.spawn_async) | T1 |
 | `ocx package which` | [`package.which`](api.md#ocx_sdk.PackageCommands.which) † | T1 |
 | `ocx package inspect` | [`package.inspect`](api.md#ocx_sdk.PackageCommands.inspect) | T1 |
-| `ocx package info` | [`package.info`](api.md#ocx_sdk.PackageCommands.info) | T1 |
+| `ocx package description pull` | [`package.description_pull`](api.md#ocx_sdk.PackageCommands.description_pull) | T1 |
 | `ocx package deps` | [`package.deps`](api.md#ocx_sdk.PackageCommands.deps) | T1 |
 | `ocx package pull` | [`package.pull`](api.md#ocx_sdk.PackageCommands.pull) | T1 |
 | `ocx package create` | [`package.create`](api.md#ocx_sdk.PackageCommands.create) | T1, author flow |
 | `ocx package test --script` | [`package.test`](api.md#ocx_sdk.PackageCommands.test) | T1, author flow — stable v1 JSON |
 | `ocx package test -- CMD` | [`Ocx.invoke`](api.md#ocx_sdk.Ocx.invoke) | prints the child's raw stdout even under `--format json`; never parsed here |
 | `ocx package push` | [`package.push`](api.md#ocx_sdk.PackageCommands.push) | T1, author flow |
-| `ocx package describe`, `ocx package announce` | — | T2 |
+| `ocx package description push` | [`package.description_push`](api.md#ocx_sdk.PackageCommands.description_push) | T1, author flow |
+| `ocx package sign` | [`package.sign`](api.md#ocx_sdk.PackageCommands.sign) | T1, author flow |
+| `ocx package verify` | [`package.verify`](api.md#ocx_sdk.PackageCommands.verify) | T1 |
+| `ocx package attest` | [`package.attest`](api.md#ocx_sdk.PackageCommands.attest) | T1, author flow |
+| `ocx package sbom` | [`package.sbom`](api.md#ocx_sdk.PackageCommands.sbom) | T1 |
+| `ocx package copy` | [`package.copy`](api.md#ocx_sdk.PackageCommands.copy) | T1, author flow |
+| `ocx package announce` | — | T2 |
 | `ocx package cascade *` | — | T3, not a frozen wire contract |
 
 † `package which`'s JSON is doc-flagged "breaking, pre-1.0" — typed, but not

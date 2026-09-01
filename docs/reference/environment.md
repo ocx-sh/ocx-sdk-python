@@ -10,27 +10,46 @@ is the exhaustive wire-level table.
 
 Dropped from the ambient environment before anything else, regardless of
 configuration — an inherited value here would silently retarget or
-mis-scope a call.
+mis-scope a call. The drop is **case-insensitive**: `ocx_no_verify` goes
+the same way `OCX_NO_VERIFY` does, because a Windows child resolves an
+environment lookup case-insensitively and would read either spelling.
 
 | Variable | Why |
 |---|---|
 | `OCX_PROJECT` | The SDK always targets a project through an explicit `--project`. |
 | `OCX_GLOBAL` | Same reasoning — global scope is explicit, never ambient. |
 | `OCX_QUIET` | The SDK controls output verbosity through its own presentation flags. |
+| `OCX_NO_VERIFY` | A silent kill switch for signature verification — a skipped verification looks identical to a passed one. Say it at the call site instead: `install(..., verify=False)` / `pull(..., verify=False)`, whose argv flag outranks the variable. |
+| `OCX_NO_HOOK` | Governs the per-prompt shell hook, which a spawned child never renders. |
+| `OCX_NO_COMPLETIONS` | Its sibling in the same ladder, for the same reason. |
+
+`OCX_SIGSTORE_TRUSTED_ROOT` is cleared too, one step later — it is popped by
+the config pass rather than the neutralization pass, because
+`OcxConfig.sigstore_trusted_root` can put a value back. It redefines what
+"trusted" means and outranks `[trust.sigstore]`, so an inherited value could
+repoint Fulcio, CT, and Rekor while every install still reported *verified*.
 
 ## Written from `OcxConfig`
 
 `_env.build_spawn_env()` maps `OcxConfig` fields onto these. A plain `bool`
 field is set-only — `False` means "not requested", and the host's ambient
 value (if any) survives. A field typed `X | None` can actively clear an
-ambient value; `None` means "leave the host's value alone."
+ambient value; `None` means "leave the host's value alone" — except for the
+two rows marked *always written*, `OCX_NO_UPDATE_CHECK` and
+`OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean ocx's default
+rather than whatever the host exported.
+
+Every value the SDK writes here — and every ambient value it clears —
+replaces the host's answer for that name in **any case spelling**, for the
+same reason the neutralization table gives. A field the SDK does *not*
+write leaves the ambient value exactly as the host spelled it.
 
 | Variable | `OcxConfig` field | Notes |
 |---|---|---|
 | `OCX_OFFLINE` | `offline: bool` | Set to `1` when `True`; otherwise unwritten. |
 | `OCX_FROZEN` | `frozen: bool` | Same set-only shape. |
 | `OCX_NO_CONFIG` | `no_config: bool` | Same set-only shape. |
-| `OCX_NO_UPDATE_CHECK` | `no_update_check: bool` | The one field always written (`"1"` or `"0"`) — its SDK default is `True`, so a caller asking for the update check back has to be able to beat an ambient `OCX_NO_UPDATE_CHECK=1`. |
+| `OCX_NO_UPDATE_CHECK` | `no_update_check: bool` | *Always written* (`"1"` or `"0"`) — its SDK default is `True`, so a caller asking for the update check back has to be able to beat an ambient `OCX_NO_UPDATE_CHECK=1`. |
 | `OCX_HOME` | `home: Path \| None` | |
 | `OCX_CONFIG` | `config: Path \| None` | |
 | `OCX_INDEX` | `index: Path \| None` | |
@@ -40,6 +59,7 @@ ambient value; `None` means "leave the host's value alone."
 | `OCX_MANAGED_CONFIG` | `managed_config: str \| None` | `MANAGED_CONFIG_DISABLED` (`""`) force-disables an ambient managed-config tier; skipped entirely under `no_config`. |
 | `OCX_NO_CONFIG_REFRESH` | `no_config_refresh: bool \| None` | `True` writes `1`; `False` explicitly clears an ambient value; `None` leaves it alone. |
 | `OCX_INSECURE_REGISTRIES` | `insecure_registries: Collection[str] \| None` | **Fail-closed**: any explicit value, including `()`, replaces the ambient set entirely rather than merging with it. |
+| `OCX_SIGSTORE_TRUSTED_ROOT` | `sigstore_trusted_root: str \| Path \| None` | *Always written*: a value sets it, `None` **pops** any ambient one. `None` therefore means ocx's own root of trust, not the host's — see the neutralization table for why. Typed `str \| Path` because CI configuration usually interpolates it as text. |
 
 ## Auth — `OCX_AUTH_<SLUG>_*`
 
@@ -54,14 +74,22 @@ to:
 | `OCX_AUTH_<SLUG>_TOKEN` | The password (`BasicAuth`) or bearer token (`BearerAuth`). |
 
 `<SLUG>` is every character outside `[A-Za-z0-9]` in the registry name,
-replaced with `_` — `ghcr.io` becomes `GHCR_IO`. An ambient `OCX_AUTH_*` for
+replaced with `_`, **case preserved** — `ghcr.io` becomes `ghcr_io`, so the
+SDK writes `OCX_AUTH_ghcr_io_TOKEN`. ocx's own `to_slug` does not case-fold
+and neither does this. An ambient `OCX_AUTH_*` for
 a registry **not** named in `config.auth` passes through untouched; explicit
-configuration only overrides its own slug. Two registries that canonicalize
-to the same slug, or a registry that canonicalizes to an empty slug, raise
-`OcxError` rather than silently dropping or colliding credentials.
+configuration only overrides its own slug. The clear is case-insensitive
+across the whole name, so a configured `ghcr.io` also removes an ambient
+`ocx_auth_ghcr_io_*` rather than shipping two credential sets for one
+registry. Two registries that canonicalize to the same slug, or a registry
+that canonicalizes to an empty slug, raise `OcxError` rather than silently
+dropping or colliding credentials.
+
+Credentials the *host* exported are redacted from logs and error text
+alongside the ones the SDK wrote, in whatever case they were spelled.
 
 **Propagation**: ocx does not scrub non-forwarded variables from a spawned
-child's environment, so a tool started through `Project.run` or
+child's environment, so a tool started through `Project.exec` or
 `package.exec` inherits `OCX_AUTH_*`. See
 [Errors & credentials](../guide/concepts/errors-and-security.md) for the
 credential-free pattern.
@@ -97,7 +125,7 @@ Nothing found raises `OcxNotFoundError`, whose message names
 
 ## Reserved for `[env]` entries
 
-[`Project.env`](api.md#ocx_sdk.Project.env), [`Project.run`](api.md#ocx_sdk.Project.run),
+[`Project.env`](api.md#ocx_sdk.Project.env), [`Project.exec`](api.md#ocx_sdk.Project.exec),
 and [`PackageCommands.test`](api.md#ocx_sdk.PackageCommands.test) accept extra
 `env=` entries serialized as ocx's `--env KEY[:TYPE[:SEP]]=VALUE` flag. A key
 in the `OCX_*` or `__OCX_*` namespace is rejected with `OcxError` — a project
@@ -125,6 +153,9 @@ matching stderr text.
 | 80 | `AUTH` | `AuthError` | no — auth failures are never retried |
 | 81 | `POLICY_BLOCKED` | `PolicyBlockedError` | no |
 | 82 | `DIRTY_RC_BLOCK` | `DirtyRcBlockError` | no |
+| 83 | `TRANSPARENCY_LOG_UNAVAILABLE` | `TransparencyLogUnavailableError` | no — retrying amplifies Rekor's rate limiting, and a later success is not restored trust |
+| 84 | `REFERRERS_UNSUPPORTED` | `ReferrersUnsupportedError` | no |
+| 85 | `UNSUPPORTED_KEY_BACKEND` | `UnsupportedKeyBackendError` | no |
 | — (timeout, no exit code) | — | `OcxTimeoutError` | no |
 
 A process killed by a signal exits with a code ocx never assigns (137 for
