@@ -1,6 +1,6 @@
 [project]
 name = "ocx-sdk"
-version = "0.1.0"
+version = "0.2.0"
 description = "Typed Python SDK for OCX — bootstrap, drive, and author OCX toolchains and packages"
 readme = "README.md"
 license = "Apache-2.0"
