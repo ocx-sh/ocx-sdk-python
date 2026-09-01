@@ -3,7 +3,7 @@ name: CI
 # Every job provisions its toolchain with `ocx-sh/setup-ocx`, which ACTIVATES
 # the project when ocx.toml is present — the tools ocx.lock pins are on PATH
 # for every step that follows. So steps invoke `task <name>` directly: an
-# `ocx run -- task <name>` wrapper would be redundant indirection, not extra
+# `ocx exec -- task <name>` wrapper would be redundant indirection, not extra
 # safety. Locally, `.envrc` (direnv) activates the same project the same way,
 # so CI and a developer's shell run byte-identical commands.
 

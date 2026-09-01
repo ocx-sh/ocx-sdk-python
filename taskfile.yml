@@ -45,7 +45,7 @@ tasks:
   test:contract:
     desc: Run contract-tier tests against the pinned ocx binary
     cmds:
-      - OCX_SDK_CONTRACT=1 uv run --extra dev pytest tests/contract {{.CLI_ARGS}}
+      - OCX_SDK_CONTRACT=1 uv run --extra dev pytest tests/contract docs README.md {{.CLI_ARGS}}
 
   test:acceptance:
     desc: Run acceptance-tier tests against a compose stack
