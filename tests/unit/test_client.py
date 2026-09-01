@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Contract tests for `ocx_sdk._client` (C-011).
+"""Contract tests for `ocx_sdk._client` (v0.1 C-011; C-001 to C-004, C-007 to C-015, S-001 to S-003, S-005, S-008).
 
 The seam under test is `_process`: every test fakes `run_command` and friends
 and then asserts on what the client *composed* — the argv, the child
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,14 @@ from ocx_sdk._client import UNSET, MaybeRetry, Ocx, Project
 from ocx_sdk._config import OcxConfig
 from ocx_sdk._errors import AuthError, OcxNotFoundError, OcxProcessError, VersionCompatError
 from ocx_sdk._process import Completed
+from ocx_sdk._results import (
+    AttestationReport,
+    CopyReport,
+    SbomListingReport,
+    SignatureReport,
+    SweepReport,
+    VerificationReport,
+)
 from ocx_sdk._types import MIN_SUPPORTED, TESTED_OCX_VERSION, BearerAuth, HostEnv, PackageRef, PathVar, RetryPolicy
 
 _JSON = ["--format", "json", "--color", "never"]
@@ -64,8 +73,36 @@ _TOOL_ROWS = '[{"binding":"task","group":"default","digest":"sha256:d","platform
 _TOKEN = "ghp_supersecret"
 """A credential, for the tests that prove it never surfaces."""
 
-_ABOUT = '{"version":"0.5.8","registry":"ocx.sh","home":"/h","shell":"sh"}'
+_ABOUT = '{"version":"0.5.8","registry":"ocx.sh","home":"/h","shell":"sh","platforms":[],"libc":[]}'
 """The `about` payload — the fake's default, since most behaviour tests use it."""
+
+_RUN = '{"exit_code":0,"stdout":"","stderr":"","duration_ms":1,"truncated":false}'
+"""A `RunSummary` with every field ocx always writes (D7)."""
+
+_DRY_RUN = '[{"package":"ocx.sh/task:3@sha256:d","status":"would-fetch","path":null}]'
+"""What `pull --dry-run` writes: a bare root array, not `pull`'s keyed object."""
+
+_TEST_PASSED = '{"status":"passed","assertion":null,"run":' + _RUN + "}"
+"""The `package test --script` envelope for a run that passed."""
+
+_STATUS = (
+    '{"project":"/srv/build","lock":{"present":false,"declaration_hash_expected":"h"},'
+    '"groups":{},"package_settings":{}}'
+)
+"""The `status` payload — every key `status.rs` writes unconditionally."""
+
+
+def _pushed(identifier):
+    """A `package push` payload carrying the six keys `PushResult` requires.
+
+    `cascade_tags_written`, `keep_tags_written` and `layers` have no
+    `skip_serializing_if` upstream, so they are always present and read with
+    `_need` (D7) — a payload without them is not one ocx can emit.
+    """
+    return (
+        f'{{"identifier":"{identifier}","status":"pushed","manifest_digest":"sha256:x",'
+        '"cascade_tags_written":[],"keep_tags_written":[],"layers":{}}'
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,19 +286,62 @@ def test_repr_names_the_binary_and_nothing_else(ocx: Ocx, exe: Path) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_ocx_run_points_at_the_project_tier(ocx: Ocx) -> None:
-    with pytest.raises(AttributeError, match=r"ocx\.project\(\.\.\.\)\.run"):
+def test_ocx_run_carries_the_only_migration_signal_for_the_rename(ocx: Ocx) -> None:
+    """C-001: `ocx.run` is where a 0.1 caller lands after `run` became `exec`.
+
+    A pointed `AttributeError`, not a shim — so the hint has to name the
+    rename *and* both replacements, because nothing else in 0.2.0 does.
+    """
+    with pytest.raises(AttributeError, match=r"renamed to ocx exec") as caught:
         _ = ocx.run  # pyright: ignore[reportAttributeAccessIssue]
 
+    message = str(caught.value)
+    assert "ocx run was renamed to ocx exec in 0.6." in message
+    assert "ocx.project(path).exec(argv) for the project toolchain" in message
+    assert "ocx.package.exec(refs, argv) for installed packages" in message
 
-def test_ocx_exec_points_at_the_package_tier(ocx: Ocx) -> None:
-    with pytest.raises(AttributeError, match=r"ocx\.package\.exec"):
+
+def test_ocx_exec_points_at_both_tier_handles(ocx: Ocx) -> None:
+    """C-001: `exec` exists on two handles now, and the machine tier is neither."""
+    with pytest.raises(AttributeError, match=r"exec lives on a tier handle") as caught:
         _ = ocx.exec  # pyright: ignore[reportAttributeAccessIssue]
+
+    message = str(caught.value)
+    assert "ocx.project(path).exec(argv) for the project toolchain" in message
+    assert "ocx.package.exec(refs, argv) for installed packages" in message
 
 
 def test_an_ordinary_missing_attribute_stays_ordinary(ocx: Ocx) -> None:
     with pytest.raises(AttributeError, match="nonesuch"):
         _ = ocx.nonesuch  # pyright: ignore[reportAttributeAccessIssue]
+
+
+@pytest.mark.parametrize(
+    ("name", "replacement"),
+    [
+        pytest.param("run", "project.exec(argv)", id="run"),
+        pytest.param("run_async", "project.exec_async(argv)", id="run-async"),
+    ],
+)
+def test_project_run_carries_the_migration_signal_where_callers_land(ocx: Ocx, name: str, replacement: str) -> None:
+    """C-001: the v0.1 toolchain runner was `Project.run`, not `Ocx.run`.
+
+    `Ocx.run` was already a trap in v0.1, so the hint there fires on the
+    handle nobody used. Without one here a 0.1 call site gets a bare
+    `AttributeError` naming no replacement — and C-001 calls this the only
+    migration signal the release ships.
+    """
+    project = ocx.project(_PROJECT)
+
+    with pytest.raises(AttributeError, match=r"renamed to ocx exec") as caught:
+        _ = getattr(project, name)
+
+    assert replacement in str(caught.value)
+
+
+def test_an_ordinary_missing_attribute_on_a_project_stays_ordinary(ocx: Ocx) -> None:
+    with pytest.raises(AttributeError, match="nonesuch"):
+        _ = ocx.project(_PROJECT).nonesuch  # pyright: ignore[reportAttributeAccessIssue]
 
 
 # --------------------------------------------------------------------------
@@ -426,7 +506,7 @@ def test_raw_invoke_is_never_gated(ocx: Ocx, process: _Process) -> None:
 async def test_the_async_gate_reads_the_same_memo(ocx: Ocx, process: _Process) -> None:
     ocx.about()
 
-    await ocx.project(_PROJECT).run_async(["true"])
+    await ocx.project(_PROJECT).exec_async(["true"])
 
     assert len(process.probes) == 1
 
@@ -435,7 +515,7 @@ async def test_the_async_gate_probes_through_the_async_driver(ocx: Ocx, process:
     # An unprimed memo means the first async call does the probing, and it has
     # to do it on the loop: a blocking `ocx version` here would stall every
     # other task while the binary starts.
-    await ocx.project(_PROJECT).run_async(["true"])
+    await ocx.project(_PROJECT).exec_async(["true"])
 
     assert [call.is_async for call in process.probes] == [True]
 
@@ -444,7 +524,36 @@ async def test_compat_gate_probes_without_blocking_the_loop(ocx: Ocx, process: _
     process.version = "0.4.0"
 
     with pytest.raises(VersionCompatError, match=r"0\.4\.0"):
-        await ocx.project(_PROJECT).run_async(["true"])
+        await ocx.project(_PROJECT).exec_async(["true"])
+
+
+def test_a_0_5_binary_is_rejected_before_the_renamed_argv_composes(ocx: Ocx, process: _Process) -> None:
+    """S-001, C-007: the gate answers, never a bare exit 64 from `ocx exec`.
+
+    `ocx exec` does not exist below 0.6, so a caller on 0.5.8 would otherwise
+    read an unknown-subcommand usage error instead of a version mismatch. The
+    probe is the only argv that may reach the binary.
+    """
+    process.version = "0.5.8"
+
+    with pytest.raises(VersionCompatError, match=r"0\.5\.8") as caught:
+        ocx.project(_PROJECT).exec(["true"])
+
+    # As a pair: asserting each half separately cannot tell the message apart
+    # from its inverse, "ocx 0.6.0 is older than the minimum supported 0.5.8".
+    assert (caught.value.found, caught.value.minimum) == ("0.5.8", MIN_SUPPORTED)
+    assert [call.command[-1] for call in process.calls] == ["version"]
+
+
+async def test_a_0_5_binary_is_rejected_before_the_renamed_async_argv_composes(ocx: Ocx, process: _Process) -> None:
+    """S-001, C-007: the async gate refuses the same binary on the same evidence."""
+    process.version = "0.5.8"
+
+    with pytest.raises(VersionCompatError, match=r"0\.5\.8") as caught:
+        await ocx.project(_PROJECT).exec_async(["true"])
+
+    assert (caught.value.found, caught.value.minimum) == ("0.5.8", MIN_SUPPORTED)
+    assert [call.command[-1] for call in process.calls] == ["version"]
 
 
 # --------------------------------------------------------------------------
@@ -471,9 +580,10 @@ def test_invoke_pins_no_presentation_at_all(ocx: Ocx, process: _Process) -> None
 
 
 def test_child_hosting_verbs_keep_stdout_for_the_child(project: Project, process: _Process) -> None:
-    project.run(["printenv"])
+    """C-001, S-002: the project tier hosts a child under `ocx exec`, not `ocx run`."""
+    project.exec(["printenv"])
 
-    assert process.last.command == [*_PLAIN, "--project", _PROJECT_ARG, "run", "--", "printenv"]
+    assert process.last.command == [*_PLAIN, "--project", _PROJECT_ARG, "exec", "--", "printenv"]
 
 
 def test_log_level_is_the_one_config_knob_that_reaches_argv(exe: Path, process: _Process) -> None:
@@ -502,7 +612,7 @@ def test_ambient_project_targeting_is_neutralized(exe: Path, process: _Process) 
 
 
 def test_every_project_call_carries_the_project_flag(project: Project, process: _Process) -> None:
-    process.stdout = '{"project":"/srv/build"}'
+    process.stdout = _STATUS
 
     project.status()
 
@@ -524,7 +634,7 @@ def test_package_tier_takes_no_project_path(ocx: Ocx, process: _Process) -> None
 _MACHINE_CASES = [
     pytest.param(
         lambda o: o.about(),
-        '{"version":"0.5.8","registry":"ocx.sh","home":"/h","shell":"sh"}',
+        _ABOUT,
         ["about"],
         id="about",
     ),
@@ -592,7 +702,12 @@ _MACHINE_CASES = [
         ["package", "inspect", "--resolve", "--closure", "a"],
         id="package-inspect",
     ),
-    pytest.param(lambda o: o.package.info("a"), '{"a":null}', ["package", "info", "a"], id="package-info"),
+    pytest.param(
+        lambda o: o.package.description_pull("a"),
+        '{"a":null}',
+        ["package", "description", "pull", "a"],
+        id="package-description-pull",
+    ),
     pytest.param(lambda o: o.package.deps("a"), '{"roots":[]}', ["package", "deps", "a"], id="package-deps"),
     pytest.param(
         lambda o: o.package.deps("a", private=True, why="b", depth=2, platform="linux/amd64"),
@@ -601,10 +716,10 @@ _MACHINE_CASES = [
         id="package-deps-flags",
     ),
     pytest.param(
-        lambda o: o.package.info("a", save_readme="/r.md", save_logo="/l.png"),
+        lambda o: o.package.description_pull("a", save_readme="/r.md", save_logo="/l.png"),
         '{"a":null}',
-        ["package", "info", "--save-readme", "/r.md", "--save-logo", "/l.png", "a"],
-        id="package-info-save",
+        ["package", "description", "pull", "--save-readme", "/r.md", "--save-logo", "/l.png", "a"],
+        id="package-description-pull-save",
     ),
     pytest.param(lambda o: o.package.pull("a"), '{"a":"/p"}', ["package", "pull", "a"], id="package-pull"),
     pytest.param(
@@ -643,13 +758,13 @@ _MACHINE_CASES = [
     ),
     pytest.param(
         lambda o: o.package.test("repo:1.0.0", script="/t.star"),
-        '{"status":"passed","assertion":null,"run":{"exit_code":0}}',
+        _TEST_PASSED,
         ["package", "test", "--identifier", "repo:1.0.0", "--script", "/t.star"],
         id="package-test",
     ),
     pytest.param(
         lambda o: o.package.test("repo:1.0.0", script="-", layers=["a.tar.gz"], keep=True, clean=True, private=True),
-        '{"status":"passed","assertion":null,"run":{"exit_code":0}}',
+        _TEST_PASSED,
         [
             "package",
             "test",
@@ -666,29 +781,35 @@ _MACHINE_CASES = [
     ),
     pytest.param(
         lambda o: o.package.test("repo:1.0.0", script="/t.star", output="/out"),
-        '{"status":"passed","assertion":null,"run":{"exit_code":0}}',
+        _TEST_PASSED,
         ["package", "test", "--identifier", "repo:1.0.0", "--script", "/t.star", "--output", "/out"],
         id="package-test-output",
     ),
     pytest.param(
-        lambda o: o.package.push("a.tar.gz", identifier="repo:1.0.0", new=True),
-        '{"identifier":"repo:1.0.0","status":"pushed","manifest_digest":"sha256:x"}',
-        ["package", "push", "--identifier", "repo:1.0.0", "--new", "a.tar.gz"],
+        lambda o: o.package.push("a.tar.gz", identifier="repo:1.0.0"),
+        _pushed("repo:1.0.0"),
+        ["package", "push", "--identifier", "repo:1.0.0", "a.tar.gz"],
         id="package-push",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="repo:1.0.0", keep_tag=True),
+        _pushed("repo:1.0.0"),
+        ["package", "push", "--identifier", "repo:1.0.0", "--keep-tag", "a.tar.gz"],
+        id="package-push-keep-tag",
     ),
     pytest.param(
         lambda o: o.package.push(
             cascade=True,
-            canonical_tag=False,
+            keep_tag=False,
             metadata="/m.json",
             annotations={"org.opencontainers.image.source": "https://example.test"},
         ),
-        '{"identifier":"repo:1.0.0","status":"pushed","manifest_digest":"sha256:x"}',
+        _pushed("repo:1.0.0"),
         [
             "package",
             "push",
             "--cascade",
-            "--no-canonical-tag",
+            "--no-keep-tag",
             "--metadata",
             "/m.json",
             "--annotation",
@@ -697,19 +818,74 @@ _MACHINE_CASES = [
         id="package-push-flags",
     ),
     pytest.param(
-        lambda o: o.package.push("a.tar.gz", identifier="r:1", build_timestamp="date", announce_file="/tmp/tags"),
-        '{"identifier":"r:1","status":"pushed","manifest_digest":"sha256:x"}',
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", build_timestamp="date", tags_file="/tmp/tags"),
+        _pushed("r:1"),
         [
             "package",
             "push",
             "--identifier",
             "r:1",
             "--build-timestamp=date",
-            "--announce-file",
+            "--tags-file",
             "/tmp/tags",
             "a.tar.gz",
         ],
         id="package-push-cd-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", sign=True, sbom="/sbom.json"),
+        _pushed("r:1"),
+        ["package", "push", "--identifier", "r:1", "--sign", "--sbom", "/sbom.json", "a.tar.gz"],
+        id="package-push-sign-inline",
+    ),
+    pytest.param(
+        lambda o: o.package.push(
+            "a.tar.gz",
+            identifier="r:1",
+            sign=True,
+            key="file://k.pem",
+            signature_format="simplesigning",
+            rekor_upload=False,
+        ),
+        _pushed("r:1"),
+        [
+            "package",
+            "push",
+            "--identifier",
+            "r:1",
+            "--sign",
+            "--signature-format",
+            "simplesigning",
+            "--key",
+            "file://k.pem",
+            "--no-rekor-upload",
+            "a.tar.gz",
+        ],
+        id="package-push-sign-with-key",
+    ),
+    pytest.param(
+        lambda o: o.package.install("a", verify=True),
+        _INSTALLED,
+        ["package", "install", "--verify", "a"],
+        id="package-install-verify",
+    ),
+    pytest.param(
+        lambda o: o.package.install("a", verify=False),
+        _INSTALLED,
+        ["package", "install", "--no-verify", "a"],
+        id="package-install-no-verify",
+    ),
+    pytest.param(
+        lambda o: o.package.pull("a", verify=True),
+        '{"a":"/p"}',
+        ["package", "pull", "--verify", "a"],
+        id="package-pull-verify",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", sbom="/sbom.json", key="file://k.pem"),
+        _pushed("r:1"),
+        ["package", "push", "--identifier", "r:1", "--key", "file://k.pem", "--sbom", "/sbom.json", "a.tar.gz"],
+        id="package-push-sbom-admits-a-modifier",
     ),
     pytest.param(
         lambda o: o.config.setup(managed_config="ocx.sh/corp/config:1"),
@@ -761,7 +937,7 @@ _PROJECT_CASES = [
     # `init` is deliberately absent: it is the one project-tier call that
     # carries no `--project`. Its argv and cwd are asserted on their own, in
     # test_init_runs_in_the_project_directory_without_the_project_flag.
-    pytest.param(lambda p: p.status(), '{"project":"/srv/build"}', ["status"], id="status"),
+    pytest.param(lambda p: p.status(), _STATUS, ["status"], id="status"),
     pytest.param(lambda p: p.add("ocx.sh/task:3"), _TOOL_ROWS, ["add", "ocx.sh/task:3"], id="add"),
     pytest.param(
         lambda p: p.add("ocx.sh/task:3", group="ci", pull=True, platform="linux/amd64"),
@@ -785,9 +961,14 @@ _PROJECT_CASES = [
         ["pull"],
         id="pull",
     ),
+    # `_DRY_RUN` is a root array because that is what ocx writes. This row used
+    # to carry a hand-written `{"advisories":[]}`, which exercised the flag and
+    # the argv while agreeing with the wrong parser — hiding a crash on every
+    # real preview. A hand-written payload is evidence about what its author
+    # believed, never about the wire.
     pytest.param(
         lambda p: p.pull(dry_run=True, groups=["ci"], lazy_mode="never"),
-        '{"advisories":[]}',
+        _DRY_RUN,
         ["pull", "--dry-run", "--group", "ci", "--lazy-mode", "never"],
         id="pull-flags",
     ),
@@ -868,6 +1049,36 @@ def test_managed_config_disabled_is_an_explicit_empty_value(ocx: Ocx, process: _
 
 
 # --------------------------------------------------------------------------
+# C-004: the 0.6 push flag surface
+# --------------------------------------------------------------------------
+
+
+def test_push_no_longer_accepts_the_dropped_new_flag(ocx: Ocx, process: _Process) -> None:
+    """C-004: `--new` is gone from ocx 0.6, and 0.2.0 ships no accept-and-ignore shim."""
+    with pytest.raises(TypeError, match=r"unexpected keyword argument 'new'"):
+        ocx.package.push("a.tar.gz", identifier="repo:1.0.0", new=True)  # pyright: ignore[reportCallIssue]
+
+
+@pytest.mark.parametrize(
+    "dropped",
+    [
+        pytest.param("canonical_tag", id="canonical-tag-became-keep-tag"),
+        pytest.param("announce_file", id="announce-file-became-tags-file"),
+    ],
+)
+def test_push_refuses_the_0_5_spelling_of_a_renamed_parameter(ocx: Ocx, process: _Process, dropped: str) -> None:
+    """C-004: renamed, not aliased — a 0.1 call site must be edited, not silently accepted.
+
+    No push payload is staged: the `TypeError` fires when Python binds the
+    call, before any body runs, so nothing here ever reaches the process
+    layer or a parser.
+    """
+    removed: dict[str, Any] = {dropped: True}
+    with pytest.raises(TypeError, match=rf"unexpected keyword argument '{dropped}'"):
+        ocx.package.push("a.tar.gz", identifier="repo:1.0.0", **removed)
+
+
+# --------------------------------------------------------------------------
 # Argv safety (§14)
 # --------------------------------------------------------------------------
 
@@ -878,7 +1089,7 @@ def test_leading_dash_rejected(ocx: Ocx) -> None:
 
 
 def test_double_dash_emitted(project: Project, process: _Process) -> None:
-    project.run(["ls", "-la"])
+    project.exec(["ls", "-la"])
 
     assert process.last.command[-3:] == ["--", "ls", "-la"]
 
@@ -897,7 +1108,7 @@ def test_package_exec_guards_the_package_group(ocx: Ocx) -> None:
 @pytest.mark.parametrize(
     "call",
     [
-        pytest.param(lambda p: p.run([]), id="run"),
+        pytest.param(lambda p: p.exec([]), id="exec"),
         pytest.param(lambda p: p.spawn([]), id="spawn"),
     ],
 )
@@ -906,9 +1117,9 @@ def test_child_hosting_verbs_refuse_an_empty_argv(project: Project, call: Any) -
         call(project)
 
 
-async def test_run_async_refuses_an_empty_argv(project: Project) -> None:
+async def test_exec_async_refuses_an_empty_argv(project: Project) -> None:
     with pytest.raises(ValueError, match="needs a command"):
-        await project.run_async([])
+        await project.exec_async([])
 
 
 async def test_spawn_async_refuses_an_empty_argv(project: Project) -> None:
@@ -961,7 +1172,7 @@ def test_an_explicit_none_opts_out_of_retries(exe: Path, process: _Process) -> N
         ),
         pytest.param(
             lambda o: o.package.push("a.tar.gz", identifier="repo:1"),
-            '{"identifier":"repo:1","status":"pushed","manifest_digest":"sha256:x"}',
+            _pushed("repo:1"),
             id="package-push",
         ),
     ],
@@ -987,7 +1198,7 @@ def test_a_mutating_command_still_honors_an_explicit_policy(exe: Path, process: 
 def test_child_processes_are_never_retried(exe: Path, process: _Process) -> None:
     handle = Ocx(exe, config=OcxConfig(retry=RetryPolicy()), host_env=HostEnv.clean())
 
-    handle.project(_PROJECT).run(["true"])
+    handle.project(_PROJECT).exec(["true"])
 
     assert process.last.kwargs["retry"] is None
 
@@ -1058,7 +1269,7 @@ def test_invoke_returns_the_raw_result(ocx: Ocx, process: _Process) -> None:
 def test_a_failing_child_surfaces_its_exit_code(project: Project, process: _Process) -> None:
     process.exit_code = 2
 
-    result = project.run(["false"], check=False)
+    result = project.exec(["false"], check=False)
 
     assert result.exit_code == 2
     assert process.last.kwargs["check"] is False
@@ -1072,7 +1283,7 @@ def test_a_failing_typed_call_raises(ocx: Ocx, process: _Process) -> None:
 
 
 def test_capture_false_passes_through(project: Project, process: _Process) -> None:
-    project.run(["make"], capture=False)
+    project.exec(["make"], capture=False)
 
     assert process.last.kwargs["capture"] is False
 
@@ -1130,7 +1341,7 @@ def test_spawn_returns_the_stdlib_handle(ocx: Ocx, process: _Process) -> None:
 def test_project_spawn_carries_the_project_flag(project: Project, process: _Process) -> None:
     project.spawn(["watch"])
 
-    assert process.last.command == [*_PLAIN, "--project", _PROJECT_ARG, "run", "--", "watch"]
+    assert process.last.command == [*_PLAIN, "--project", _PROJECT_ARG, "exec", "--", "watch"]
 
 
 def test_package_spawn_composes_both_groups(ocx: Ocx, process: _Process) -> None:
@@ -1171,8 +1382,8 @@ async def test_invoke_async_matches_its_sync_twin(ocx: Ocx, process: _Process) -
     assert process.last.command == ["index", "list"]
 
 
-async def test_run_async_hosts_the_child(project: Project, process: _Process) -> None:
-    await project.run_async(["pytest"], capture=False)
+async def test_exec_async_hosts_the_child(project: Project, process: _Process) -> None:
+    await project.exec_async(["pytest"], capture=False)
 
     assert process.last.command[-2:] == ["--", "pytest"]
     assert process.last.kwargs["capture"] is False
@@ -1212,7 +1423,7 @@ def test_a_clean_handle_composes_hermetically(exe: Path, process: _Process, monk
 
 
 # --------------------------------------------------------------------------
-# S-001: the CI quickstart journey
+# v0.1 S-001: the CI quickstart journey
 # --------------------------------------------------------------------------
 
 
@@ -1225,7 +1436,7 @@ def test_ci_quickstart_journey(exe: Path, process: _Process) -> None:
     process.stdout = _TOOL_ROWS
     project.lock()
     process.stdout = "{}"
-    verify = project.run(["task", "verify"])
+    verify = project.exec(["task", "verify"])
 
     assert installed.packages["a"].path == "/p"
     assert verify.exit_code == 0
@@ -1270,7 +1481,7 @@ def test_login_token_is_scrubbed_from_the_error_and_the_logs(
 @pytest.mark.parametrize(
     "call",
     [
-        pytest.param(lambda o: o.project(_PROJECT).run([]), id="project-run"),
+        pytest.param(lambda o: o.project(_PROJECT).exec([]), id="project-exec"),
         pytest.param(lambda o: o.project(_PROJECT).spawn([]), id="project-spawn"),
         pytest.param(lambda o: o.package.exec(["a"], []), id="package-exec"),
         pytest.param(lambda o: o.package.spawn(["a"], []), id="package-spawn"),
@@ -1289,7 +1500,7 @@ async def test_an_empty_argv_is_refused_before_the_async_probe(ocx: Ocx, process
     process.version = "0.4.0"
 
     with pytest.raises(ValueError, match="needs a command"):
-        await ocx.project(_PROJECT).run_async([])
+        await ocx.project(_PROJECT).exec_async([])
 
     assert process.calls == []
 
@@ -1337,8 +1548,8 @@ def test_package_exec_composes_every_flag_before_its_two_groups(ocx: Ocx, proces
     ]
 
 
-def test_project_run_composes_every_flag_before_its_two_groups(project: Project, process: _Process) -> None:
-    project.run(
+def test_project_exec_composes_every_flag_before_its_two_groups(project: Project, process: _Process) -> None:
+    project.exec(
         ["pytest", "-q"],
         names=["uv"],
         groups=["dev", "ci"],
@@ -1351,7 +1562,7 @@ def test_project_run_composes_every_flag_before_its_two_groups(project: Project,
         *_PLAIN,
         "--project",
         _PROJECT_ARG,
-        "run",
+        "exec",
         "--group",
         "dev",
         "--group",
@@ -1386,8 +1597,9 @@ def test_unset_forwards_the_session_default_through_a_wrapper(exe: Path, process
 
 
 def test_save_targets_refuse_more_than_one_package(ocx: Ocx) -> None:
+    """C-002: the ValueError survives the `info` -> `description_pull` rename."""
     with pytest.raises(ValueError, match="single package only"):
-        ocx.package.info("a", "b", save_readme="/tmp/readme.md")
+        ocx.package.description_pull("a", "b", save_readme="/tmp/readme.md")
 
 
 def test_handles_report_themselves_without_dumping_the_runner(ocx: Ocx, project: Project) -> None:
@@ -1397,11 +1609,32 @@ def test_handles_report_themselves_without_dumping_the_runner(ocx: Ocx, project:
     assert repr(ocx.patch) == f"PatchCommands(exe={str(ocx.exe)!r})"
 
 
+def test_pull_dry_run_parses_the_root_array_the_preview_actually_writes(project: Project, process: _Process) -> None:
+    """`--dry-run` reports a different upstream type at a different JSON root.
+
+    Routing it into `PullReport.from_json` raised `expected a JSON object` on
+    every real preview — the whole flag was unusable. The overload picks the
+    row parser instead, so the two shapes never meet.
+    """
+    process.stdout = _DRY_RUN
+
+    rows = project.pull(dry_run=True)
+
+    assert [(row.package, row.status, row.path) for row in rows] == [("ocx.sh/task:3@sha256:d", "would-fetch", None)]
+
+
+def test_pull_without_dry_run_still_answers_the_keyed_report(project: Project, process: _Process) -> None:
+    """The other arm of the overload — the shape a real pull writes."""
+    process.stdout = '{"ocx.sh/task:3":{"path":"/p","kind":"package"},"advisories":[]}'
+
+    assert project.pull().packages["ocx.sh/task:3"].path == "/p"
+
+
 def test_package_test_tolerates_a_failing_script_and_returns_the_result(ocx: Ocx, process: _Process) -> None:
     process.exit_code = 1
     process.stdout = (
         '{"status": "failed", "assertion": {"kind": "binary_missing", "message": "no such binary"},'
-        ' "run": {"exit_code": 1}}'
+        ' "run": {"exit_code": 1, "stdout": "", "stderr": "", "duration_ms": 2, "truncated": false}}'
     )
 
     outcome = ocx.package.test("repo:1.0.0", script="/t.star")
@@ -1410,3 +1643,737 @@ def test_package_test_tolerates_a_failing_script_and_returns_the_result(ocx: Ocx
     assert outcome.assertion is not None and outcome.assertion.kind == "binary_missing"
     # The tolerance is scoped: the call hands _process exactly {0, 1}.
     assert process.last.kwargs["ok_codes"] == (0, 1)
+
+
+# --------------------------------------------------------------------------
+# The 0.6 signing surface: C-003, C-008-C-015 bindings, S-003, S-005, S-008
+# --------------------------------------------------------------------------
+
+_SIGNED = object()
+"""What a bare `sign` parse yields."""
+
+_ATTESTED = object()
+"""What a bare `attest` parse yields."""
+
+_SWEPT = object()
+"""What a swept `sign` or `attest` parse yields."""
+
+_VERIFIED = object()
+"""What a `verify` parse yields."""
+
+_LISTED = object()
+"""What an `sbom` parse yields."""
+
+_COPIED = object()
+"""What a `copy` parse yields."""
+
+
+@dataclass
+class _Parsers:
+    """Records what the client handed each faked result parser."""
+
+    raw: list[str] = field(default_factory=list[str])
+    rows: list[Any] = field(default_factory=list[Any])
+    """The row parser a swept call chose — the seam C-017 declares."""
+
+
+@pytest.fixture
+def parsers(monkeypatch: pytest.MonkeyPatch) -> _Parsers:
+    """Fake the `_results` decode seam, leaving these rows about argv.
+
+    The six new bindings hand their stdout to `_results`, whose wire shapes
+    and `from_json` bodies are a sibling work package's. Faking the seam
+    keeps this file what it has always been — evidence about what the client
+    *composed* — and leaves the JSON to `tests/unit/test_results.py`.
+    """
+    seam = _Parsers()
+
+    def bare(parsed: object) -> Any:
+        def parse(raw: str) -> object:
+            seam.raw.append(raw)
+            return parsed
+
+        return parse
+
+    def sweep(raw: str, row: Any) -> object:
+        seam.raw.append(raw)
+        seam.rows.append(row)
+        return _SWEPT
+
+    monkeypatch.setattr(SignatureReport, "from_json", bare(_SIGNED))
+    monkeypatch.setattr(AttestationReport, "from_json", bare(_ATTESTED))
+    monkeypatch.setattr(VerificationReport, "from_json", bare(_VERIFIED))
+    monkeypatch.setattr(SbomListingReport, "from_json", bare(_LISTED))
+    monkeypatch.setattr(CopyReport, "from_json", bare(_COPIED))
+    monkeypatch.setattr(SweepReport, "from_json", sweep)
+    return seam
+
+
+_SIGNING_CASES = [
+    pytest.param(lambda o: o.package.sign("r:1"), ["package", "sign", "r:1"], id="sign"),
+    pytest.param(
+        lambda o: o.package.sign(
+            "r:1",
+            platform="linux/amd64",
+            signature_format="both",
+            rekor_url="https://rekor.test",
+            no_cache=True,
+        ),
+        [
+            "package",
+            "sign",
+            "--platform",
+            "linux/amd64",
+            "--signature-format",
+            "both",
+            "--rekor-url",
+            "https://rekor.test",
+            "--no-cache",
+            "r:1",
+        ],
+        id="sign-keyless-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", key="file://k.pem", rekor_upload=False),
+        ["package", "sign", "--key", "file://k.pem", "--no-rekor-upload", "r:1"],
+        id="sign-key",
+    ),
+    pytest.param(
+        lambda o: o.package.sign(
+            "r:1",
+            rekor_upload=True,
+            fulcio_url="https://fulcio.test",
+            identity_token_file="/run/token",
+            no_tty=True,
+        ),
+        [
+            "package",
+            "sign",
+            "--rekor-upload",
+            "--fulcio-url",
+            "https://fulcio.test",
+            "--identity-token-file",
+            "/run/token",
+            "--no-tty",
+            "r:1",
+        ],
+        id="sign-keyless-ci",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", identity_token_stdin=True),
+        ["package", "sign", "--identity-token-stdin", "r:1"],
+        id="sign-token-stdin",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", tags=["1.2", "1"], tags_file="/tmp/tags"),
+        ["package", "sign", "--tags", "1.2", "--tags", "1", "--tags-file", "/tmp/tags", "r:1"],
+        id="sign-sweep-union",
+    ),
+    pytest.param(
+        lambda o: o.package.attest("r:1", predicate="/sbom.json", predicate_type="cyclonedx"),
+        ["package", "attest", "--predicate", "/sbom.json", "--type", "cyclonedx", "r:1"],
+        id="attest",
+    ),
+    pytest.param(
+        lambda o: o.package.attest(
+            "r:1",
+            predicate="/sbom.json",
+            predicate_type="cyclonedx",
+            platform="linux/arm64",
+            signature_format="bundle",
+            key="env://OCX_SIGNING_KEY",
+            rekor_upload=True,
+            rekor_url="https://rekor.test",
+            no_cache=True,
+        ),
+        [
+            "package",
+            "attest",
+            "--predicate",
+            "/sbom.json",
+            "--type",
+            "cyclonedx",
+            "--platform",
+            "linux/arm64",
+            "--signature-format",
+            "bundle",
+            "--key",
+            "env://OCX_SIGNING_KEY",
+            "--rekor-upload",
+            "--rekor-url",
+            "https://rekor.test",
+            "--no-cache",
+            "r:1",
+        ],
+        id="attest-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx", tags_file="/tmp/tags"),
+        ["package", "attest", "--predicate", "/p.json", "--type", "spdx", "--tags-file", "/tmp/tags", "r:1"],
+        id="attest-sweep",
+    ),
+    pytest.param(lambda o: o.package.verify("r:1"), ["package", "verify", "r:1"], id="verify"),
+    pytest.param(
+        lambda o: o.package.verify(
+            "r:1",
+            platform="linux/amd64",
+            certificate_identity="ci@example.test",
+            certificate_oidc_issuer="https://token.example.test",
+            signature_format="bundle",
+            rekor_url="https://rekor.test",
+            attestation=True,
+            predicate_type="cyclonedx",
+            allow_unlogged_signature=True,
+            no_cache=True,
+            sigstore_trusted_root="/trust/root.json",
+        ),
+        [
+            "package",
+            "verify",
+            "--platform",
+            "linux/amd64",
+            "--certificate-identity",
+            "ci@example.test",
+            "--certificate-oidc-issuer",
+            "https://token.example.test",
+            "--signature-format",
+            "bundle",
+            "--rekor-url",
+            "https://rekor.test",
+            "--attestation",
+            "--type",
+            "cyclonedx",
+            "--allow-unlogged-signature",
+            "--no-cache",
+            "--sigstore-trusted-root",
+            "/trust/root.json",
+            "r:1",
+        ],
+        id="verify-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", key="file://pub.pem"),
+        ["package", "verify", "--key", "file://pub.pem", "r:1"],
+        id="verify-key",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", signature_format="simplesigning"),
+        ["package", "verify", "--signature-format", "simplesigning", "r:1"],
+        id="verify-pins-one-format",
+    ),
+    pytest.param(lambda o: o.package.sbom("r:1"), ["package", "sbom", "r:1"], id="sbom"),
+    pytest.param(
+        lambda o: o.package.sbom(
+            "r:1",
+            platform="linux/amd64",
+            summary=True,
+            predicate_type="cyclonedx",
+            certificate_identity="ci@example.test",
+            certificate_oidc_issuer="https://token.example.test",
+            signature_format="bundle",
+            sigstore_trusted_root="/trust/root.json",
+            rekor_url="https://rekor.test",
+            no_cache=True,
+            verify=True,
+        ),
+        [
+            "package",
+            "sbom",
+            "--platform",
+            "linux/amd64",
+            "--summary",
+            "--type",
+            "cyclonedx",
+            "--certificate-identity",
+            "ci@example.test",
+            "--certificate-oidc-issuer",
+            "https://token.example.test",
+            "--signature-format",
+            "bundle",
+            "--sigstore-trusted-root",
+            "/trust/root.json",
+            "--rekor-url",
+            "https://rekor.test",
+            "--no-cache",
+            "--verify",
+            "r:1",
+        ],
+        id="sbom-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.sbom("r:1", verify=False),
+        ["package", "sbom", "--no-verify", "r:1"],
+        id="sbom-unverified",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/team/tool:1.4.2"),
+        ["package", "copy", "dev.test/team/tool:1.4.2"],
+        id="copy-default-registry",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/team/tool:1.4.2", to="prod.test"),
+        ["package", "copy", "--to", "prod.test", "dev.test/team/tool:1.4.2"],
+        id="copy-promote",
+    ),
+    pytest.param(
+        lambda o: o.package.copy(
+            "dev.test/team/tool:1.4.2",
+            identifier="prod.test/tool:1.4.2",
+            platforms=["linux/amd64", "linux/arm64"],
+            cascade=True,
+            keep_tag=False,
+            referrers=True,
+            description=True,
+            annotations={"org.opencontainers.image.source": "https://example.test"},
+            dry_run=True,
+        ),
+        [
+            "package",
+            "copy",
+            "--identifier",
+            "prod.test/tool:1.4.2",
+            "--platform",
+            "linux/amd64",
+            "--platform",
+            "linux/arm64",
+            "--cascade",
+            "--no-keep-tag",
+            "--referrers",
+            "--description",
+            "--annotation",
+            "org.opencontainers.image.source=https://example.test",
+            "--dry-run",
+            "dev.test/team/tool:1.4.2",
+        ],
+        id="copy-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/tool@sha256:abc", identifier="prod.test/tool:1", platforms=["linux/amd64"]),
+        [
+            "package",
+            "copy",
+            "--identifier",
+            "prod.test/tool:1",
+            "--platform",
+            "linux/amd64",
+            "dev.test/tool@sha256:abc",
+        ],
+        id="copy-from-digest",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/team/tool:1.4.2@sha256:abc", to="prod.test"),
+        ["package", "copy", "--to", "prod.test", "dev.test/team/tool:1.4.2@sha256:abc"],
+        id="copy-from-a-pinned-tag",
+    ),
+    pytest.param(
+        lambda o: o.package.description_push("r:1", from_="staging.test/tool:1"),
+        ["package", "description", "push", "--from", "staging.test/tool:1", "r:1"],
+        id="description-push-from",
+    ),
+    pytest.param(
+        lambda o: o.package.description_push(
+            "r:1",
+            readme="/README.md",
+            logo="/logo.png",
+            title="Tool",
+            description="Does a thing",
+            keywords="build,ci",
+        ),
+        [
+            "package",
+            "description",
+            "push",
+            "--readme",
+            "/README.md",
+            "--logo",
+            "/logo.png",
+            "--title",
+            "Tool",
+            "--description",
+            "Does a thing",
+            "--keywords",
+            "build,ci",
+            "r:1",
+        ],
+        id="description-push-fields",
+    ),
+]
+
+
+@pytest.mark.parametrize(("call", "expected"), _SIGNING_CASES)
+def test_signing_tier_argv(ocx: Ocx, process: _Process, parsers: _Parsers, call: Any, expected: list[str]) -> None:
+    """One row per new binding against its 0.6 `--help` fixture."""
+    call(ocx)
+
+    assert process.last.command == [*_JSON, *expected]
+
+
+def test_verify_and_install_leave_the_toggle_unset_by_default(ocx: Ocx, process: _Process) -> None:
+    """C-008: `None` is the third state — ocx's own default decides."""
+    process.stdout = _INSTALLED
+
+    ocx.package.install("a")
+
+    assert "--verify" not in process.last.command
+    assert "--no-verify" not in process.last.command
+
+
+def test_package_test_still_binds_the_env_override(ocx: Ocx, process: _Process) -> None:
+    """C-010: `--env` on `package test` is unchanged in 0.6 — nothing to build."""
+    process.stdout = _TEST_PASSED
+
+    ocx.package.test("repo:1.0.0", script="/t.star", env={"CC": "clang"})
+
+    assert process.last.command[-2:] == ["--env", "CC=clang"]
+
+
+# --------------------------------------------------------------------------
+# Sweep discrimination (D2, S-008) and the C-017 row seam
+# --------------------------------------------------------------------------
+
+
+def test_a_tag_sweep_returns_per_tag_rows(ocx: Ocx, process: _Process, parsers: _Parsers) -> None:
+    """S-008: `tags=` sweeps, and the rows parse as signature reports."""
+    assert ocx.package.sign("r:1", tags=["1.2", "1"]) is _SWEPT
+    assert parsers.rows == [SignatureReport.from_dict]
+
+
+def test_a_tags_file_sweeps_on_its_own(ocx: Ocx, process: _Process, parsers: _Parsers) -> None:
+    assert ocx.package.sign("r:1", tags_file="/tmp/tags") is _SWEPT
+
+
+def test_an_unswept_sign_returns_the_bare_report(ocx: Ocx, process: _Process, parsers: _Parsers) -> None:
+    assert ocx.package.sign("r:1") is _SIGNED
+    assert parsers.rows == []
+
+
+def test_an_explicit_none_signs_the_reference_itself(ocx: Ocx, process: _Process, parsers: _Parsers) -> None:
+    """`tags=None` is the spelling the overload set types honestly."""
+    assert ocx.package.sign("r:1", tags=None) is _SIGNED
+    assert "--tags" not in process.last.command
+    assert parsers.rows == []
+
+
+def test_a_swept_attest_parses_its_rows_as_attestations(ocx: Ocx, process: _Process, parsers: _Parsers) -> None:
+    """C-017: the row seam must not hand `sign`'s parser to `attest`."""
+    assert ocx.package.attest("r:1", predicate="/p.json", predicate_type="spdx", tags=["1"]) is _SWEPT
+    assert parsers.rows == [AttestationReport.from_dict]
+
+
+def test_an_unswept_attest_returns_the_bare_report(ocx: Ocx, process: _Process, parsers: _Parsers) -> None:
+    assert ocx.package.attest("r:1", predicate="/p.json", predicate_type="spdx") is _ATTESTED
+
+
+@pytest.mark.parametrize(
+    ("call", "parsed"),
+    [
+        pytest.param(lambda o: o.package.verify("r:1"), _VERIFIED, id="verify"),
+        pytest.param(lambda o: o.package.sbom("r:1"), _LISTED, id="sbom"),
+        pytest.param(lambda o: o.package.copy("dev.test/t:1", to="prod.test"), _COPIED, id="copy"),
+    ],
+)
+def test_each_read_returns_its_own_report(
+    ocx: Ocx, process: _Process, parsers: _Parsers, call: Any, parsed: object
+) -> None:
+    process.stdout = '{"payload":"whatever"}'
+
+    assert call(ocx) is parsed
+    assert parsers.raw == ['{"payload":"whatever"}']
+
+
+# --------------------------------------------------------------------------
+# Guards: every one refuses before the binary is reached
+# --------------------------------------------------------------------------
+
+_GUARD_CASES = [
+    pytest.param(
+        lambda o: o.package.sign("r:1", rekor_upload=False),
+        "only key signing may do",
+        id="sign-no-rekor-upload-without-key",
+    ),
+    pytest.param(
+        lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx", rekor_upload=False),
+        "only key signing may do",
+        id="attest-no-rekor-upload-without-key",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", sign=True, rekor_upload=False),
+        "only key signing may do",
+        id="push-no-rekor-upload-without-key",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", key="file://k.pem", fulcio_url="https://fulcio.test"),
+        "fulcio_url",
+        id="sign-key-with-fulcio-url",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", key="file://k.pem", identity_token_file="/run/token"),
+        "identity_token_file",
+        id="sign-key-with-token-file",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", key="file://k.pem", identity_token_stdin=True),
+        "identity_token_stdin",
+        id="sign-key-with-token-stdin",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", key="file://k.pem", no_tty=True),
+        "no_tty",
+        id="sign-key-with-no-tty",
+    ),
+    pytest.param(
+        lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx", key="file://k.pem", no_tty=True),
+        "no_tty",
+        id="attest-key-with-no-tty",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", identity_token_file="/run/token", identity_token_stdin=True),
+        "two ways to supply one OIDC token",
+        id="sign-both-token-sources",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", tags=[]),
+        "there is nothing to sweep",
+        id="sign-empty-tags",
+    ),
+    pytest.param(
+        lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx", tags=[]),
+        "there is nothing to sweep",
+        id="attest-empty-tags",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", platform="linux/amd64", tags=["1"]),
+        "acts on indices by definition",
+        id="sign-platform-with-tags",
+    ),
+    pytest.param(
+        lambda o: o.package.sign("r:1", platform="linux/amd64", tags_file="/tmp/tags"),
+        "acts on indices by definition",
+        id="sign-platform-with-tags-file",
+    ),
+    pytest.param(
+        lambda o: o.package.attest(
+            "r:1", predicate="/p.json", predicate_type="spdx", platform="linux/amd64", tags=["1"]
+        ),
+        "acts on indices by definition",
+        id="attest-platform-with-tags",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", certificate_identity="ci@example.test"),
+        "certificate_oidc_issuer is missing",
+        id="verify-half-an-identity",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", certificate_oidc_issuer="https://token.example.test"),
+        "certificate_identity is missing",
+        id="verify-half-an-issuer",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", key="file://pub.pem", certificate_identity="ci@example.test"),
+        "no SAN or issuer",
+        id="verify-identity-with-key",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", predicate_type="cyclonedx"),
+        "no predicate to narrow",
+        id="verify-type-without-attestation",
+    ),
+    pytest.param(
+        lambda o: o.package.sbom("r:1", certificate_identity="ci@example.test"),
+        "certificate_oidc_issuer is missing",
+        id="sbom-half-an-identity",
+    ),
+    pytest.param(
+        lambda o: o.package.sbom("r:1", key="file://pub.pem", certificate_oidc_issuer="https://token.example.test"),
+        "no SAN or issuer",
+        id="sbom-issuer-with-key",
+    ),
+    pytest.param(
+        lambda o: o.package.sbom(
+            "r:1",
+            verify=False,
+            certificate_identity="ci@example.test",
+            certificate_oidc_issuer="https://token.example.test",
+        ),
+        "certificate_identity, certificate_oidc_issuer names material",
+        id="sbom-no-verify-with-identity",
+    ),
+    pytest.param(
+        lambda o: o.package.sbom("r:1", verify=False, key="file://pub.pem"),
+        "key names material",
+        id="sbom-no-verify-with-key",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/t:1", to="prod.test", identifier="prod.test/t:1"),
+        "identifier already says everything",
+        id="copy-to-with-identifier",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/t@sha256:abc", identifier="prod.test/t:1"),
+        "carries no platform of its own",
+        id="copy-digest-without-a-platform",
+    ),
+    pytest.param(
+        lambda o: o.package.copy(
+            "dev.test/t@sha256:abc", identifier="prod.test/t:1", platforms=["linux/amd64", "linux/arm64"]
+        ),
+        "carries no platform of its own",
+        id="copy-digest-with-two-platforms",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("dev.test/t@sha256:abc", platforms=["linux/amd64"]),
+        "carries no tag for the target",
+        id="copy-digest-without-an-identifier",
+    ),
+    pytest.param(
+        lambda o: o.package.copy("localhost:5000/t@sha256:abc", identifier="prod.test/t:1"),
+        "carries no platform of its own",
+        id="copy-digest-behind-a-registry-port",
+    ),
+    pytest.param(
+        lambda o: o.package.description_push("r:1", from_="staging.test/t:1", title="Tool"),
+        "title came with from_",
+        id="description-push-from-with-a-field",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", key="file://k.pem"),
+        "key modifies signing",
+        id="push-key-without-a-signing-target",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", signature_format="bundle"),
+        "signature_format modifies signing",
+        id="push-signature-format-without-a-signing-target",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", rekor_upload=True),
+        "rekor_upload modifies signing",
+        id="push-rekor-upload-without-a-signing-target",
+    ),
+    pytest.param(
+        lambda o: o.package.push("a.tar.gz", identifier="r:1", key="file://k.pem", rekor_upload=False),
+        "key, rekor_upload modifies signing",
+        id="push-two-modifiers-without-a-signing-target",
+    ),
+    pytest.param(
+        lambda o: o.package.verify("r:1", signature_format="both"),
+        "selects what to write",
+        id="verify-signature-format-both",
+    ),
+    pytest.param(
+        lambda o: o.package.sbom("r:1", signature_format="both"),
+        "selects what to write",
+        id="sbom-signature-format-both",
+    ),
+    pytest.param(
+        lambda o: o.package.description_push("r:1"),
+        "there is nothing to publish",
+        id="description-push-with-nothing-to-publish",
+    ),
+]
+
+
+@pytest.mark.parametrize(("call", "expected"), _GUARD_CASES)
+def test_a_refused_combination_never_reaches_the_binary(ocx: Ocx, process: _Process, call: Any, expected: str) -> None:
+    """Every guard raises `ValueError` before argv composes, as C-001 does."""
+    with pytest.raises(ValueError, match=re.escape(expected)):
+        call(ocx)
+
+    assert process.calls == []
+
+
+def test_the_key_conflict_names_every_flag_it_refused(ocx: Ocx) -> None:
+    """The five-flag set is invisible in `--help`; the message must not be."""
+    with pytest.raises(ValueError) as caught:
+        ocx.package.sign(
+            "r:1",
+            key="file://k.pem",
+            fulcio_url="https://fulcio.test",
+            identity_token_file="/run/token",
+            no_tty=True,
+        )
+
+    assert "fulcio_url, identity_token_file, no_tty" in str(caught.value)
+
+
+def test_a_key_signature_in_headless_ci_is_refused_not_composed(ocx: Ocx, process: _Process) -> None:
+    """`--key` with `--no-tty` is exit 64 upstream and `--help` never says so."""
+    with pytest.raises(ValueError, match="no_tty"):
+        ocx.package.sign("r:1", key="file://k.pem", no_tty=True)
+
+    assert process.calls == []
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda o: o.package.sign("r:1", tags=["1"], tags_file="/t"), id="sign"),
+        pytest.param(
+            lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx", tags=["1"], tags_file="/t"),
+            id="attest",
+        ),
+    ],
+)
+def test_tags_and_tags_file_union_rather_than_conflict(
+    ocx: Ocx, process: _Process, parsers: _Parsers, call: Any
+) -> None:
+    """ocx concatenates the two sources — the SDK must not invent an exclusion."""
+    assert call(ocx) is _SWEPT
+    assert "--tags" in process.last.command
+    assert "--tags-file" in process.last.command
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda o: o.package.sign("-rf"), id="sign"),
+        pytest.param(lambda o: o.package.attest("-rf", predicate="/p.json", predicate_type="spdx"), id="attest"),
+        pytest.param(lambda o: o.package.verify("-rf"), id="verify"),
+        pytest.param(lambda o: o.package.sbom("-rf"), id="sbom"),
+        pytest.param(lambda o: o.package.copy("-rf", to="prod.test"), id="copy"),
+        pytest.param(lambda o: o.package.description_push("-rf", title="Tool"), id="description-push"),
+    ],
+)
+def test_leading_dash_rejected_on_every_new_positional(ocx: Ocx, process: _Process, call: Any) -> None:
+    with pytest.raises(ValueError, match="may not start with '-'"):
+        call(ocx)
+
+
+# --------------------------------------------------------------------------
+# Retry disposition (D5)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda o: o.package.sign("r:1"), id="sign"),
+        pytest.param(lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx"), id="attest"),
+        pytest.param(lambda o: o.package.description_push("r:1", title="Tool"), id="description-push"),
+        pytest.param(lambda o: o.package.copy("dev.test/t:1", to="prod.test"), id="copy"),
+    ],
+)
+def test_the_new_writes_disable_retry_by_default(exe: Path, process: _Process, parsers: _Parsers, call: Any) -> None:
+    """D5: a registry write is never re-sent on a transient failure."""
+    call(Ocx(exe, config=OcxConfig(retry=RetryPolicy()), host_env=HostEnv.clean()))
+
+    assert process.last.kwargs["retry"] is None
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda o: o.package.copy("dev.test/t:1", to="prod.test", dry_run=True), id="copy-dry-run"),
+        pytest.param(lambda o: o.package.verify("r:1"), id="verify"),
+        pytest.param(lambda o: o.package.sbom("r:1"), id="sbom"),
+    ],
+)
+def test_the_new_reads_keep_the_session_retry_policy(
+    exe: Path, process: _Process, parsers: _Parsers, call: Any
+) -> None:
+    """D5: `copy(dry_run=True)` writes nothing, so a blip is worth retrying."""
+    policy = RetryPolicy()
+
+    call(Ocx(exe, config=OcxConfig(retry=policy), host_env=HostEnv.clean()))
+
+    assert process.last.kwargs["retry"] is policy

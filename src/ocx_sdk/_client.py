@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Typed handles over the ocx command line (contract C-011).
+"""Typed handles over the ocx command line (contract v0.1 C-011).
 
 `Ocx` is the entry point: one handle, one binary, one configuration. Its
 methods mirror ocx commands one for one — `ocx.about()` runs `ocx about`,
@@ -44,7 +44,7 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, Literal, Never, Unpack
+from typing import TYPE_CHECKING, Any, Final, Literal, Never, Unpack, overload
 
 from . import _bootstrap
 from ._config import ConfigOverrides, OcxConfig
@@ -53,10 +53,13 @@ from ._errors import VersionCompatError
 from ._process import compose_argv, run_command, run_command_async, spawn, spawn_async
 from ._results import (
     AboutInfo,
+    AttestationReport,
     CommandResult,
     ConfigSetupReport,
     ConfigUpdateReport,
+    CopyReport,
     DepsReport,
+    DryRunEntry,
     EnvReport,
     InfoResult,
     InspectReport,
@@ -66,17 +69,30 @@ from ._results import (
     PullReport,
     PushResult,
     RemovalResult,
+    SbomListingReport,
+    SignatureReport,
     StatusReport,
+    SweepReport,
     TestResult,
     ToolRow,
+    VerificationReport,
     WhichResult,
-    parse_info,
+    parse_description_pull,
     parse_package_pull,
+    parse_pull_dry_run,
     parse_removals,
     parse_tool_rows,
     parse_which,
 )
-from ._types import MIN_SUPPORTED, TESTED_OCX_VERSION, EnvValue, HostEnv, PackageLike, RetryPolicy
+from ._types import (
+    MIN_SUPPORTED,
+    TESTED_OCX_VERSION,
+    EnvValue,
+    HostEnv,
+    PackageLike,
+    RetryPolicy,
+    SignatureFormat,
+)
 
 if TYPE_CHECKING:
     import asyncio
@@ -108,10 +124,27 @@ _PROJECT_SUFFIX: Final = ".toml"
 """What names a project *file* on a path that does not exist yet."""
 
 _RESERVED: Final = {
-    "run": "the toolchain runner is `ocx.project(...).run(argv)`, and raw argv is `ocx.invoke(argv)`",
-    "exec": "running inside packages is `ocx.package.exec(packages, argv)`",
+    "run": (
+        "ocx run was renamed to ocx exec in 0.6. Use ocx.project(path).exec(argv) for the project "
+        "toolchain, or ocx.package.exec(refs, argv) for installed packages."
+    ),
+    "exec": (
+        "exec lives on a tier handle: ocx.project(path).exec(argv) for the project toolchain, or "
+        "ocx.package.exec(refs, argv) for installed packages."
+    ),
 }
 """Command names people reach for on the wrong handle, and where they live."""
+
+_PROJECT_RESERVED: Final = {
+    "run": "ocx run was renamed to ocx exec in 0.6. Use project.exec(argv).",
+    "run_async": "ocx run was renamed to ocx exec in 0.6. Use project.exec_async(argv).",
+}
+"""The v0.1 names on the handle that actually carried them.
+
+`Project.run` is where the rename lands: the v0.1 SDK put the toolchain
+runner here, so this — not `Ocx.run` — is the attribute a 0.1 call site
+reaches for.
+"""
 
 type LazyMode = Literal["never", "always"]
 """When a tool's content downloads: eagerly, or on first use."""
@@ -184,7 +217,7 @@ class Ocx:
         ocx = Ocx(config=OcxConfig(offline=True))
         project = ocx.project("/srv/build")
         project.pull()
-        result = project.run(["task", "verify"])
+        result = project.exec(["task", "verify"])
         ```
 
     Attributes:
@@ -268,8 +301,8 @@ class Ocx:
             """Fail a missing attribute, with a pointed hint for the two traps.
 
             `ocx.run` and `ocx.exec` are the names people reach for first, and
-            both belong somewhere else: `run` is project-tier, `exec` is
-            package-tier.
+            neither is here: `run` was renamed to `exec` in ocx 0.6, and `exec`
+            itself lives on the project and package tiers, not on this handle.
 
             Args:
                 name: The attribute that was not found.
@@ -280,7 +313,7 @@ class Ocx:
             """
             hint = _RESERVED.get(name)
             if hint is not None:
-                raise AttributeError(f"Ocx has no attribute {name!r}: {hint}.")
+                raise AttributeError(f"Ocx has no attribute {name!r}: {hint}")
             raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
     def with_config(self, **overrides: Unpack[ConfigOverrides]) -> Ocx:
@@ -805,6 +838,26 @@ class Project:
     def __repr__(self) -> str:
         return f"Project(path={str(self.path)!r}, exe={str(self._runner.exe)!r})"
 
+    # Hidden from the type checker for the reason `Ocx.__getattr__` records.
+    if not TYPE_CHECKING:  # pragma: no branch - always taken at runtime
+
+        def __getattr__(self, name: str) -> Never:
+            """Fail a missing attribute, with the rename hint for `run`.
+
+            The v0.1 toolchain runner was `Project.run`, so this handle — not
+            `Ocx` — is where a 0.1 call site lands after `run` became `exec`.
+
+            Args:
+                name: The attribute that was not found.
+
+            Raises:
+                AttributeError: Always.
+            """
+            hint = _PROJECT_RESERVED.get(name)
+            if hint is not None:
+                raise AttributeError(f"Project has no attribute {name!r}: {hint}")
+            raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
     @property
     def session_config(self) -> OcxConfig:
         """The `OcxConfig` this handle spawns under — see `Ocx.session_config`."""
@@ -974,6 +1027,28 @@ class Project:
         ]
         return _rows_or_none(self._call(command, tuple(names), timeout=timeout, retry=retry).stdout)
 
+    @overload
+    def pull(
+        self,
+        *,
+        dry_run: Literal[True],
+        groups: Iterable[str] = (),
+        platform: str | None = None,
+        lazy_mode: LazyMode | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> tuple[DryRunEntry, ...]: ...
+    @overload
+    def pull(
+        self,
+        *,
+        dry_run: Literal[False] = False,
+        groups: Iterable[str] = (),
+        platform: str | None = None,
+        lazy_mode: LazyMode | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> PullReport: ...
     def pull(
         self,
         *,
@@ -983,11 +1058,14 @@ class Project:
         lazy_mode: LazyMode | None = None,
         timeout: MaybeTimeout = UNSET,
         retry: MaybeRetry = UNSET,
-    ) -> PullReport:
+    ) -> PullReport | tuple[DryRunEntry, ...]:
         """Pre-warm the object store from `ocx.lock`.
 
         Args:
-            dry_run: Report what would be fetched without writing.
+            dry_run: Report what would be fetched without writing. Changes
+                the return type: ocx previews with a different upstream
+                report at a different JSON root, so this answers a tuple of
+                `DryRunEntry` rows rather than a `PullReport`.
             groups: Groups to restrict the pull to.
             platform: The platform to resolve against.
             lazy_mode: When content downloads — now, or on first use.
@@ -995,7 +1073,8 @@ class Project:
             retry: Retry policy. `None` opts out; omitted takes the config's.
 
         Returns:
-            The materialized paths and any advisories.
+            The materialized paths and any advisories — or, under `dry_run`,
+            one row per package describing what a real pull would do.
         """
         command = [
             "pull",
@@ -1004,7 +1083,8 @@ class Project:
             *_flag("--platform", platform),
             *_flag("--lazy-mode", lazy_mode),
         ]
-        return PullReport.from_json(self._call(command, timeout=timeout, retry=retry).stdout)
+        stdout = self._call(command, timeout=timeout, retry=retry).stdout
+        return parse_pull_dry_run(stdout) if dry_run else PullReport.from_json(stdout)
 
     def status(self, *, timeout: MaybeTimeout = UNSET, retry: MaybeRetry = UNSET) -> StatusReport:
         """Report what `ocx.toml` and `ocx.lock` declare, resolving nothing.
@@ -1109,7 +1189,7 @@ class Project:
         raw = self._call(command, timeout=timeout, retry=retry).stdout
         return EnvReport.from_json(raw, base=self._runner.host.source)
 
-    def run(
+    def exec(
         self,
         argv: Sequence[str],
         *,
@@ -1152,7 +1232,7 @@ class Project:
         self._runner.gate()
         return self._runner.finish(composed, capture=capture, check=check, timeout=timeout, retry=None)
 
-    async def run_async(
+    async def exec_async(
         self,
         argv: Sequence[str],
         *,
@@ -1278,9 +1358,9 @@ class Project:
         env: Mapping[str, EnvValue] | None,
         lazy_mode: LazyMode | None,
     ) -> tuple[str, ...]:
-        """Compose `ocx run --project … [NAMES] -- ARGV`."""
+        """Compose `ocx exec --project … [NAMES] -- ARGV`."""
         command = [
-            "run",
+            "exec",
             *_repeated("--group", groups),
             *_switch("--clean", clean),
             *_flag("--lazy-mode", lazy_mode),
@@ -1311,6 +1391,7 @@ class PackageCommands:
         *refs: PackageLike,
         platform: str | None = None,
         select: bool = False,
+        verify: bool | None = None,
         timeout: MaybeTimeout = UNSET,
         retry: MaybeRetry = UNSET,
     ) -> InstallReport:
@@ -1320,13 +1401,34 @@ class PackageCommands:
             *refs: Package identifiers.
             platform: The platform to resolve against.
             select: Also make each installed version current.
+            verify: Verify each package's Sigstore signature before
+                installing. `None` leaves ocx's default, which is on. The
+                gate fires only where a `[[trust.policy]]` covers the
+                package, so `True` against an uncovered package is a
+                documented no-op rather than enforcement — it does not make
+                an unsigned package fail. `False` also beats an ambient
+                `OCX_NO_VERIFY`, which the SDK neutralizes on every spawn.
             timeout: Seconds per attempt. Omitted takes the config's.
             retry: Retry policy. `None` opts out; omitted takes the config's.
 
         Returns:
             The installed packages, keyed by the identifier as given.
+
+        Raises:
+            OcxProcessError: ocx 0.6 verifies a covered package's signature
+                before installing, so this call can fail where the identical
+                call against a 0.5.x binary succeeded — no code change on the
+                caller's side, only a newer binary. The exit codes, and why
+                none of them retry, are in the guide's "Errors & credentials"
+                section on verification.
         """
-        command = ["package", "install", *_switch("--select", select), *_flag("--platform", platform)]
+        command = [
+            "package",
+            "install",
+            *_switch("--select", select),
+            *_flag("--platform", platform),
+            *_toggle("--verify", "--no-verify", verify),
+        ]
         return InstallReport.from_json(self._call(command, _identifiers(refs), timeout=timeout, retry=retry).stdout)
 
     def select(
@@ -1667,7 +1769,7 @@ class PackageCommands:
         ]
         return InspectReport.from_json(self._call(command, _identifiers(refs), timeout=timeout, retry=retry).stdout)
 
-    def info(
+    def description_pull(
         self,
         *refs: PackageLike,
         save_readme: str | Path | None = None,
@@ -1698,10 +1800,16 @@ class PackageCommands:
         if (save_readme is not None or save_logo is not None) and len(refs) != 1:
             raise ValueError(
                 f"save_readme and save_logo write one file, so ocx takes them for a single package only; "
-                f"{len(refs)} were given. Call info() once per package, or drop the save target."
+                f"{len(refs)} were given. Call description_pull() once per package, or drop the save target."
             )
-        command = ["package", "info", *_flag("--save-readme", save_readme), *_flag("--save-logo", save_logo)]
-        return parse_info(self._call(command, _identifiers(refs), timeout=timeout, retry=retry).stdout)
+        command = [
+            "package",
+            "description",
+            "pull",
+            *_flag("--save-readme", save_readme),
+            *_flag("--save-logo", save_logo),
+        ]
+        return parse_description_pull(self._call(command, _identifiers(refs), timeout=timeout, retry=retry).stdout)
 
     def deps(
         self,
@@ -1747,6 +1855,7 @@ class PackageCommands:
         self,
         *refs: PackageLike,
         platform: str | None = None,
+        verify: bool | None = None,
         timeout: MaybeTimeout = UNSET,
         retry: MaybeRetry = UNSET,
     ) -> Mapping[str, str]:
@@ -1755,14 +1864,28 @@ class PackageCommands:
         Args:
             *refs: Package identifiers.
             platform: The platform to resolve against.
+            verify: Verify each package's Sigstore signature before storing
+                it. `None` leaves ocx's default, which is on. The gate fires
+                only where a `[[trust.policy]]` covers the package, so `True`
+                against an uncovered package is a documented no-op rather
+                than enforcement. `False` also beats an ambient
+                `OCX_NO_VERIFY`, which the SDK neutralizes on every spawn.
             timeout: Seconds per attempt. Omitted takes the config's.
             retry: Retry policy. `None` opts out; omitted takes the config's.
 
         Returns:
             A store path per identifier — a bare string here, unlike the
             project tier's `pull` and unlike `which`.
+
+        Raises:
+            OcxProcessError: ocx 0.6 verifies a covered package's signature
+                before storing it, so this call can fail where the identical
+                call against a 0.5.x binary succeeded — no code change on the
+                caller's side, only a newer binary. The exit codes, and why
+                none of them retry, are in the guide's "Errors & credentials"
+                section on verification.
         """
-        command = ["package", "pull", *_flag("--platform", platform)]
+        command = ["package", "pull", *_flag("--platform", platform), *_toggle("--verify", "--no-verify", verify)]
         return parse_package_pull(self._call(command, _identifiers(refs), timeout=timeout, retry=retry).stdout)
 
     def create(
@@ -1900,12 +2023,16 @@ class PackageCommands:
         identifier: str | None = None,
         platform: str | None = None,
         metadata: str | Path | None = None,
-        new: bool = False,
         cascade: bool = False,
-        canonical_tag: bool | None = None,
+        keep_tag: bool | None = None,
         build_timestamp: Literal["datetime", "date", "none"] | None = None,
         annotations: Mapping[str, str] | None = None,
-        announce_file: str | Path | None = None,
+        tags_file: str | Path | None = None,
+        sign: bool = False,
+        key: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        rekor_upload: bool | None = None,
+        sbom: str | Path | None = None,
         timeout: MaybeTimeout = UNSET,
         retry: MaybeRetry = UNSET,
     ) -> PushResult:
@@ -1914,6 +2041,14 @@ class PackageCommands:
         Retries are off by default: a push is a registry write, and
         re-sending one on a timeout can publish twice. Pass `retry=`
         explicitly when the target is known to be idempotent-safe.
+
+        A push that lands and then fails to sign or attest is **not rolled
+        back** — a pushed manifest is immutable and OCI offers no un-push —
+        and the signing failure decides the exit code, so the call raises.
+        The report survives that: `push` writes its payload bare at the JSON
+        root (D11), so catch `OcxProcessError`, recover the document with
+        `partial_report(err)`, and parse it with `PushResult.from_json`. The
+        package is published, and `signatures` names which platform failed.
 
         Args:
             *layers: Layer archives or `sha256:<hex>.<ext>` references, base
@@ -1925,42 +2060,869 @@ class PackageCommands:
                 the receipt.
             metadata: The compiled metadata sidecar. Required when no file
                 layers are given.
-            new: Skip the checks that need an existing index.
             cascade: Also advance the rolling tags above this version.
-            canonical_tag: Write the `sha256.<hex>` tag. `None` leaves ocx's
-                default, which writes it.
+            keep_tag: Write the `__ocx.keep.sha256-<hex>` tag for each platform
+                manifest published. `None` leaves ocx's default, which writes it.
             build_timestamp: Append a UTC build-metadata segment to the
                 published tag, for rolling continuous-deploy versions. The
                 version core in `identifier` must already be `X.Y.Z`.
             annotations: OCI annotations for the published index.
-            announce_file: Append the pushed tag and any cascade tags to
-                this file, where `ocx package announce --tags-from-file`
-                picks them up. A scratch file for one pipeline run, not a
+            tags_file: Append the pushed tag and any cascade tags to this
+                file, where `ocx package announce --tags-file` picks
+                them up. A scratch file for one pipeline run, not a
                 persistent list.
+            sign: Sign each platform manifest this push writes, inline.
+                Required — along with `sbom` — before any of
+                `signature_format`, `key` and `rekor_upload` mean anything:
+                ocx refuses a signing modifier with nothing to sign.
+                Off by default — a push without it signs nothing. The
+                signature covers each platform manifest, never the image
+                index, whose digest is rewritten every time another platform
+                merges into it; sign the index afterwards with
+                `sign(tags_file=...)`, reading the file `tags_file` wrote.
+            key: A key reference for the inline signing — `file://` or
+                `env://`, the two backends ocx 0.6 implements, or a bare
+                path, read as `file://`. The five KMS schemes parse and are
+                then refused with exit 85 (`UnsupportedKeyBackendError`).
+                `None` signs keyless, against Fulcio.
+            signature_format: Which signature format(s) the inline signing
+                produces.
+            rekor_upload: Upload the inline signature to the transparency
+                log. `False` (`--no-rekor-upload`) is valid only alongside
+                `key`: a keyless signature must be logged, since its Fulcio
+                certificate lives about ten minutes and the log entry's
+                timestamp is the only lasting proof it was signed while the
+                certificate was valid.
+            sbom: After the push, attest this CycloneDX SBOM against the
+                pushed manifest — sugar for `attest(predicate_type=
+                "cyclonedx")` on the digest this push just wrote. Read
+                before the push, so a bad path costs no upload.
             timeout: Seconds per attempt. Omitted takes the config's.
             retry: Retry policy. Defaults to no retries.
 
         Returns:
             The published identifier, digest, and tags.
+
+        Raises:
+            ValueError: A signing modifier (`signature_format`, `key`,
+                `rekor_upload`) was given without `sign=True` or `sbom=`; or
+                `rekor_upload=False` was given without `key`.
+            OcxProcessError: A non-zero exit. When the push itself landed and
+                the signing or the SBOM attestation is what failed, see the
+                partial-failure note above for how to recover the report.
         """
+        modifiers = sorted(
+            name
+            for name, given in (
+                ("signature_format", signature_format is not None),
+                ("key", key is not None),
+                ("rekor_upload", rekor_upload is not None),
+            )
+            if given
+        )
+        if modifiers and not (sign or sbom is not None):
+            raise ValueError(
+                f"{', '.join(modifiers)} modifies signing and this push signs nothing, so ocx refuses it "
+                f"(exit 64) rather than accepting an argument it would never read. Pass sign=True, or sbom= "
+                f"to attest one, or drop the signing arguments."
+            )
+        _no_rekor_upload_needs_key(key, rekor_upload)
         command = [
             "package",
             "push",
             *_flag("--identifier", identifier),
             *_switch("--cascade", cascade),
-            *_switch("--new", new),
-            *_toggle("--canonical-tag", "--no-canonical-tag", canonical_tag),
+            *_toggle("--keep-tag", "--no-keep-tag", keep_tag),
             # The equals form is mandatory: bare `--build-timestamp` means
             # `datetime`, and a space-separated value is a usage error.
             *([] if build_timestamp is None else [f"--build-timestamp={build_timestamp}"]),
             *_flag("--metadata", metadata),
-            *_repeated("--annotation", (f"{key}={value}" for key, value in (annotations or {}).items())),
-            *_flag("--announce-file", announce_file),
+            *_repeated("--annotation", (f"{name}={value}" for name, value in (annotations or {}).items())),
+            *_flag("--tags-file", tags_file),
             *_flag("--platform", platform),
+            *_switch("--sign", sign),
+            *_flag("--signature-format", signature_format),
+            *_flag("--key", key),
+            *_toggle("--rekor-upload", "--no-rekor-upload", rekor_upload),
+            *_flag("--sbom", sbom),
         ]
         positionals = tuple(str(layer) for layer in layers)
         result = self._call(command, positionals, timeout=timeout, retry=retry, mutating=True)
         return PushResult.from_json(result.stdout)
+
+    def description_push(
+        self,
+        identifier: PackageLike,
+        *,
+        from_: PackageLike | None = None,
+        readme: str | Path | None = None,
+        logo: str | Path | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        keywords: str | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> CommandResult:
+        """Publish description metadata for a package repository (C-003).
+
+        ocx prints no JSON payload for this command (D9) — it logs and
+        exits, so there is nothing typed to return.
+
+        Args:
+            identifier: The package repository to describe.
+            from_: Another package to copy the description from, instead of
+                the field arguments below — ocx's `--from` takes a package
+                identifier, not a path (`package_description_push.rs:26-27`).
+                Mutually exclusive with `readme`, `logo`, `title`,
+                `description`, and `keywords`.
+            readme: The README file to publish.
+            logo: The logo file to publish.
+            title: The display title to publish.
+            description: The prose description to publish.
+            keywords: A single delimited keywords string, **not** a list —
+                ocx's own field is a bare string (C-021).
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. Defaults to no retries — this is a
+                registry write (D5).
+
+        Returns:
+            The exit code and whatever ocx printed.
+
+        Raises:
+            ValueError: Neither `from_` nor any of the five field arguments
+                was given, or `from_` was given alongside one of them.
+            NotFoundError: `from_` names a source that carries no
+                description (exit 79).
+        """
+        fields = {"readme": readme, "logo": logo, "title": title, "description": description, "keywords": keywords}
+        given = sorted(name for name, value in fields.items() if value is not None)
+        if from_ is None and not given:
+            raise ValueError(
+                "there is nothing to publish: ocx needs from_ to copy a description, or at least one of "
+                "readme, logo, title, description and keywords to author one."
+            )
+        if from_ is not None and given:
+            raise ValueError(
+                f"from_ copies a whole description and the field arguments author one, so ocx refuses them "
+                f"together rather than silently picking a winner; {', '.join(given)} came with from_. "
+                f"Drop from_ to publish these fields, or drop them to promote the description as it stands."
+            )
+        command = [
+            "package",
+            "description",
+            "push",
+            *_flag("--from", from_),
+            *_flag("--readme", readme),
+            *_flag("--logo", logo),
+            *_flag("--title", title),
+            *_flag("--description", description),
+            *_flag("--keywords", keywords),
+        ]
+        return self._call(command, (str(identifier),), timeout=timeout, retry=retry, mutating=True)
+
+    @overload
+    def sign(
+        self,
+        ref: PackageLike,
+        *,
+        tags: Iterable[str],
+        tags_file: str | Path | None = None,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SweepReport: ...
+    @overload
+    def sign(
+        self,
+        ref: PackageLike,
+        *,
+        tags: Iterable[str] | None = None,
+        tags_file: str | Path,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SweepReport: ...
+    @overload
+    def sign(
+        self,
+        ref: PackageLike,
+        *,
+        tags: None = None,
+        tags_file: None = None,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SignatureReport: ...
+    def sign(
+        self,
+        ref: PackageLike,
+        *,
+        tags: Iterable[str] | None = None,
+        tags_file: str | Path | None = None,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SignatureReport | SweepReport:
+        """Sign a package reference with cosign/Sigstore (C-011).
+
+        Three call shapes, one method (D2): `tags` or `tags_file` sweeps
+        every matching tag and returns a `SweepReport`; neither signs `ref`
+        alone and returns a `SignatureReport`.
+
+        `mutating=True` (D5) — retries are off by default; auto-retrying a
+        Rekor-unavailable failure would amplify the public instance's rate
+        limiting (D6).
+
+        A `--signature-format both` run where one leg lands and one fails
+        exits non-zero carrying a full report: catch `OcxProcessError`,
+        recover it with `partial_report(err)`, and parse with
+        `SignatureReport.from_json` (D10) — `SignatureLegReport.error` names
+        which leg died.
+
+        `key` and keyless signing are mutually exclusive with each other's
+        machinery, not just in spirit. **Four** flags refuse `key` outright —
+        `fulcio_url`, `identity_token_file`, `identity_token_stdin`, and
+        `no_tty`. Separately, `rekor_upload=False` (`--no-rekor-upload`)
+        *requires* `key` — the opposite direction: it is meaningless for
+        keyless signing, which cannot skip Rekor. And independently of
+        `key` entirely, `identity_token_file` and `identity_token_stdin`
+        conflict with each other — two ways to supply one token.
+
+        Args:
+            ref: The package reference to sign.
+            tags: Sweep these tags instead of signing `ref` directly.
+                Mutually exclusive with `platform`. Unions with `tags_file`
+                when both are given — sweeping is triggered by either, not
+                a choice between them.
+                An empty sequence is refused: `tags=None` is how you act
+                on `ref` itself.
+            tags_file: Sweep the tags listed in this file. Mutually
+                exclusive with `platform`. Unions with `tags` — see above.
+            platform: Sign one platform's manifest. Refused alongside
+                `tags` or `tags_file`.
+            signature_format: Which signature format(s) to produce.
+            key: A key reference — `file://` or `env://`, the two backends
+                ocx 0.6 implements. A bare path is read as `file://`.
+                `awskms://`, `gcpkms://`, `azurekms://`, `hashivault://`
+                and `k8s://` parse and are then refused with exit 85
+                (`UnsupportedKeyBackendError`), so no configuration makes
+                them work. `None` signs keyless, against Fulcio. Conflicts
+                with `fulcio_url`, `identity_token_file`,
+                `identity_token_stdin`, and `no_tty`.
+            rekor_upload: Upload the signature to the transparency log.
+                `False` (`--no-rekor-upload`) is valid only alongside `key`.
+            fulcio_url: A non-default Fulcio instance. Conflicts with `key`.
+            rekor_url: A non-default Rekor instance.
+            identity_token_file: Read the OIDC identity token from this
+                file, for keyless signing without an interactive browser
+                flow. Conflicts with `key` and with
+                `identity_token_stdin`.
+            identity_token_stdin: Read the OIDC identity token from stdin.
+                Conflicts with `key` and with `identity_token_file`.
+            no_tty: Suppress the interactive TTY prompt. Conflicts with
+                `key`.
+            no_cache: Skip ocx's signing cache.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. Defaults to no retries.
+
+        Returns:
+            A `SignatureReport` for a single signing, or a `SweepReport`
+            when `tags`/`tags_file` swept multiple.
+
+        Raises:
+            ValueError: `tags` was empty; `platform` was given alongside
+                `tags`/`tags_file`;
+                `key` was given alongside `fulcio_url`,
+                `identity_token_file`, `identity_token_stdin`, or `no_tty`;
+                `identity_token_file` and `identity_token_stdin` were both
+                given; or `rekor_upload=False` was given without `key`.
+            OcxProcessError: A non-zero exit — see the partial-failure note
+                above for how to recover a report from one.
+        """
+        sweep_tags, swept = _sweep(tags, tags_file)
+        _signing_guards(
+            key=key,
+            rekor_upload=rekor_upload,
+            fulcio_url=fulcio_url,
+            identity_token_file=identity_token_file,
+            identity_token_stdin=identity_token_stdin,
+            no_tty=no_tty,
+            platform=platform,
+            swept=swept,
+        )
+        command = [
+            "package",
+            "sign",
+            *_flag("--platform", platform),
+            *_flag("--signature-format", signature_format),
+            *_flag("--key", key),
+            *_toggle("--rekor-upload", "--no-rekor-upload", rekor_upload),
+            *_flag("--fulcio-url", fulcio_url),
+            *_flag("--rekor-url", rekor_url),
+            *_flag("--identity-token-file", identity_token_file),
+            *_switch("--identity-token-stdin", identity_token_stdin),
+            *_switch("--no-tty", no_tty),
+            *_switch("--no-cache", no_cache),
+            *_repeated("--tags", sweep_tags),
+            *_flag("--tags-file", tags_file),
+        ]
+        raw = self._call(command, (str(ref),), timeout=timeout, retry=retry, mutating=True).stdout
+        if swept:
+            return SweepReport.from_json(raw, SignatureReport.from_dict)
+        return SignatureReport.from_json(raw)
+
+    @overload
+    def attest(
+        self,
+        ref: PackageLike,
+        *,
+        predicate: str | Path,
+        predicate_type: str,
+        tags: Iterable[str],
+        tags_file: str | Path | None = None,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SweepReport: ...
+    @overload
+    def attest(
+        self,
+        ref: PackageLike,
+        *,
+        predicate: str | Path,
+        predicate_type: str,
+        tags: Iterable[str] | None = None,
+        tags_file: str | Path,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SweepReport: ...
+    @overload
+    def attest(
+        self,
+        ref: PackageLike,
+        *,
+        predicate: str | Path,
+        predicate_type: str,
+        tags: None = None,
+        tags_file: None = None,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> AttestationReport: ...
+    def attest(
+        self,
+        ref: PackageLike,
+        *,
+        predicate: str | Path,
+        predicate_type: str,
+        tags: Iterable[str] | None = None,
+        tags_file: str | Path | None = None,
+        platform: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        key: str | None = None,
+        rekor_upload: bool | None = None,
+        fulcio_url: str | None = None,
+        rekor_url: str | None = None,
+        identity_token_file: str | Path | None = None,
+        identity_token_stdin: bool = False,
+        no_tty: bool = False,
+        no_cache: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> AttestationReport | SweepReport:
+        """Attach an in-toto attestation to a package reference (C-013).
+
+        Same three call shapes as `sign` (D2): `tags`/`tags_file` sweeps and
+        returns a `SweepReport`; neither attests `ref` alone and returns an
+        `AttestationReport`. `mutating=True` (D5), retries off by default
+        (D6).
+
+        Carries the identical `--key` conflict set `sign` has — this is
+        enumerated per command rather than delegated to a shared note,
+        because it is `attest`'s own guard, declared independently in
+        `package_attest.rs` alongside `package_sign.rs`'s: **four** flags
+        refuse `key` outright (`fulcio_url`, `identity_token_file`,
+        `identity_token_stdin`, `no_tty`); `rekor_upload=False`
+        (`--no-rekor-upload`) *requires* `key`, the opposite direction; and
+        independently of `key`, `identity_token_file` conflicts with
+        `identity_token_stdin`.
+
+        Args:
+            ref: The package reference to attest.
+            predicate: The predicate document to attest.
+            predicate_type: The predicate type URI or its short alias —
+                ocx's `--type`. The returned report's `predicate_type` is
+                the *resolved* URI, which may differ from what was passed
+                here.
+            tags: Sweep these tags instead of attesting `ref` directly.
+                Unions with `tags_file` when both are given — sweeping is
+                triggered by either, not a choice between them.
+                An empty sequence is refused: `tags=None` is how you act
+                on `ref` itself.
+            tags_file: Sweep the tags listed in this file. Unions with
+                `tags` — see above.
+            platform: Attest one platform's manifest. Refused alongside
+                `tags` or `tags_file`.
+            signature_format: Which signature format(s) to produce.
+            key: A key reference. `None` signs keyless, against Fulcio.
+                Conflicts with `fulcio_url`, `identity_token_file`,
+                `identity_token_stdin`, and `no_tty`.
+            rekor_upload: Upload to the transparency log. `False`
+                (`--no-rekor-upload`) is valid only alongside `key`.
+            fulcio_url: A non-default Fulcio instance. Conflicts with `key`.
+            rekor_url: A non-default Rekor instance.
+            identity_token_file: Read the OIDC identity token from this
+                file. Conflicts with `key` and with `identity_token_stdin`.
+            identity_token_stdin: Read the OIDC identity token from stdin.
+                Conflicts with `key` and with `identity_token_file`.
+            no_tty: Suppress the interactive TTY prompt. Conflicts with
+                `key`.
+            no_cache: Skip ocx's signing cache.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. Defaults to no retries.
+
+        Returns:
+            An `AttestationReport` for a single attestation, or a
+            `SweepReport` when `tags`/`tags_file` swept multiple.
+
+        Raises:
+            ValueError: `tags` was empty; `platform` was given alongside
+                `tags`/`tags_file`;
+                `key` was given alongside `fulcio_url`,
+                `identity_token_file`, `identity_token_stdin`, or `no_tty`;
+                `identity_token_file` and `identity_token_stdin` were both
+                given; or `rekor_upload=False` was given without `key`.
+            OcxProcessError: A non-zero exit. Recover a partial report with
+                `partial_report(err)` and `AttestationReport.from_json`
+                (D10).
+        """
+        sweep_tags, swept = _sweep(tags, tags_file)
+        _signing_guards(
+            key=key,
+            rekor_upload=rekor_upload,
+            fulcio_url=fulcio_url,
+            identity_token_file=identity_token_file,
+            identity_token_stdin=identity_token_stdin,
+            no_tty=no_tty,
+            platform=platform,
+            swept=swept,
+        )
+        command = [
+            "package",
+            "attest",
+            "--predicate",
+            str(predicate),
+            "--type",
+            predicate_type,
+            *_flag("--platform", platform),
+            *_flag("--signature-format", signature_format),
+            *_flag("--key", key),
+            *_toggle("--rekor-upload", "--no-rekor-upload", rekor_upload),
+            *_flag("--fulcio-url", fulcio_url),
+            *_flag("--rekor-url", rekor_url),
+            *_flag("--identity-token-file", identity_token_file),
+            *_switch("--identity-token-stdin", identity_token_stdin),
+            *_switch("--no-tty", no_tty),
+            *_switch("--no-cache", no_cache),
+            *_repeated("--tags", sweep_tags),
+            *_flag("--tags-file", tags_file),
+        ]
+        raw = self._call(command, (str(ref),), timeout=timeout, retry=retry, mutating=True).stdout
+        if swept:
+            return SweepReport.from_json(raw, AttestationReport.from_dict)
+        return AttestationReport.from_json(raw)
+
+    def verify(
+        self,
+        ref: PackageLike,
+        *,
+        platform: str | None = None,
+        certificate_identity: str | None = None,
+        certificate_oidc_issuer: str | None = None,
+        key: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        rekor_url: str | None = None,
+        attestation: bool = False,
+        predicate_type: str | None = None,
+        allow_unlogged_signature: bool = False,
+        no_cache: bool = False,
+        sigstore_trusted_root: str | Path | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> VerificationReport:
+        """Verify a package reference's signature or attestation (C-012).
+
+        A read — not mutating, and keeps the normal retry default (D5).
+
+        Keyless verification needs the identity pair: cosign 2.0 made
+        `--certificate-identity` and `--certificate-oidc-issuer`
+        hard-required together, because without both a signature from
+        *any* Fulcio-certified identity passes (D3). Neither is usable
+        alongside `key`.
+
+        Args:
+            ref: The package reference to verify.
+            platform: Verify one platform's manifest.
+            certificate_identity: The pinned keyless identity. Required
+                together with `certificate_oidc_issuer` for keyless
+                verification.
+            certificate_oidc_issuer: The pinned keyless OIDC issuer.
+                Required together with `certificate_identity`.
+            key: A key reference, for key-based verification.
+            signature_format: Restrict to one signature format. `'both'` is
+                write-side only — it names two shapes, and a result cannot
+                say "either of these satisfied me".
+            rekor_url: A non-default Rekor instance.
+            attestation: Verify an attestation instead of a signature.
+            predicate_type: Restrict attestation verification to this
+                predicate type. Requires `attestation=True`.
+            allow_unlogged_signature: Accept a signature with no
+                transparency log entry.
+            no_cache: Skip ocx's verification cache.
+            sigstore_trusted_root: A non-default Sigstore trusted root
+                bundle.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the
+                config's.
+
+        Returns:
+            The verified subject, identity, and matching signatures.
+
+        Raises:
+            ValueError: Only one of `certificate_identity`/
+                `certificate_oidc_issuer` was given, either was given
+                alongside `key`, `predicate_type` was given without
+                `attestation=True`, or `signature_format` was `'both'`.
+            OcxProcessError: The signature did not verify — this command's
+                main outcome, not an edge case. `DataError` (65) for a
+                signature or certificate chain that did not hold up,
+                `PermissionDeniedError` (77) for an identity or issuer that
+                did not match, `NotFoundError` (79) when nothing is signed at
+                all, and `TransparencyLogUnavailableError` (83) when Rekor is
+                unreachable.
+        """
+        _identity_guards(
+            certificate_identity=certificate_identity,
+            certificate_oidc_issuer=certificate_oidc_issuer,
+            key=key,
+        )
+        _read_side_format(signature_format)
+        if predicate_type is not None and not attestation:
+            raise ValueError(
+                "predicate_type narrows an attestation, and a signature has no predicate to narrow, so ocx "
+                "refuses --type without --attestation. Pass attestation=True, or drop predicate_type."
+            )
+        command = [
+            "package",
+            "verify",
+            *_flag("--platform", platform),
+            *_flag("--certificate-identity", certificate_identity),
+            *_flag("--certificate-oidc-issuer", certificate_oidc_issuer),
+            *_flag("--key", key),
+            *_flag("--signature-format", signature_format),
+            *_flag("--rekor-url", rekor_url),
+            *_switch("--attestation", attestation),
+            *_flag("--type", predicate_type),
+            *_switch("--allow-unlogged-signature", allow_unlogged_signature),
+            *_switch("--no-cache", no_cache),
+            *_flag("--sigstore-trusted-root", sigstore_trusted_root),
+        ]
+        return VerificationReport.from_json(self._call(command, (str(ref),), timeout=timeout, retry=retry).stdout)
+
+    def sbom(
+        self,
+        ref: PackageLike,
+        *,
+        platform: str | None = None,
+        summary: bool = False,
+        predicate_type: str | None = None,
+        certificate_identity: str | None = None,
+        certificate_oidc_issuer: str | None = None,
+        key: str | None = None,
+        signature_format: SignatureFormat | None = None,
+        sigstore_trusted_root: str | Path | None = None,
+        rekor_url: str | None = None,
+        no_cache: bool = False,
+        verify: bool | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> SbomListingReport:
+        """List and verify the SBOM documents attached to a package (C-014).
+
+        A read — not mutating. Exits 0 even when candidates were refused;
+        check `summary.status`, not the exit code, for a
+        `"partial_failure"` listing.
+
+        `verify` gates the same way `install`/`pull`'s does (C-008): ocx's
+        default is on, but the gate only fires when a `[[trust.policy]]`
+        covers the package. `verify=True` against an uncovered package is a
+        documented no-op, not enforcement.
+
+        ocx's `--output` mode is not wrapped: it writes the raw predicate
+        bytes and prints no listing at all, so there is no report for a
+        typed method to return. Reach it through
+        `ocx.invoke(["package", "sbom", "--output", "-", str(ref)])`, whose
+        stdout the SDK captures.
+
+        Args:
+            ref: The package reference to list SBOMs for.
+            platform: Restrict to one platform's SBOM.
+            summary: Also parse each entry as CycloneDX (1.5-1.7 only) and
+                report its component counts on `SbomEntry.summary`. An
+                entry whose document will not parse **moves** to `refused`
+                (`reason_kind` `"sbom_summary_failed"`) rather than
+                appearing with an empty summary, so this flag can change
+                which array an entry lands in — it never empties the
+                listing, and never touches an entry that parsed.
+            predicate_type: Restrict to this predicate type — ocx's
+                `--type`.
+            certificate_identity: The pinned keyless identity, for
+                verifying attached signatures. Required together with
+                `certificate_oidc_issuer`, and neither is usable with
+                `key`.
+            certificate_oidc_issuer: The pinned keyless OIDC issuer.
+            key: A key reference, for key-based verification.
+            signature_format: Restrict to one signature format. `'both'` is
+                write-side only — it names two shapes, and a result cannot
+                say "either of these satisfied me".
+            sigstore_trusted_root: A non-default Sigstore trusted root
+                bundle.
+            rekor_url: A non-default Rekor instance.
+            no_cache: Skip ocx's verification cache.
+            verify: Verify attached signatures. `False` names no
+                cryptography, so it cannot be combined with `key` or with
+                either certificate flag.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the
+                config's.
+
+        Returns:
+            The summary, the listed entries, and anything refused.
+
+        Raises:
+            ValueError: The identity pair is incomplete or combined with
+                `key`; `verify=False` was combined with `key` or with a
+                certificate flag; or `signature_format` was `'both'`.
+        """
+        _identity_guards(
+            certificate_identity=certificate_identity,
+            certificate_oidc_issuer=certificate_oidc_issuer,
+            key=key,
+        )
+        _read_side_format(signature_format)
+        if verify is False:
+            refused = sorted(
+                name
+                for name, value in (
+                    ("key", key),
+                    ("certificate_identity", certificate_identity),
+                    ("certificate_oidc_issuer", certificate_oidc_issuer),
+                )
+                if value is not None
+            )
+            if refused:
+                raise ValueError(
+                    f"verify=False asks for no cryptography and {', '.join(refused)} names material to check "
+                    f"with, which ocx refuses as contradictory rather than accepting an argument it would "
+                    f"never use. Drop verify=False to check them, or drop them to list unverified."
+                )
+        command = [
+            "package",
+            "sbom",
+            *_flag("--platform", platform),
+            *_switch("--summary", summary),
+            *_flag("--type", predicate_type),
+            *_flag("--certificate-identity", certificate_identity),
+            *_flag("--certificate-oidc-issuer", certificate_oidc_issuer),
+            *_flag("--key", key),
+            *_flag("--signature-format", signature_format),
+            *_flag("--sigstore-trusted-root", sigstore_trusted_root),
+            *_flag("--rekor-url", rekor_url),
+            *_switch("--no-cache", no_cache),
+            *_toggle("--verify", "--no-verify", verify),
+        ]
+        return SbomListingReport.from_json(self._call(command, (str(ref),), timeout=timeout, retry=retry).stdout)
+
+    def copy(
+        self,
+        source: PackageLike,
+        *,
+        to: str | None = None,
+        identifier: str | None = None,
+        platforms: Iterable[str] = (),
+        cascade: bool = False,
+        keep_tag: bool | None = None,
+        referrers: bool | None = None,
+        description: bool = False,
+        annotations: Mapping[str, str] | None = None,
+        dry_run: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> CopyReport:
+        """Copy a package from one location to another, server-side (C-015).
+
+        `mutating=not dry_run` (D5): `copy(dry_run=True)` writes nothing
+        and is exactly the read a transient registry blip should retry, so
+        a flat `True` would wrongly disable retry for it. `dry_run=True`
+        reports `status="planned"` rather than describing a copy that
+        already happened.
+
+        Non-empty `sidecar_conflicts` on the result means the target
+        already had different content under a sidecar tag `copy` would have
+        written — that call exits 65 and raises. Recover the report,
+        conflicts included, with `partial_report(err)` and
+        `CopyReport.from_json` (D10).
+
+        `to`/`identifier` is mutual exclusion, **not** xor: giving neither
+        is a legal invocation — ocx falls back to the configured default
+        registry, keeping `source`'s repository and tag. Only giving both
+        is refused.
+
+        A digest-form `source` with no tag needs `identifier` (there is no
+        tag to keep at the target otherwise) and needs exactly one entry in
+        `platforms` (there is no single-platform default to fall back on).
+
+        Not guarded here, because it would take a second identifier parser:
+        ocx refuses a **target** that carries no tag, whichever route
+        produced it (`package_copy.rs:110`) — so a tagless `source` with no
+        `identifier`, or a tagless `identifier`, exits 64. Spell the tag out
+        at whichever end names the target.
+
+        Args:
+            source: The package reference to copy.
+            to: Rewrite only the target's registry host, keeping `source`'s
+                repository path and tag (`package_copy.rs:19-24` —
+                `value_name = "REGISTRY"`, a host, not a full reference).
+                Refused alongside `identifier`.
+            identifier: The full target reference, when the repository path
+                or tag changes too. Refused alongside `to`. Required when
+                `source` is a bare digest.
+            platforms: Restrict to these platforms. Omitted copies all of
+                them — except when `source` is a bare digest, which needs
+                exactly one.
+            cascade: Also advance the rolling tags above this version at
+                the target.
+            keep_tag: Write the `__ocx.keep.sha256-<hex>` tag for each platform
+                manifest at the target. `None` leaves ocx's default, which
+                writes it.
+            referrers: Copy OCI referrers-API attachments. `None` leaves
+                ocx's default.
+            description: Also copy the source's description metadata.
+            annotations: Extra OCI annotations for the copied index.
+            dry_run: Report what would be copied without writing.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the
+                config's (D5 resolves the mutating default per `dry_run`).
+
+        Returns:
+            What landed at the target, including per-platform rows and
+            blob transfer counts.
+
+        Raises:
+            ValueError: Both `to` and `identifier` were given; or `source`
+                is a bare digest and `identifier` is absent, or `platforms`
+                does not name exactly one entry.
+            DataError: `sidecar_conflicts` is non-empty (exit 65) — see the
+                partial-failure note above for how to recover the report.
+        """
+        if to is not None and identifier is not None:
+            raise ValueError(
+                "to rewrites the registry host and identifier states the whole target reference, so ocx "
+                "refuses both: identifier already says everything to would have changed. Pass one of them, "
+                "or neither to keep source's repository and tag at the configured default registry."
+            )
+        wanted = tuple(platforms)
+        if _digest_without_tag(str(source)):
+            if len(wanted) != 1:
+                raise ValueError(
+                    f"{source} names a manifest by digest, and a leaf manifest carries no platform of its "
+                    f"own, so exactly one platform must be declared; {len(wanted)} were given. Pass one "
+                    f"platform, or name the source by tag instead."
+                )
+            if identifier is None:
+                raise ValueError(
+                    f"{source} names a manifest by digest, which carries no tag for the target to keep, so "
+                    f"ocx needs the target spelled out. Pass identifier with the full target reference."
+                )
+        command = [
+            "package",
+            "copy",
+            *_flag("--to", to),
+            *_flag("--identifier", identifier),
+            *_repeated("--platform", wanted),
+            *_switch("--cascade", cascade),
+            *_toggle("--keep-tag", "--no-keep-tag", keep_tag),
+            *_toggle("--referrers", "--no-referrers", referrers),
+            *_switch("--description", description),
+            *_repeated("--annotation", (f"{name}={value}" for name, value in (annotations or {}).items())),
+            *_switch("--dry-run", dry_run),
+        ]
+        result = self._call(command, (str(source),), timeout=timeout, retry=retry, mutating=not dry_run)
+        return CopyReport.from_json(result.stdout)
 
     def _call(
         self,
@@ -2173,6 +3135,166 @@ def _identifiers(refs: Iterable[PackageLike]) -> tuple[str, ...]:
     row flows straight back into the next call's argv.
     """
     return tuple(str(ref) for ref in refs)
+
+
+def _sweep(tags: Iterable[str] | None, tags_file: str | Path | None) -> tuple[tuple[str, ...], bool]:
+    """Materialize the sweep tags and say whether this call sweeps (D2).
+
+    ocx's own discriminant is an OR over "any tag given" and "a file given"
+    (`options/tags.rs:114`), which this mirrors for `sign` and `attest`.
+
+    An **empty** `tags` is refused rather than followed. ocx would act on the
+    reference itself, which `tags=None` already spells — and spells with the
+    return type the overload set promises, where `tags=[]` would statically
+    claim a `SweepReport` and hand back a bare one. The capability stays
+    reachable by the spelling that was never a lie.
+    """
+    swept = tuple(tags or ())
+    if tags is not None and not swept:
+        raise ValueError(
+            "tags is empty, so there is nothing to sweep. Omitting tags (or tags=None) acts on the "
+            "reference itself, and is the only spelling typed as returning the bare report. Pass the tags "
+            "you meant, or drop the argument."
+        )
+    return swept, bool(swept) or tags_file is not None
+
+
+def _no_rekor_upload_needs_key(key: str | None, rekor_upload: bool | None) -> None:
+    """Refuse `--no-rekor-upload` without `--key` (C-009, C-011, C-013).
+
+    One flag, three commands — `push`, `sign` and `attest` all reject it the
+    same way. Upstream declines it after argv parse rather than through a
+    clap `requires` (`options/rekor_upload.rs:86`), so the exit code is the
+    generic one and the SDK is better placed to say why.
+    """
+    if rekor_upload is False and key is None:
+        raise ValueError(
+            "rekor_upload=False skips the transparency log, which only key signing may do: a keyless "
+            "signature's Fulcio certificate lives about ten minutes, so its log entry is the only lasting "
+            "proof it was made while the certificate was valid. Pass key=, or drop rekor_upload=False."
+        )
+
+
+def _signing_guards(
+    *,
+    key: str | None,
+    rekor_upload: bool | None,
+    fulcio_url: str | None,
+    identity_token_file: str | Path | None,
+    identity_token_stdin: bool,
+    no_tty: bool,
+    platform: str | None,
+    swept: bool,
+) -> None:
+    """Refuse what `ocx package sign` and `attest` refuse (C-011, C-013).
+
+    `sign` and `attest` declare the identical set independently
+    (`package_sign.rs:66-107`, `package_attest.rs:80-117`), so this is one
+    guard with two real callers rather than a shared note either could drift
+    away from.
+
+    The `--key` conflicts are the part `--help` does not show:
+    `package_sign.help.txt` documents `--no-tty` without mentioning `--key`
+    at all, and `--key` with `--no-tty` — key signing in headless CI, the
+    most likely production shape of all — exits 64.
+    """
+    _no_rekor_upload_needs_key(key, rekor_upload)
+    if key is not None:
+        keyless = sorted(
+            name
+            for name, given in (
+                ("fulcio_url", fulcio_url is not None),
+                ("identity_token_file", identity_token_file is not None),
+                ("identity_token_stdin", identity_token_stdin),
+                ("no_tty", no_tty),
+            )
+            if given
+        )
+        if keyless:
+            raise ValueError(
+                f"key= signs with a key pair and {', '.join(keyless)} drives the keyless Fulcio flow, which "
+                f"key signing never enters, so ocx refuses the combination (exit 64) rather than accepting "
+                f"a flag it would ignore. Drop key= to sign keyless, or drop the keyless arguments."
+            )
+    if identity_token_file is not None and identity_token_stdin:
+        raise ValueError(
+            "identity_token_file and identity_token_stdin are two ways to supply one OIDC token, so ocx "
+            "refuses both and will not pick between them. Keep whichever the CI system actually writes."
+        )
+    if platform is not None and swept:
+        raise ValueError(
+            "platform narrows into one child of an index and a tag sweep acts on indices by definition, so "
+            "ocx refuses them together. Drop platform to sweep, or drop tags/tags_file to narrow."
+        )
+
+
+def _read_side_format(signature_format: SignatureFormat | None) -> None:
+    """Refuse `--signature-format both` on a read (C-012, C-014).
+
+    `SignatureFormatOpt` is one flattened struct across all five commands, so
+    `verify --help` and `sbom --help` advertise `both` and then exit 64 on it
+    (`options/signature_format.rs:47`). The type stays wide because `both` is
+    legal on `sign`, `attest` and `push`; only the read side refuses it.
+    """
+    if signature_format == "both":
+        raise ValueError(
+            "signature_format='both' selects what to write, and a read pins the one shape to accept, so "
+            "ocx refuses it here. Pass 'bundle' or 'simplesigning', or omit it to accept either."
+        )
+
+
+def _identity_guards(
+    *,
+    certificate_identity: str | None,
+    certificate_oidc_issuer: str | None,
+    key: str | None,
+) -> None:
+    """Refuse an unpinned or key-shadowed keyless identity (D3; C-012, C-014).
+
+    cosign 2.0 made the identity pair hard-required together for keyless
+    verification: with only one half given, a signature from *any*
+    Fulcio-certified identity satisfies the check
+    ([sigstore/cosign#3671](https://github.com/sigstore/cosign/issues/3671)).
+    `verify` and `sbom` carry the identical pair, so this is one guard with
+    two real callers.
+    """
+    if key is not None:
+        shadowed = sorted(
+            name
+            for name, value in (
+                ("certificate_identity", certificate_identity),
+                ("certificate_oidc_issuer", certificate_oidc_issuer),
+            )
+            if value is not None
+        )
+        if shadowed:
+            raise ValueError(
+                f"a key signature carries no certificate, so there is no SAN or issuer for "
+                f"{', '.join(shadowed)} to match and ocx refuses it alongside key=. Drop key= to verify "
+                f"keyless against that identity, or drop the certificate arguments."
+            )
+    if (certificate_identity is None) != (certificate_oidc_issuer is None):
+        missing = "certificate_oidc_issuer" if certificate_oidc_issuer is None else "certificate_identity"
+        raise ValueError(
+            f"keyless verification pins an identity with both halves and {missing} is missing, so what was "
+            f"given would accept a signature from any Fulcio-certified identity. Pass {missing} too, or "
+            f"drop both and let a matching [[trust.policy]] supply the pair."
+        )
+
+
+def _digest_without_tag(source: str) -> bool:
+    """Whether an identifier names a digest and carries no tag (C-015).
+
+    Not a second identifier parser: ocx still owns the grammar, and this
+    answers one shape question so `copy` can refuse an invocation ocx would
+    exit 64 on before it authenticates against a production registry. A tag,
+    where there is one, sits in the last `/`-separated segment ahead of the
+    `@`; a registry port lives in the first segment, so it is never mistaken
+    for one. Anything ambiguous reads as "not a bare digest", which costs a
+    guard rather than refusing a legal call.
+    """
+    head, at, _ = source.partition("@")
+    return bool(at) and ":" not in head.rsplit("/", 1)[-1]
 
 
 def _result(argv: Sequence[str], done: Completed, redact: Callable[[str], str]) -> CommandResult:
