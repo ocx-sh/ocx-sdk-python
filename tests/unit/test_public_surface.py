@@ -24,6 +24,7 @@ import pytest
 
 import ocx_sdk
 import ocx_sdk.bootstrap
+from ocx_sdk._errors import _EXIT_CODE_ERRORS
 
 _EXPECTED = {
     # Handles and command groups.
@@ -34,6 +35,7 @@ _EXPECTED = {
     "Auth", "BasicAuth", "BearerAuth", "PackageRef", "PackageLike", "RetryPolicy",
     "ConstVar", "PathVar", "ListVar", "EnvValue", "Channel", "InstallEnv",
     "LogLevel", "LazyMode", "Resolve", "MaybeRetry", "MaybeTimeout", "UNSET",
+    "SignatureFormat",
     # Bootstrap.
     "bootstrap", "ensure", "DistSource",
     # Constants.
@@ -41,16 +43,24 @@ _EXPECTED = {
     # Results.
     "CommandResult", "VersionInfo", "AboutInfo", "LockStatus", "ToolBinding", "GroupStatus",
     "StatusReport", "Candidate", "InspectedPackage", "InspectReport", "EnvEntry", "EnvEntryType",
-    "PackageBinding", "Integration", "Advisory", "EnvReport", "WhichResult", "PullReport",
+    "PackageBinding", "Integration", "Advisory", "EnvReport", "WhichResult", "PullReport", "DryRunEntry",
     "InstalledPackage", "InstallReport", "RemovalResult", "DepNode", "DepsReport", "ToolRow",
     "Assertion", "TestRun", "TestResult", "PushResult", "LoginResult", "LogoutResult",
-    "ConfigUpdateReport", "ConfigSetupReport", "InfoResult",
+    "ConfigUpdateReport", "ConfigSetupReport", "InfoResult", "PackageDescription",
+    # Results — the ocx 0.6 signing, verification, SBOM and copy reports.
+    "SignatureLegReport", "SignatureReport", "SignatureEntry", "VerificationReport",
+    "AttestationReport", "AttestationOutcome", "SweptTagReport", "SweepReport",
+    "SignedPlatformReport", "ListingSummary", "SbomEntry", "RefusedEntry", "SbomSummaryOut",
+    "SbomListingReport", "CopiedPlatformRow", "BlobSummary", "CopyReport",
+    # The partial-failure escape hatch (D10).
+    "partial_report",
     # Errors.
     "ExitCode", "OcxError", "OcxExecutionError", "OcxProcessError", "OcxTimeoutError",
     "UsageError", "DataError", "UnavailableError", "IoError", "TempFailError",
     "PermissionDeniedError", "ConfigError", "NotFoundError", "AuthError", "PolicyBlockedError",
     "DirtyRcBlockError", "BootstrapError", "DownloadError", "ChecksumMismatchError",
     "DistManifestError", "UnsupportedPlatformError", "OcxNotFoundError", "VersionCompatError",
+    "TransparencyLogUnavailableError", "ReferrersUnsupportedError", "UnsupportedKeyBackendError",
 }  # fmt: skip
 """The curated public surface, grouped the way the design record groups it."""
 
@@ -82,6 +92,26 @@ def test_every_exported_name_resolves() -> None:
     missing = [name for name in ocx_sdk.__all__ if not hasattr(ocx_sdk, name)]
 
     assert missing == []
+
+
+def test_every_exit_code_mapped_error_is_exported() -> None:
+    """Every class `_process` can raise by exit code is importable from `ocx_sdk`.
+
+    Not covered by anything else: `_EXPECTED` is set equality over `__all__`,
+    which catches a name added to `__all__` and not to `_EXPECTED` but not the
+    reverse, and `test_errors.py` reads the private `ocx_sdk._errors` path so
+    it never sees the public one. A subclass wired into the table but missing
+    from `__all__` is unraisable by name (`from ocx_sdk import ...` raises
+    `ImportError`), absent from `api.md`, and leaves the guide's exit-code
+    table naming a class with nowhere to click through to.
+
+    Non-vacuous by construction: `test_success_and_generic_failure_have_no_subclass`
+    pins the table's key set to every `ExitCode` but `OK` and `FAILURE`, so
+    emptying it fails there rather than passing silently here.
+    """
+    unexported = sorted({error.__name__ for error in _EXIT_CODE_ERRORS.values()} - set(ocx_sdk.__all__))
+
+    assert unexported == []
 
 
 def test_no_underscored_name_is_exported() -> None:

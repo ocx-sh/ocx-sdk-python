@@ -28,6 +28,7 @@ from ocx_sdk import (
     Ocx,
     OcxProcessError,
     PolicyBlockedError,
+    UnsupportedKeyBackendError,
     UsageError,
 )
 
@@ -50,6 +51,14 @@ task = "ocx.sh/go-task/task:3"
 
 _UNRESOLVABLE = "ocx.sh/ocx-sdk-python/no-such-package:0.0.0"
 """An identifier no store can hold, so `--offline` refuses before any lookup."""
+
+_KMS_KEY = "awskms://alias/ocx-sdk-python-has-no-such-key"
+"""A key backend ocx recognizes by name and refuses (exit 85).
+
+The scheme is checked before the reference is resolved, so no registry, no
+network and no key material are needed to reach the code — which is what makes
+85 the one of C-006's three that this tier can provoke.
+"""
 
 
 def _stale_lock(project_factory: Callable[..., Project]) -> Project:
@@ -97,6 +106,12 @@ def _stale_lock(project_factory: Callable[..., Project]) -> Project:
             PolicyBlockedError,
             lambda ocx, factory, tmp_path: ocx.with_config(offline=True).package.inspect(_UNRESOLVABLE),
             id="81-policy-offline-uncached",
+        ),
+        pytest.param(
+            ExitCode.UNSUPPORTED_KEY_BACKEND,
+            UnsupportedKeyBackendError,
+            lambda ocx, factory, tmp_path: ocx.package.sign(SMOKE_PACKAGE, key=_KMS_KEY),
+            id="85-unsupported-key-backend",
         ),
     ],
 )
@@ -170,3 +185,29 @@ def test_package_inspect_reports_a_missing_package_when_online(ocx: Ocx) -> None
 #   77 NO_PERM        — needs an unwritable $OCX_HOME; refused here as machine mutation.
 #   80 AUTH           — needs the htpasswd registry; acceptance (`test_login_password_stdin`).
 #   82 DIRTY_RC_BLOCK — needs a managed-config fence carrying local edits; acceptance.
+#   83 TRANSPARENCY_LOG_UNAVAILABLE — Rekor is contacted only while a signature is
+#                      being written; acceptance at best, and blocked by the key
+#                      below.
+#   84 REFERRERS_UNSUPPORTED — write-path only, by upstream design; unreachable at
+#                      any tier for the reason below.
+#
+# 84 does not fall to the obvious probe. A registry with no Referrers API looks
+# like the way to provoke it from the read side, and `registry:2` (distribution
+# 2.8.3) is one — it answers 404 on `/v2/<name>/referrers/<digest>`. It does not
+# work, and the reason is deliberate: `list_referrers_with_fallback`
+# (`ocx_lib/src/oci/client/transport.rs:568-598`) turns that 404 into an empty
+# listing tagged `DiscoveryMethod::FallbackTag`, and `verify`'s
+# `map_client_error` (`ocx_lib/src/oci/verify/pipeline.rs:3524-3531`) maps the
+# unsupported verdict onto `NoSignaturesFound` with the comment "84 is now
+# write-path only". Probed against 2.8.3 at the tag: `verify` exits 79
+# `no_signatures_found` and `sbom` exits 79 `attestation_not_found`, with and
+# without `--no-cache`. On the write side 84 means "the Referrers API is absent
+# **and** the fallback write was refused" (`ocx_lib/src/oci/sign/referrers.rs:86-89`).
+#
+# Which puts 83 and 84 behind the same door: both need a signing run, and ocx
+# accepts exactly one private-key format — cosign's scrypt-wrapped
+# `ENCRYPTED SIGSTORE PRIVATE KEY` envelope
+# (`ocx_lib/src/oci/sign/key_backend.rs:130-135`). `openssl` cannot write one and
+# neither can the standard library, so a throwaway key means adding `cosign` to
+# the toolchain — a decision above this file. 85 is reachable only because its
+# check runs before any key is read.

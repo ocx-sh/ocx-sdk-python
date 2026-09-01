@@ -24,7 +24,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from ocx_sdk import MANAGED_CONFIG_DISABLED, TESTED_OCX_VERSION, Ocx, PackageRef, VersionInfo
+from ocx_sdk import (
+    MANAGED_CONFIG_DISABLED,
+    TESTED_OCX_VERSION,
+    Ocx,
+    OcxProcessError,
+    PackageRef,
+    VersionInfo,
+)
 
 from _helpers import SMOKE_PACKAGE, project_file  # isort: skip  — sys.path is this directory under pytest
 
@@ -55,6 +62,18 @@ expect.ok(result)
 expect.contains(result.stdout, "hello-from-wp10")
 """
 """A Starlark assertion script — the only `package test` form with a pinned envelope."""
+
+_UNREACHABLE = "127.0.0.1:1/ocx-sdk-python/never-published:0.0.0"
+"""A package on a port nothing listens on.
+
+The ocx 0.6 signing surface writes to registries, so this tier cannot run any
+of it to completion. What it *can* prove without one is that the argv the SDK
+composes is argv ocx parses — see
+`test_the_new_command_surface_reaches_ocx_own_dispatch`.
+"""
+
+_PREDICATE_TYPE = "https://cyclonedx.org/bom"
+"""A predicate type `attest` accepts, so the row fails on the registry, not on the flag."""
 
 
 def test_version_plain_output(ocx: Ocx) -> None:
@@ -126,7 +145,7 @@ def test_t1_result_shape_smoke(
     assert resolved.pinned_digest and resolved.layers
     assert resolved.ref.identifier == resolved.pinned_identifier
 
-    assert list(ocx.package.info(ref)) == [SMOKE_PACKAGE]
+    assert ocx.package.description_pull(ref) == {SMOKE_PACKAGE: None}
     assert ocx.package.deps(ref).roots[0].identifier.startswith(SMOKE_PACKAGE)
 
     package_env = ocx.package.env(ref)
@@ -138,7 +157,8 @@ def test_t1_result_shape_smoke(
     with ocx.package.spawn([ref], ["task", "--version"], stdout=subprocess.PIPE, text=True) as child:
         assert child.communicate()[0].strip()
 
-    assert ocx.package.select(ref).packages[SMOKE_PACKAGE].path.endswith("current")
+    selected = ocx.package.select(ref).packages[SMOKE_PACKAGE].path
+    assert selected is not None and selected.endswith("current")
     assert ocx.package.deselect(ref)[0].status == "removed"
     assert {removal.status for removal in ocx.package.uninstall(ref, purge=True)} == {"removed", "purged"}
 
@@ -153,6 +173,7 @@ def test_t1_result_shape_smoke(
     )
     assert outcome.status == "passed"
     assert outcome.assertion is None
+    assert outcome.run is not None
     assert outcome.run.exit_code == 0
 
     # --- project tier -----------------------------------------------------
@@ -163,7 +184,7 @@ def test_t1_result_shape_smoke(
     assert project.pull().packages == {}
     assert project.inspect().env
     assert [entry.key for entry in project.env().entries] == ["WP10_SMOKE"]
-    assert project.run(["printenv", "WP10_SMOKE"]).stdout.strip() == "on"
+    assert project.exec(["printenv", "WP10_SMOKE"]).stdout.strip() == "on"
 
     added = project.add(f"task={SMOKE_PACKAGE}", pull=False)
     assert [tool.binding for tool in added] == ["task"]
@@ -173,12 +194,104 @@ def test_t1_result_shape_smoke(
     assert project_factory(_PROJECT, lock=False).lock() == ()
 
 
+@pytest.mark.parametrize(
+    ("command", "call"),
+    [
+        pytest.param(
+            "package sign",
+            lambda ocx, key: ocx.package.sign(
+                _UNREACHABLE, key=key, rekor_upload=False, signature_format="simplesigning", no_cache=True
+            ),
+            id="sign",
+        ),
+        pytest.param(
+            "package sign",
+            lambda ocx, key: ocx.package.sign(_UNREACHABLE, tags=["1.0", "1"], key=key, rekor_upload=False),
+            id="sign-swept",
+        ),
+        pytest.param(
+            "package attest",
+            lambda ocx, key: ocx.package.attest(
+                _UNREACHABLE, predicate=key, predicate_type=_PREDICATE_TYPE, key=key, rekor_upload=False
+            ),
+            id="attest",
+        ),
+        pytest.param(
+            "package verify",
+            lambda ocx, key: ocx.package.verify(
+                _UNREACHABLE,
+                certificate_identity="ci@ocx-sdk-python.invalid",
+                certificate_oidc_issuer="https://token.actions.githubusercontent.com",
+                allow_unlogged_signature=True,
+                no_cache=True,
+            ),
+            id="verify",
+        ),
+        pytest.param(
+            "package sbom",
+            lambda ocx, key: ocx.package.sbom(_UNREACHABLE, summary=True, no_cache=True),
+            id="sbom",
+        ),
+        pytest.param(
+            "package copy",
+            lambda ocx, key: ocx.package.copy(
+                _UNREACHABLE,
+                identifier="127.0.0.1:1/ocx-sdk-python/target:0.0.0",
+                dry_run=True,
+                referrers=False,
+                cascade=True,
+                keep_tag=False,
+            ),
+            id="copy",
+        ),
+        pytest.param(
+            "package description push",
+            lambda ocx, key: ocx.package.description_push(_UNREACHABLE, title="t", description="d", keywords="a,b"),
+            id="description-push",
+        ),
+        pytest.param(
+            "package description pull",
+            lambda ocx, key: ocx.package.description_pull(_UNREACHABLE),
+            id="description-pull",
+        ),
+    ],
+)
+def test_the_new_command_surface_reaches_ocx_own_dispatch(
+    command: str,
+    call: Callable[[Ocx, Path], object],
+    ocx: Ocx,
+    tmp_path: Path,
+) -> None:
+    """Each ocx 0.6 command the SDK gained spells argv the binary parses.
+
+    None of them can run to completion here — every one writes to or reads
+    from a registry this tier does not have — so each is pointed at a port
+    nothing listens on and asserted on how it failed. That is decisive
+    because the two failures look nothing alike: argv ocx cannot parse is
+    refused by clap, which prints a bare message to stderr and **no** JSON,
+    while the `--format json` error envelope is written only after the
+    command has been parsed and dispatched. So an envelope naming the command
+    is proof the whole flag set was accepted — which is the one thing about
+    this surface a registry-less tier can prove, and the thing a recorded
+    fixture cannot.
+
+    Reads `err.stdout`, the attribute D10 added, so the carrier for
+    `partial_report` is exercised against the binary rather than a fake.
+    """
+    key = _write(tmp_path / "key.pem", "not a key, and never read: the registry fails first\n")
+
+    with pytest.raises(OcxProcessError) as caught:
+        call(ocx, key)
+
+    assert json.loads(caught.value.stdout)["command"] == command
+
+
 async def test_t1_async_twins_smoke(ocx: Ocx, project_factory: Callable[..., Project]) -> None:
     """The `_async` execution verbs reach the same binary as their sync twins."""
     project = project_factory(_PROJECT)
 
     assert (await ocx.invoke_async(["version"])).stdout.strip() == ocx.version()
-    assert (await project.run_async(["printenv", "WP10_SMOKE"])).stdout.strip() == "on"
+    assert (await project.exec_async(["printenv", "WP10_SMOKE"])).stdout.strip() == "on"
     assert (await ocx.package.exec_async([SMOKE_PACKAGE], ["true"], check=False)).exit_code in (0, 1)
 
     child = await ocx.spawn_async(["version"])
@@ -194,7 +307,7 @@ def test_project_calls_carry_the_project_flag(ocx: Ocx, project_factory: Callabl
     """
     project = project_factory(_PROJECT)
 
-    argv = project.run(["true"]).argv
+    argv = project.exec(["true"]).argv
 
     assert "--project" in argv
     assert argv[argv.index("--project") + 1] == str(project.path)
