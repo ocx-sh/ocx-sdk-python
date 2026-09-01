@@ -96,7 +96,9 @@ tasks:
   lint:links:
     desc: Check for broken links (network; may be flaky offline)
     cmds:
-      - lychee --cache --max-cache-age 1d .
+      # tests/fixtures holds ocx's own --help output captured verbatim; the
+      # example URLs in it are illustrative, not links this repo owns.
+      - lychee --cache --max-cache-age 1d --exclude-path tests/fixtures .
 
   secrets:
     desc: Scan for committed secrets

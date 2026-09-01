@@ -4,6 +4,11 @@
 - State:   review        <!-- planning → plan-approved → executing → review → done -->
 - Tier:    high
 - Updated: 2026-08-31
+- Finalized: 2026-09-01 — 41 commits recomposed to 10, force-pushed as `56dabf7`,
+           PR #10 open and ready. Post-flip CI red on `repo-checks`/`lint:links`
+           only: three example URLs inside `tests/fixtures/cli/package_verify.help.txt`,
+           captured verbatim from ocx's own `--help`. Not a code defect. Fixed by
+           excluding `tests/fixtures` from `lint:links`.
 - Next:    owner review of `hex/0.2.0-ocx-0.6-adoption` @ 7130412 — nothing pushed, `main` untouched.
            **Cross-model adversary gate NOT satisfied**: the `codex:rescue` seat ran as
            Claude Sonnet and said so. Its findings are real (1 Block, since fixed as WP9),
