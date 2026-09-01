@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "command": "package verify",
+  "exit_code": 0,
+  "data": {
+    "subject_digest": "sha256:3ca7e955071fb4053711b99239a34030c2c805226b348ef51a1d6c81d4835088",
+    "referrer_digest": "sha256:92a0526ef6bdc73a89946d66e98a1bbda9eb046fa7bc8c264460073eedbf44f4",
+    "certificate_identity": "",
+    "certificate_oidc_issuer": "",
+    "signed_at": "",
+    "signatures": [
+      {
+        "signature_format": "bundle",
+        "discovery_method": "referrers_api",
+        "key_backend": "file",
+        "referrer_digest": "sha256:92a0526ef6bdc73a89946d66e98a1bbda9eb046fa7bc8c264460073eedbf44f4"
+      }
+    ]
+  }
+}

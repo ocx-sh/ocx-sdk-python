@@ -1,0 +1,7 @@
+{
+  "127.0.0.1:5198/wp4/hello:1.0.0": {
+    "title": "Hello",
+    "description": "A throwaway WP4 fixture package.",
+    "keywords": "hello,fixture,wp4"
+  }
+}

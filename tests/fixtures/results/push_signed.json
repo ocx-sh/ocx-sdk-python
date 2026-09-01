@@ -1,0 +1,47 @@
+{
+  "identifier": "127.0.0.1:5198/wp4/signed:1.0.0",
+  "status": "pushed",
+  "manifest_digest": "sha256:3ca7e955071fb4053711b99239a34030c2c805226b348ef51a1d6c81d4835088",
+  "cascade_tags_written": [],
+  "keep_tags_written": [
+    "__ocx.keep.sha256-8e19360014b32617d87ddf40052d0b1b5298f897e68c2a9595813d60d712bf7f"
+  ],
+  "layers": {
+    "mounted": 0,
+    "uploaded": 1,
+    "verified": 0
+  },
+  "platform_digests": {
+    "linux/amd64": "sha256:8e19360014b32617d87ddf40052d0b1b5298f897e68c2a9595813d60d712bf7f"
+  },
+  "signatures": [
+    {
+      "platform": "linux/amd64",
+      "status": "completed",
+      "report": {
+        "identifier": "127.0.0.1:5198/wp4/signed:1.0.0",
+        "subject_digest": "sha256:8e19360014b32617d87ddf40052d0b1b5298f897e68c2a9595813d60d712bf7f",
+        "legs": [
+          {
+            "format": "bundle",
+            "payload_digest": "sha256:de02366806fee34f33eb1a72976159dd30ee22a0af46762de4ae62d69e320b27",
+            "manifest_digest": "sha256:6bab2912a73a0ba95bc8ef61b1a7cf5ed667dcf605e8849bb85faf8d4d643d42"
+          }
+        ],
+        "platform": "linux/amd64",
+        "signer": "file",
+        "certificate_identity": "",
+        "certificate_oidc_issuer": "",
+        "key_backend": "file",
+        "public_key_hint": "IPToq8s+AghvzWpOChKmKD7Pi00bHB6zR/NABNmDFtA=",
+        "transparency_log_index": null
+      }
+    }
+  ],
+  "attestation": {
+    "status": "succeeded",
+    "referrer_digest": "sha256:7386e70923f5479ab43ea3f71404488d611d66910dafa23689e93041b9bbdd08",
+    "predicate_type": "https://cyclonedx.org/bom",
+    "signed": true
+  }
+}

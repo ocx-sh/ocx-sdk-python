@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "command": "package verify",
+  "exit_code": 79,
+  "error": {
+    "kind": "not_found",
+    "detail": "target_not_found",
+    "message": "127.0.0.1:5198/wp4/absent:9.9.9: no manifest for platform any",
+    "context": {
+      "identifier": "127.0.0.1:5198/wp4/absent:9.9.9"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "command": "package sbom",
+  "exit_code": 0,
+  "data": {
+    "summary": {
+      "status": "success",
+      "verification": "verified",
+      "exit_code": 0,
+      "total": 1,
+      "verified": 1,
+      "unverified": 0,
+      "refused": 0
+    },
+    "entries": [
+      {
+        "predicate_type": "https://cyclonedx.org/bom",
+        "verified": true,
+        "shadowed": false,
+        "subject_digest": "sha256:3ca7e955071fb4053711b99239a34030c2c805226b348ef51a1d6c81d4835088",
+        "referrer_digest": "sha256:fc3ca39575742c6f3fa204557681c7f1d8489fa50979c73fe1395d654b594ad6",
+        "summary": {
+          "spec_version": "1.5",
+          "serial_number": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+          "component_count": 2,
+          "top_level_component": "hello"
+        }
+      }
+    ],
+    "refused": []
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "source": "127.0.0.1:5198/wp4/hello:1.0.0",
+  "target": "127.0.0.1:5198/wp4/copy:1.0.0",
+  "status": "copied",
+  "platforms": [
+    {
+      "platform": "linux/amd64",
+      "digest": "sha256:8e19360014b32617d87ddf40052d0b1b5298f897e68c2a9595813d60d712bf7f",
+      "disposition": "added"
+    }
+  ],
+  "cascade_tags_written": [],
+  "keep_tags_written": [
+    "__ocx.keep.sha256-8e19360014b32617d87ddf40052d0b1b5298f897e68c2a9595813d60d712bf7f"
+  ],
+  "referrers_copied": 0,
+  "sidecars_copied": 0,
+  "sidecar_conflicts": [],
+  "blobs": {
+    "present": 2,
+    "mounted": 0,
+    "uploaded": 0
+  },
+  "description": null
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "command": "package attest",
+  "exit_code": 0,
+  "data": {
+    "identifier": "127.0.0.1:5198/wp4/hello:1.0.0",
+    "platform": "any",
+    "subject_digest": "sha256:3ca7e955071fb4053711b99239a34030c2c805226b348ef51a1d6c81d4835088",
+    "predicate_type": "https://cyclonedx.org/bom",
+    "bundle_digest": "sha256:fb0cee218c18d122dbb44f33760224b330b8fc2ffea65963e422e8c781118eac",
+    "referrer_digest": "sha256:fc3ca39575742c6f3fa204557681c7f1d8489fa50979c73fe1395d654b594ad6",
+    "signed": true,
+    "certificate_identity": "",
+    "certificate_oidc_issuer": "",
+    "key_backend": "file",
+    "public_key_hint": "IPToq8s+AghvzWpOChKmKD7Pi00bHB6zR/NABNmDFtA=",
+    "transparency_log_index": null
+  }
+}

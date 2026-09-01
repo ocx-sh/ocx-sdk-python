@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "command": "package sbom",
+  "exit_code": 0,
+  "data": {
+    "summary": {
+      "status": "partial_failure",
+      "verification": "unverified",
+      "exit_code": 0,
+      "total": 1,
+      "verified": 0,
+      "unverified": 0,
+      "refused": 1
+    },
+    "entries": [],
+    "refused": [
+      {
+        "referrer_digest": "sha256:78c2f8b24a171fb0643b312516d39a6ca91b0de062d2c937776465811f7580e5",
+        "reason": "cannot summarize the https://cyclonedx.org/bom predicate: SBOM document has no string specVersion field; drop --summary, or narrow with --type cyclonedx",
+        "reason_kind": "sbom_summary_failed"
+      }
+    ]
+  }
+}

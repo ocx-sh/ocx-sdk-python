@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "command": "package sign",
+  "exit_code": 0,
+  "data": {
+    "identifier": "127.0.0.1:5198/wp4/hello:1.0.0",
+    "subject_digest": "sha256:3ca7e955071fb4053711b99239a34030c2c805226b348ef51a1d6c81d4835088",
+    "legs": [
+      {
+        "format": "bundle",
+        "payload_digest": "sha256:155064cd4c315fda3f9b38f14043b2c04f93494de70b4509df2ec8f16d7bf5fb",
+        "manifest_digest": "sha256:92a0526ef6bdc73a89946d66e98a1bbda9eb046fa7bc8c264460073eedbf44f4"
+      }
+    ],
+    "platform": "any",
+    "signer": "file",
+    "certificate_identity": "",
+    "certificate_oidc_issuer": "",
+    "key_backend": "file",
+    "public_key_hint": "IPToq8s+AghvzWpOChKmKD7Pi00bHB6zR/NABNmDFtA=",
+    "transparency_log_index": null
+  }
+}
