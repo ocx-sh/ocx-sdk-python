@@ -44,6 +44,7 @@ import importlib.metadata
 import json
 import os
 import re
+import ssl
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
@@ -835,6 +836,37 @@ def _opener(transport: urllib.request.BaseHandler | None = None) -> urllib.reque
     if transport is None:
         return urllib.request.build_opener(_HttpsOnlyRedirectHandler)
     return urllib.request.build_opener(_HttpsOnlyRedirectHandler, transport)
+
+
+def ca_bundle_opener(path: str) -> urllib.request.OpenerDirector:
+    """Build an opener that trusts `path` instead of the system CA store.
+
+    For a TLS-intercepting proxy, where the system store does not contain the
+    certificate the interceptor presents. The bundle *replaces* the default
+    trust anchors for these requests rather than adding to them, which is what
+    `OCX_INSTALL_CA_BUNDLE` means to the setup script this mirrors.
+
+    Trust moved here is transport trust only: the manifest is still pinned by
+    digest and every artifact is still checked against it, so a bundle changes
+    who may serve the bytes, never which bytes are accepted.
+
+    Args:
+        path: PEM file holding the trust anchors to use.
+
+    Returns:
+        An opener with the same https-only redirect hardening as the default.
+
+    Raises:
+        DownloadError: The bundle is missing, unreadable, or not a PEM file.
+    """
+    try:
+        context = ssl.create_default_context(cafile=path)
+    except (OSError, ssl.SSLError) as error:
+        raise DownloadError(
+            f"the CA bundle at {path} could not be loaded ({error}); point "
+            f"{InstallEnv.CA_BUNDLE} at a readable PEM file, or unset it to use the system trust store."
+        ) from error
+    return _opener(urllib.request.HTTPSHandler(context=context))
 
 
 def _user_agent() -> str:

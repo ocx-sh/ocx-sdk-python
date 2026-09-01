@@ -105,6 +105,7 @@ by the SDK.
 | `OCX_INSTALL_VERSION` | `version` |
 | `OCX_INSTALL_DIST_URL` | consulted by the *default* `DistSource` only — an explicitly constructed one does not honor it |
 | `OCX_INSTALL_MIRROR_URL` | `mirror_url` |
+| `OCX_INSTALL_CA_BUNDLE` | `ca_bundle` — a PEM file trusted for the manifest and artifact downloads *instead of* the system store, for a TLS-intercepting proxy. Transport trust only: the manifest pin and the artifact digest are still enforced, so the bundle changes who may serve the bytes, never which bytes are accepted. |
 | `OCX_INSTALL_REPO` | **No-op.** Listed for grammar parity with the setup script's `OCX_INSTALL_*` vars only — this SDK resolves artifact URLs from the manifest, never from a GitHub repository guess. |
 | `OCX_INSTALL_FORCE` | forces a fresh install even on a cache hit |
 | `OCX_INSTALL_QUIET` | **No-op.** Listed for grammar parity only — this module never prints, so there is nothing to quiet. |

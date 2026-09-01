@@ -24,11 +24,12 @@ import platform
 import re
 import stat
 import tarfile
+import urllib.request
 import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 import pytest
 
@@ -175,9 +176,11 @@ class _FakeFetch:
     def __init__(self, payload: bytes) -> None:
         self.payload = payload
         self.calls: list[str] = []
+        self.openers: list[object] = []
 
     def __call__(self, url: str, fd: int, **kwargs: object) -> None:
         self.calls.append(url)
+        self.openers.append(kwargs.get("opener"))
         os.write(fd, self.payload)
 
 
@@ -860,3 +863,48 @@ def test_version_key(version: str, expected: tuple[int, ...]):
 def test_version_key_refuses_junk():
     with pytest.raises(BootstrapError, match="latest"):
         _version_key("latest")
+
+
+_CA_BUNDLE = str(Path(__file__).parents[1] / "fixtures/tls/test-ca.pem")
+"""A throwaway self-signed certificate; see that directory's README."""
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "env"),
+    [
+        pytest.param({"ca_bundle": _CA_BUNDLE}, {}, id="argument"),
+        pytest.param({}, {InstallEnv.CA_BUNDLE: _CA_BUNDLE}, id="environment"),
+    ],
+)
+def test_ca_bundle_reaches_the_artifact_download(tmp_path, install, kwargs: dict[str, str], env: dict[str, str]):
+    """Both rungs of the grammar have to arrive at the transport.
+
+    Asserted on the opener the download actually received, not on the argument
+    `ensure` was given: a bundle resolved and then dropped before `_install`
+    leaves every fetch on the system trust store, which is the failure this
+    whole knob exists to prevent.
+    """
+    install(tmp_path / "cache", env=HostEnv(env), **kwargs)
+
+    (opener,) = install.fetch.openers
+    handlers = cast("list[Any]", opener).handlers  # pyright: ignore[reportAttributeAccessIssue]
+    handler: Any = next(h for h in handlers if isinstance(h, urllib.request.HTTPSHandler))
+
+    assert any("ocx-sdk-test" in str(cert.get("subject")) for cert in handler._context.get_ca_certs())
+
+
+def test_no_ca_bundle_leaves_the_transport_on_its_default(tmp_path, install):
+    """`None` must reach the transport, not an opener built from an empty path."""
+    install(tmp_path / "cache", env=HostEnv({}))
+
+    assert install.fetch.openers == [None]
+
+
+def test_ca_bundle_argument_wins_over_the_environment(tmp_path, install):
+    """The explicit argument outranks the variable, as every other knob does."""
+    with pytest.raises(DownloadError, match=re.escape("argument.pem")):
+        install(
+            tmp_path / "cache",
+            env=HostEnv({InstallEnv.CA_BUNDLE: _CA_BUNDLE}),
+            ca_bundle=str(tmp_path / "argument.pem"),
+        )

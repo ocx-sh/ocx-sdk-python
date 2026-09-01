@@ -48,6 +48,7 @@ import shutil
 import stat
 import tarfile
 import tempfile
+import urllib.request
 import zipfile
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
@@ -149,6 +150,7 @@ def ensure(
     channel: Channel = Channel.STABLE,
     dist: _dist.DistSource | None = None,
     mirror_url: str | None = None,
+    ca_bundle: str | None = None,
     min_version: str | None = None,
     cache_dir: Path | None = None,
     env: HostEnv | None = None,
@@ -171,6 +173,9 @@ def ensure(
         mirror_url: Base URL that replaces the artifact host, as
             `<mirror_url>/<tag>/<filename>`. The manifest digest is still
             enforced — a mirror relocates bytes, it never revalidates them.
+        ca_bundle: PEM file trusted for every download, replacing the system
+            trust store. For a TLS-intercepting proxy; the digest checks are
+            unaffected.
         min_version: Operator floor. A resolved version below it fails loudly
             instead of installing something older than the caller allows.
         cache_dir: Cache root. `None` uses the per-user cache directory.
@@ -189,18 +194,23 @@ def ensure(
         UnsupportedPlatformError: No release matches this platform.
         ChecksumMismatchError: Downloaded bytes do not match the manifest.
             Never retried — the bytes are wrong, not late.
-        DownloadError: The manifest or artifact could not be fetched.
+        DownloadError: The manifest or artifact could not be fetched, or the
+            CA bundle could not be loaded.
     """
     values = (env or HostEnv.ambient()).source
     wanted = version or values.get(InstallEnv.VERSION) or None
     mirror = mirror_url or values.get(InstallEnv.MIRROR_URL) or None
+    bundle = ca_bundle or values.get(InstallEnv.CA_BUNDLE) or None
+    opener = _dist.ca_bundle_opener(bundle) if bundle is not None else None
     source = dist or _dist.DistSource()
     system = platform.system()
     target = uname_to_triple(system, platform.machine(), rosetta=_translated_by_rosetta(system))
     root = Path(cache_dir or _default_cache_dir(values, system))
     _verify_root(root, posix=os.name != "nt")
 
-    manifest = _dist.load_manifest(source, env=values, mirrored=mirror is not None, timeout=timeout, retry=retry)
+    manifest = _dist.load_manifest(
+        source, env=values, mirrored=mirror is not None, timeout=timeout, retry=retry, opener=opener
+    )
     release = manifest.select(version=wanted, channel=channel, target=target)
     if min_version is not None and _version_key(release.version) < _version_key(min_version):
         raise BootstrapError(
@@ -222,6 +232,7 @@ def ensure(
         credentials=source.credentials(values),
         timeout=timeout,
         retry=retry,
+        opener=opener,
     )
     return binary
 
@@ -534,6 +545,7 @@ def _install(
     credentials: _dist.Credentials,
     timeout: float | None,
     retry: RetryPolicy | None,
+    opener: urllib.request.OpenerDirector | None = None,
 ) -> None:
     """Download, verify, and publish one release into the cache.
 
@@ -545,6 +557,7 @@ def _install(
         credentials: Origin-bound credentials from the manifest source.
         timeout: Per-attempt network budget in seconds.
         retry: Policy for transient transport failures.
+        opener: urllib opener seam; `None` builds the hardened default.
 
     Raises:
         ChecksumMismatchError: The archive does not match the manifest digest.
@@ -553,7 +566,7 @@ def _install(
     fd, name = tempfile.mkstemp(dir=binary.parent, prefix=".archive-")
     archive = Path(name)
     try:
-        _dist.fetch_artifact(url, fd, credentials=credentials, timeout=timeout, retry=retry)
+        _dist.fetch_artifact(url, fd, credentials=credentials, timeout=timeout, retry=retry, opener=opener)
         digest = _hash_fd(fd)
         if digest != release.sha256:
             raise ChecksumMismatchError(

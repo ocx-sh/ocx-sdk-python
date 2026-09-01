@@ -22,10 +22,12 @@ import importlib.metadata
 import io
 import json
 import re
+import ssl
 import urllib.error
 import urllib.request
 import urllib.response
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import IO, Any, cast
 
 import pytest
@@ -43,6 +45,7 @@ from ocx_sdk._dist import (
     _HttpsOnlyRedirectHandler,
     _opener,
     _user_agent,
+    ca_bundle_opener,
     fetch_artifact,
     load_manifest,
     parse_manifest,
@@ -900,3 +903,51 @@ def test_release_is_frozen():
         release.sha256 = "0" * 64  # pyright: ignore[reportAttributeAccessIssue]
 
     assert isinstance(release, Release)
+
+
+_CA_BUNDLE = Path(__file__).parents[1] / "fixtures/tls/test-ca.pem"
+"""A throwaway self-signed certificate; see that directory's README."""
+
+
+def test_ca_bundle_opener_trusts_the_bundle_it_is_given():
+    """`OCX_INSTALL_CA_BUNDLE` has to reach the TLS context, or it is decoration.
+
+    Asserted through the built opener's own handler rather than through a
+    recorded call, because a `create_default_context` that is never attached to
+    an `HTTPSHandler` passes a mock-based test and still fetches over the
+    system trust store.
+    """
+    opener = ca_bundle_opener(str(_CA_BUNDLE))
+
+    # `handlers` and `HTTPSHandler._context` are both real and both absent from
+    # typeshed; there is no public route from an opener to the context it will
+    # hand to the TLS layer, which is the thing under test.
+    handlers = cast("list[Any]", opener.handlers)  # pyright: ignore[reportAttributeAccessIssue]
+    handler: Any = next(h for h in handlers if isinstance(h, urllib.request.HTTPSHandler))
+    context = cast("ssl.SSLContext", handler._context)
+    subjects = [str(cert.get("subject")) for cert in context.get_ca_certs()]
+
+    assert any("ocx-sdk-test" in subject for subject in subjects), subjects
+
+
+def test_ca_bundle_opener_keeps_the_https_only_redirect_hardening():
+    """The bundle changes who is trusted, never that redirects stay on https."""
+    opener = ca_bundle_opener(str(_CA_BUNDLE))
+
+    handlers = cast("list[Any]", opener.handlers)  # pyright: ignore[reportAttributeAccessIssue]
+
+    assert any(isinstance(handler, _HttpsOnlyRedirectHandler) for handler in handlers)
+
+
+def test_ca_bundle_opener_names_the_variable_when_the_file_is_missing(tmp_path: Path):
+    with pytest.raises(DownloadError, match=re.escape(InstallEnv.CA_BUNDLE)):
+        ca_bundle_opener(str(tmp_path / "absent.pem"))
+
+
+def test_ca_bundle_opener_reports_a_file_that_is_not_a_bundle(tmp_path: Path):
+    """A path that exists but holds no certificate fails at load, not at fetch."""
+    junk = tmp_path / "junk.pem"
+    junk.write_text("not a certificate\n")
+
+    with pytest.raises(DownloadError, match=re.escape(str(junk))):
+        ca_bundle_opener(str(junk))

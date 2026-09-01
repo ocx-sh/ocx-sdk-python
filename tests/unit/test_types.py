@@ -373,6 +373,7 @@ def test_install_env_catalog() -> None:
         "OCX_INSTALL_VERSION",
         "OCX_INSTALL_DIST_URL",
         "OCX_INSTALL_MIRROR_URL",
+        "OCX_INSTALL_CA_BUNDLE",
         "OCX_INSTALL_REPO",
         "OCX_INSTALL_FORCE",
         "OCX_INSTALL_QUIET",
