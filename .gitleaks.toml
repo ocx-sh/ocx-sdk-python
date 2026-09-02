@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+# The `sign` report fixtures in tests/unit/test_results.py are live ocx 0.6.0
+# captures. `public_key_hint` is a base64 SHA-256 of a *public* cosign key —
+# high entropy, zero secrecy — and gitleaks' generic-api-key rule cannot tell
+# the difference. Allowlisted by exact value so any other high-entropy string
+# in the tree still trips the scan.
+[[allowlists]]
+description = "cosign public-key hint in captured ocx sign-report fixtures"
+regexes = ['''IPToq8s\+AghvzWpOChKmKD7Pi00bHB6zR/NABNmDFtA=''']
