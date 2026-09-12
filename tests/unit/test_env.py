@@ -199,6 +199,10 @@ def test_a_neutralized_verification_switch_is_dropped_even_alongside_a_full_conf
             {"OCX_INSECURE_REGISTRIES": "localhost:5000,127.0.0.1:5099"},
             id="insecure-registries",
         ),
+        # Written either way, like OCX_NO_UPDATE_CHECK: the default is the
+        # refusal, and the opt-in is what a caller has to spell.
+        pytest.param(OcxConfig(), {"OCX_NO_CONSENT": "1"}, id="consent-refused-by-default"),
+        pytest.param(OcxConfig(consent=True), {"OCX_NO_CONSENT": "0"}, id="consent-opt-in"),
     ],
 )
 def test_config_fields_reach_the_child_as_wire_variables(config: OcxConfig, expected: dict[str, str]) -> None:
@@ -218,6 +222,18 @@ def test_update_check_opt_in_beats_an_ambient_suppression() -> None:
     # merely skipped — otherwise an ambient =1 would survive and silently win.
     # ocx parses "0" as false through env::flag.
     assert _spawn(OcxConfig(no_update_check=False), OCX_NO_UPDATE_CHECK="1")["OCX_NO_UPDATE_CHECK"] == "0"
+
+
+def test_consent_is_refused_by_default_even_when_the_host_allows_it() -> None:
+    # Security-relevant: without OCX_NO_CONSENT every add/lock/pull/exec/
+    # update/init stamps `state/projects/<key>/consent.json`, and the project
+    # goes live at the developer's next prompt. An ambient `=0` is the host
+    # saying "stamp away"; the SDK's default has to beat it.
+    assert _spawn(OcxConfig(), OCX_NO_CONSENT="0")["OCX_NO_CONSENT"] == "1"
+
+
+def test_consent_opt_in_beats_an_ambient_refusal() -> None:
+    assert _spawn(OcxConfig(consent=True), OCX_NO_CONSENT="1")["OCX_NO_CONSENT"] == "0"
 
 
 @pytest.mark.parametrize(
@@ -353,6 +369,7 @@ def test_no_config_refresh_false_clears_an_ambient_suppression() -> None:
         pytest.param(OcxConfig(frozen=True), "OCX_FROZEN", "1", id="frozen"),
         pytest.param(OcxConfig(no_config=True), "OCX_NO_CONFIG", "1", id="no-config"),
         pytest.param(OcxConfig(no_update_check=False), "OCX_NO_UPDATE_CHECK", "0", id="update-check-opt-in"),
+        pytest.param(OcxConfig(consent=True), "OCX_NO_CONSENT", "0", id="consent-opt-in"),
         pytest.param(OcxConfig(home=_HOME), "OCX_HOME", str(_HOME), id="home"),
         pytest.param(OcxConfig(config=_CONFIG_FILE), "OCX_CONFIG", str(_CONFIG_FILE), id="config"),
         pytest.param(OcxConfig(index=_INDEX), "OCX_INDEX", str(_INDEX), id="index"),
@@ -662,6 +679,32 @@ def test_redact_ignores_an_empty_credential() -> None:
     redact = build_spawn_env(HostEnv({}), OcxConfig(auth={"a.io": BearerAuth("")})).redact
 
     assert redact("nothing to hide") == "nothing to hide"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("OCX_ANNOUNCE_TOKEN", id="forge-api-token"),
+        pytest.param("OCX_ANNOUNCE_GIT_TOKEN", id="forge-push-token"),
+        pytest.param("CI_JOB_TOKEN", id="gitlab-job-token"),
+        pytest.param("ocx_announce_token", id="forge-api-token-lower-cased"),
+    ],
+)
+def test_forge_credentials_are_redacted_like_registry_tokens(name: str) -> None:
+    """The announce/claim identity ladder's three secrets join the scrub set.
+
+    Required, not optional: the SDK's composed env carries the push token to
+    ocx even though ocx never forwards it to a child, and ocx's trace output
+    can quote any of the three. Matched per the module's case rule, like the
+    `OCX_AUTH_*` tokens.
+    """
+    host = HostEnv({name: "glpat-forge-secret", "PATH": "/usr/bin"})
+
+    spawn_env = build_spawn_env(host, OcxConfig())
+
+    assert spawn_env.mapping[name] == "glpat-forge-secret"
+    assert spawn_env.redact("pushing with glpat-forge-secret") == "pushing with ***"
+    assert "glpat-forge-secret" not in repr(spawn_env)
 
 
 def test_redact_scrubs_a_credential_the_host_exported() -> None:

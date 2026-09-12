@@ -48,6 +48,7 @@ class ExitCode(IntEnum):
     TRANSPARENCY_LOG_UNAVAILABLE = 83
     REFERRERS_UNSUPPORTED = 84
     UNSUPPORTED_KEY_BACKEND = 85
+    FORGE_CAPABILITY_UNAVAILABLE = 86
 
 
 def _rebuild(cls: type[OcxError], args: tuple[object, ...], state: dict[str, object]) -> OcxError:
@@ -275,6 +276,21 @@ class UnsupportedKeyBackendError(OcxProcessError):
     )
 
 
+class ForgeCapabilityUnavailableError(OcxProcessError):
+    """A forge was reached and refused a write for want of a capability (exit 86).
+
+    Raised by `announce`/`claim` under `--transport git` when job-token push
+    is disabled on the index project or the publishing project is missing
+    from its allowlist. Distinct from 69 (the forge could not be reached at
+    all) and from 80 (the credential is valid here — the refusal is not on it).
+    """
+
+    _hint = (
+        "The credential is valid and retrying will not help: an administrator must enable job-token "
+        "push on the target project, or add the publishing project to its job-token allowlist."
+    )
+
+
 class OcxTimeoutError(OcxExecutionError):
     """ocx did not finish within the timeout and the child was terminated.
 
@@ -369,6 +385,7 @@ _EXIT_CODE_ERRORS: dict[ExitCode, type[OcxProcessError]] = {
     ExitCode.TRANSPARENCY_LOG_UNAVAILABLE: TransparencyLogUnavailableError,
     ExitCode.REFERRERS_UNSUPPORTED: ReferrersUnsupportedError,
     ExitCode.UNSUPPORTED_KEY_BACKEND: UnsupportedKeyBackendError,
+    ExitCode.FORGE_CAPABILITY_UNAVAILABLE: ForgeCapabilityUnavailableError,
 }
 """Exit code to exception class, for `_process`. Codes absent here (notably the
 generic `FAILURE`) raise a plain `OcxProcessError`."""

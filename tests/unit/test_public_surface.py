@@ -61,6 +61,7 @@ _EXPECTED = {
     "DirtyRcBlockError", "BootstrapError", "DownloadError", "ChecksumMismatchError",
     "DistManifestError", "UnsupportedPlatformError", "OcxNotFoundError", "VersionCompatError",
     "TransparencyLogUnavailableError", "ReferrersUnsupportedError", "UnsupportedKeyBackendError",
+    "ForgeCapabilityUnavailableError",
 }  # fmt: skip
 """The curated public surface, grouped the way the design record groups it."""
 

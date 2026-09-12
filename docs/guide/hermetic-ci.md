@@ -61,6 +61,28 @@ ocx = Ocx(
 still needs `PATH` to find its own dependencies, and `clean()` drops it —
 see [Bootstrap](bootstrap.md#hostenv-tiers) for the full tier list.
 
+## What a spawn leaves behind: the consent stamp
+
+One default runs the other way — it is on regardless of the levers above.
+ocx stamps `state/projects/<key>/consent.json` on every `add`, `lock`,
+`pull`, `exec`, `update` and `init`, and the stamp is what lets a shell
+prompt in that directory activate the project at the developer's next
+`cd`. A program step should not leave that behind, so the SDK writes
+`OCX_NO_CONSENT=1` on every spawn (`ocx exec` forwards it to nested ocx) and
+an ambient `OCX_NO_CONSENT=0` cannot switch it back. A pipeline that does
+want the project live afterwards says so on the handle:
+
+```python
+from ocx_sdk import OcxConfig
+
+assert OcxConfig().consent is False
+consenting = OcxConfig(consent=True)  # `handle.with_config(consent=True)` in practice
+assert consenting.consent is True
+```
+
+That is the per-project stamp only; the shell-activation consent
+`ocx shell allow` records is not wrapped.
+
 ## The one thing hardening does not cover: `OCX_AUTH_*` under `exec`
 
 ocx does not scrub non-forwarded variables from a spawned child's

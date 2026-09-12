@@ -35,9 +35,9 @@ repoint Fulcio, CT, and Rekor while every install still reported *verified*.
 field is set-only — `False` means "not requested", and the host's ambient
 value (if any) survives. A field typed `X | None` can actively clear an
 ambient value; `None` means "leave the host's value alone" — except for the
-two rows marked *always written*, `OCX_NO_UPDATE_CHECK` and
-`OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean ocx's default
-rather than whatever the host exported.
+three rows marked *always written*, `OCX_NO_UPDATE_CHECK`, `OCX_NO_CONSENT`
+and `OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean the SDK's
+default rather than whatever the host exported.
 
 Every value the SDK writes here — and every ambient value it clears —
 replaces the host's answer for that name in **any case spelling**, for the
@@ -50,6 +50,7 @@ write leaves the ambient value exactly as the host spelled it.
 | `OCX_FROZEN` | `frozen: bool` | Same set-only shape. |
 | `OCX_NO_CONFIG` | `no_config: bool` | Same set-only shape. |
 | `OCX_NO_UPDATE_CHECK` | `no_update_check: bool` | *Always written* (`"1"` or `"0"`) — its SDK default is `True`, so a caller asking for the update check back has to be able to beat an ambient `OCX_NO_UPDATE_CHECK=1`. |
+| `OCX_NO_CONSENT` | `consent: bool` | *Always written* (`"1"` unless `consent=True`). Without it every `add`/`lock`/`pull`/`exec`/`update`/`init` stamps `state/projects/<key>/consent.json`, which is what lets a shell prompt in that directory activate the project — a side effect a program step should not leave behind. `ocx exec` forwards it to nested ocx. This is the per-project stamp, not the shell-activation consent `ocx shell allow` records. |
 | `OCX_HOME` | `home: Path \| None` | |
 | `OCX_CONFIG` | `config: Path \| None` | |
 | `OCX_INDEX` | `index: Path \| None` | |
@@ -167,6 +168,7 @@ matching stderr text.
 | 83 | `TRANSPARENCY_LOG_UNAVAILABLE` | `TransparencyLogUnavailableError` | no — retrying amplifies Rekor's rate limiting, and a later success is not restored trust |
 | 84 | `REFERRERS_UNSUPPORTED` | `ReferrersUnsupportedError` | no |
 | 85 | `UNSUPPORTED_KEY_BACKEND` | `UnsupportedKeyBackendError` | no |
+| 86 | `FORGE_CAPABILITY_UNAVAILABLE` | `ForgeCapabilityUnavailableError` | no — the credential is valid and the forge was reached; an administrator has to enable job-token push on the target project or allowlist the publishing one |
 | — (timeout, no exit code) | — | `OcxTimeoutError` | no |
 
 A process killed by a signal exits with a code ocx never assigns (137 for
