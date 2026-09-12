@@ -54,6 +54,8 @@ from ._process import compose_argv, run_command, run_command_async, spawn, spawn
 from ._results import (
     AboutInfo,
     AttestationReport,
+    CascadeCheckReport,
+    CascadeRepairReport,
     CommandResult,
     ConfigSetupReport,
     ConfigUpdateReport,
@@ -83,6 +85,7 @@ from ._results import (
     parse_removals,
     parse_tool_rows,
     parse_which,
+    tolerated_report,
 )
 from ._types import (
     MIN_SUPPORTED,
@@ -148,6 +151,9 @@ reaches for.
 
 type LazyMode = Literal["never", "always"]
 """When a tool's content downloads: eagerly, or on first use."""
+
+_CASCADE_OK: Final = (0, 65)
+"""The exits `cascade check`/`repair` write their report under: 65 is a finding, not a fault."""
 
 type Resolve = Literal["candidate", "current"]
 """Which `$OCX_HOME` symlink a package-tier call resolves through.
@@ -2923,6 +2929,92 @@ class PackageCommands:
         ]
         result = self._call(command, (str(source),), timeout=timeout, retry=retry, mutating=not dry_run)
         return CopyReport.from_json(result.stdout)
+
+    def cascade_check(
+        self,
+        *refs: PackageLike,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> CascadeCheckReport:
+        """Report where packages' rolling tags disagree with their versions.
+
+        Read-only: authenticates for pull only and writes nothing, so it
+        keeps the session retry policy. **Report-then-fail**: a finding makes
+        ocx exit 65 *with* the report on stdout, and that is a result here
+        — `report.clean` (the exit code's answer) says whether anything
+        disagreed, and the rows say what. The same code with no report is
+        still the failure it names.
+
+        Args:
+            *refs: Packages to audit. A tag (`cmake:3.28`) narrows the audit
+                to that part of the graph.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the config's.
+
+        Returns:
+            One audit per package, carrying the exit code.
+
+        Raises:
+            UsageError: A package names a digest, or a tag that is not a
+                version (exit 64).
+            DataError: Exit 65 *without* a report — a fault, not a finding.
+        """
+        result = self._call(
+            ["package", "cascade", "check"], _identifiers(refs), timeout=timeout, retry=retry, ok_codes=_CASCADE_OK
+        )
+        return CascadeCheckReport.from_json(tolerated_report(result), exit_code=result.exit_code)
+
+    def cascade_repair(
+        self,
+        *refs: PackageLike,
+        dry_run: bool = False,
+        announce_tags: str | Path | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> CascadeRepairReport:
+        """Re-point packages' rolling tags at the content their versions imply.
+
+        Publishes nothing new — every index it writes references content the
+        registry already serves. `mutating=not dry_run` (D5), as `copy`:
+        the preview writes nothing and keeps the session retry policy.
+
+        **Report-then-fail** like `cascade_check`: exit 65 with the report
+        when a finding remains — on a `dry_run`, having planned anything is
+        the finding — so `report.clean` is the answer, not an exception.
+
+        Repairing the registry does not update the public index. Pass
+        `announce_tags` to record the tags this run moved, then hand that
+        file to `announce(..., tags_file=...)`.
+
+        Args:
+            *refs: Packages to repair.
+            dry_run: Compute and report the plan without writing.
+            announce_tags: Write the rolling tags this run moved or created
+                to this file, one per line. Takes one package per run — ocx
+                exits 64 when it is given more.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the config's
+                — which D5 resolves to no retries unless `dry_run`.
+
+        Returns:
+            One entry per package, carrying the exit code.
+
+        Raises:
+            UsageError: A package names a digest or a non-version tag, or
+                `announce_tags` was given with more than one package (exit 64).
+            DataError: Exit 65 *without* a report.
+        """
+        command = [
+            "package",
+            "cascade",
+            "repair",
+            *_switch("--dry-run", dry_run),
+            *_flag("--announce-tags", announce_tags),
+        ]
+        result = self._call(
+            command, _identifiers(refs), timeout=timeout, retry=retry, mutating=not dry_run, ok_codes=_CASCADE_OK
+        )
+        return CascadeRepairReport.from_json(tolerated_report(result), exit_code=result.exit_code)
 
     def _call(
         self,

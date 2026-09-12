@@ -33,10 +33,12 @@ import pytest
 from ocx_sdk import _client, _process
 from ocx_sdk._client import UNSET, MaybeRetry, Ocx, Project
 from ocx_sdk._config import OcxConfig
-from ocx_sdk._errors import AuthError, OcxNotFoundError, OcxProcessError, VersionCompatError
+from ocx_sdk._errors import AuthError, DataError, OcxNotFoundError, OcxProcessError, VersionCompatError
 from ocx_sdk._process import Completed
 from ocx_sdk._results import (
     AttestationReport,
+    CascadeCheckReport,
+    CascadeRepairReport,
     CopyReport,
     SbomListingReport,
     SignatureReport,
@@ -90,6 +92,18 @@ _STATUS = (
     '"groups":{},"package_settings":{}}'
 )
 """The `status` payload — every key `status.rs` writes unconditionally."""
+
+_CASCADE_CHECK = '{"reports":[]}'
+"""A `package cascade check` document with nothing audited."""
+
+_CASCADE_REPAIR = '{"entries":[],"dry_run":false,"announce_tags_path":null}'
+"""A `package cascade repair` document with nothing repaired."""
+
+_ENVELOPE_65 = (
+    '{"schema_version":1,"command":"package cascade check","exit_code":65,'
+    '"error":{"kind":"data_error","message":"boom","context":{}}}'
+)
+"""The C-S1-1 error envelope a hard 65 prints instead of a report."""
 
 
 def _pushed(identifier):
@@ -888,6 +902,24 @@ _MACHINE_CASES = [
         id="package-push-sbom-admits-a-modifier",
     ),
     pytest.param(
+        lambda o: o.package.cascade_check("a", "b"),
+        _CASCADE_CHECK,
+        ["package", "cascade", "check", "a", "b"],
+        id="package-cascade-check",
+    ),
+    pytest.param(
+        lambda o: o.package.cascade_repair("a"),
+        _CASCADE_REPAIR,
+        ["package", "cascade", "repair", "a"],
+        id="package-cascade-repair",
+    ),
+    pytest.param(
+        lambda o: o.package.cascade_repair("a", dry_run=True, announce_tags="/tmp/tags"),
+        _CASCADE_REPAIR,
+        ["package", "cascade", "repair", "--dry-run", "--announce-tags", "/tmp/tags", "a"],
+        id="package-cascade-repair-flags",
+    ),
+    pytest.param(
         lambda o: o.config.setup(managed_config="ocx.sh/corp/config:1"),
         '{"managed_config":{"status":"completed"}}',
         ["config", "setup", "--managed-config", "ocx.sh/corp/config:1"],
@@ -1646,6 +1678,57 @@ def test_package_test_tolerates_a_failing_script_and_returns_the_result(ocx: Ocx
 
 
 # --------------------------------------------------------------------------
+# Report-then-fail: the cascade commands tolerate 65 *with* a report
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("call", "stdout"),
+    [
+        pytest.param(lambda o: o.package.cascade_check("a"), _CASCADE_CHECK, id="check"),
+        pytest.param(lambda o: o.package.cascade_repair("a", dry_run=True), _CASCADE_REPAIR, id="repair-dry-run"),
+    ],
+)
+def test_cascade_65_with_report_is_a_result(ocx: Ocx, process: _Process, call: Any, stdout: str) -> None:
+    """A finding exits 65 with the document on stdout — a result, carrying the code."""
+    process.exit_code = 65
+    process.stdout = stdout
+
+    report = call(ocx)
+
+    assert report.exit_code == 65
+    assert report.clean is False
+    # The tolerance is scoped: the call hands _process exactly {0, 65}.
+    assert process.last.kwargs["ok_codes"] == (0, 65)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda o: o.package.cascade_check("a"), id="check"),
+        pytest.param(lambda o: o.package.cascade_repair("a"), id="repair"),
+    ],
+)
+def test_cascade_65_with_envelope_raises(ocx: Ocx, process: _Process, call: Any) -> None:
+    """The same code with an error envelope is the fault it names, stdout kept for `error_envelope`."""
+    process.exit_code = 65
+    process.stdout = _ENVELOPE_65
+
+    with pytest.raises(DataError, match="exited 65") as caught:
+        call(ocx)
+
+    assert caught.value.stdout == _ENVELOPE_65
+
+
+def test_cascade_check_exit_0_reads_clean(ocx: Ocx, process: _Process) -> None:
+    process.stdout = _CASCADE_CHECK
+
+    report = ocx.package.cascade_check("a")
+
+    assert (report.exit_code, report.clean) == (0, True)
+
+
+# --------------------------------------------------------------------------
 # The 0.6 signing surface: C-003, C-008-C-015 bindings, S-003, S-005, S-008
 # --------------------------------------------------------------------------
 
@@ -1666,6 +1749,9 @@ _LISTED = object()
 
 _COPIED = object()
 """What a `copy` parse yields."""
+
+_AUDITED = object()
+"""What a `cascade check` or `cascade repair` parse yields."""
 
 
 @dataclass
@@ -1700,6 +1786,12 @@ def parsers(monkeypatch: pytest.MonkeyPatch) -> _Parsers:
         seam.rows.append(row)
         return _SWEPT
 
+    def tolerant(raw: str, *, exit_code: int = 0) -> object:
+        seam.raw.append(raw)
+        return _AUDITED
+
+    monkeypatch.setattr(CascadeCheckReport, "from_json", tolerant)
+    monkeypatch.setattr(CascadeRepairReport, "from_json", tolerant)
     monkeypatch.setattr(SignatureReport, "from_json", bare(_SIGNED))
     monkeypatch.setattr(AttestationReport, "from_json", bare(_ATTESTED))
     monkeypatch.setattr(VerificationReport, "from_json", bare(_VERIFIED))
@@ -2351,6 +2443,7 @@ def test_leading_dash_rejected_on_every_new_positional(ocx: Ocx, process: _Proce
         pytest.param(lambda o: o.package.attest("r:1", predicate="/p.json", predicate_type="spdx"), id="attest"),
         pytest.param(lambda o: o.package.description_push("r:1", title="Tool"), id="description-push"),
         pytest.param(lambda o: o.package.copy("dev.test/t:1", to="prod.test"), id="copy"),
+        pytest.param(lambda o: o.package.cascade_repair("a"), id="cascade-repair"),
     ],
 )
 def test_the_new_writes_disable_retry_by_default(exe: Path, process: _Process, parsers: _Parsers, call: Any) -> None:
@@ -2366,6 +2459,8 @@ def test_the_new_writes_disable_retry_by_default(exe: Path, process: _Process, p
         pytest.param(lambda o: o.package.copy("dev.test/t:1", to="prod.test", dry_run=True), id="copy-dry-run"),
         pytest.param(lambda o: o.package.verify("r:1"), id="verify"),
         pytest.param(lambda o: o.package.sbom("r:1"), id="sbom"),
+        pytest.param(lambda o: o.package.cascade_check("a"), id="cascade-check"),
+        pytest.param(lambda o: o.package.cascade_repair("a", dry_run=True), id="cascade-repair-dry-run"),
     ],
 )
 def test_the_new_reads_keep_the_session_retry_policy(
