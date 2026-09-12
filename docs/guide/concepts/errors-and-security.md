@@ -38,6 +38,46 @@ are a separate, non-process branch under `OcxError` — failures while
 resolving, downloading, or installing a binary, before any typed command
 ever runs.
 
+### The error envelope
+
+Since ocx 0.6.1 a hard failure that printed no report prints a structured
+**error envelope** on stdout instead — `{schema_version, command,
+exit_code, error: {kind, detail?, message, remediation?, context}}`, a
+contract frozen separately from the report schemas. The exit code is still
+the category; the envelope is the *detail*, and
+[`error_envelope`](../../reference/api.md#ocx_sdk.error_envelope) is how a
+caller reads it off a caught
+[`OcxProcessError`](../../reference/api.md#ocx_sdk.OcxProcessError):
+
+```python
+from ocx_sdk import DataError, error_envelope
+
+error = DataError(
+    65,
+    ["ocx", "package", "claim", "acme/widget"],
+    stderr="",
+    stdout='{"schema_version": 1, "command": "package claim", "exit_code": 65, '
+    '"error": {"kind": "data_error", "message": "package acme/widget is already claimed", "context": {}}}',
+)
+envelope = error_envelope(error)
+assert envelope is not None
+assert (envelope.kind, envelope.detail) == ("data_error", None)
+assert "already claimed" in envelope.message
+```
+
+`None` when stdout is empty, not JSON, or a report — the dual of
+`partial_report`, which recovers the report a report-then-fail command
+wrote; a failure never carries both. `kind` is the exit-code category's
+serde name; `detail` is the fine-grained slug when ocx assigned one (many
+paths, `claim`'s already-claimed included, do not yet) — so matching on
+`message` text there is a deliberate, documented exception to the
+no-stderr-regex rule, kept at the call site rather than inside the SDK.
+
+Exit 86, [`ForgeCapabilityUnavailableError`](../../reference/api.md#ocx_sdk.ForgeCapabilityUnavailableError),
+joins the table with 0.6.1: a forge write whose credential is valid but
+whose target refuses job-token push. It is never retryable — the fix is an
+administrator's allowlist entry, not another attempt.
+
 ### Verification makes `install` and `pull` fail where they used to pass
 
 ocx 0.6 verifies a package's Sigstore signature *before* installing it,
