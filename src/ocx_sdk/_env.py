@@ -262,6 +262,12 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         ("OCX_INDEX", config.index),
         ("DOCKER_CONFIG", config.docker_config),
         ("OCX_JOBS", config.jobs),
+        # The forge identity ladder's explicit rung: ocx reads these for
+        # `announce`/`claim`, and `_secrets` scrubs the two tokens whether
+        # the config or the host supplied them.
+        ("OCX_ANNOUNCE_TOKEN", config.forge_token),
+        ("OCX_ANNOUNCE_GIT_TOKEN", config.forge_git_token),
+        ("OCX_ANNOUNCE_GIT_USERNAME", config.forge_git_username),
     ):
         if value is not None:
             _put(mapping, key, str(value))

@@ -35,7 +35,7 @@ _EXPECTED = {
     "Auth", "BasicAuth", "BearerAuth", "PackageRef", "PackageLike", "RetryPolicy",
     "ConstVar", "PathVar", "ListVar", "EnvValue", "Channel", "InstallEnv",
     "LogLevel", "LazyMode", "Resolve", "MaybeRetry", "MaybeTimeout", "UNSET",
-    "SignatureFormat",
+    "SignatureFormat", "Forge", "Transport",
     # Bootstrap.
     "bootstrap", "ensure", "DistSource",
     # Constants.
