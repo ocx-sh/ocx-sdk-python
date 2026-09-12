@@ -83,6 +83,44 @@ assert consenting.consent is True
 That is the per-project stamp only; the shell-activation consent
 `ocx shell allow` records is not wrapped.
 
+## The forge identity ladder
+
+[`announce`](../reference/api.md#ocx_sdk.PackageCommands.announce) and
+[`claim`](../reference/api.md#ocx_sdk.PackageCommands.claim) write to a
+forge, not a registry, and ocx resolves *that* identity from a ladder of
+ambient variables: `OCX_ANNOUNCE_TOKEN` first; on GitLab, `CI_JOB_TOKEN`
+(when `GITLAB_CI` is set and the transport is `git`); `OCX_ANNOUNCE_GIT_TOKEN`
+and `OCX_ANNOUNCE_GIT_USERNAME` for the push leg; `CI_PROJECT_PATH`,
+`GITLAB_USER_LOGIN`/`GITLAB_USER_ID` or `GITHUB_ACTOR`/`GITHUB_ACTOR_ID` for
+the owner identity a claim records.
+
+`HostEnv.minimal()` drops every rung. A hermetic handle therefore announces
+with `credential_kind: "none"` and fails with `AuthError` (80) before any
+network — the right default for a step that was not meant to publish. The
+step that *is* meant to publish says so on the handle, either by letting the
+named rungs through or by configuring the credential explicitly:
+
+```python
+from ocx_sdk import HostEnv, OcxConfig
+
+runner = HostEnv({"PATH": "/usr/bin", "GITLAB_CI": "true", "CI_JOB_TOKEN": "glcbt-...", "OCX_AUTH_X_TOKEN": "t"})
+let_ci_through = runner.only("PATH", "HOME", "TMPDIR", "GITLAB_CI", "CI_JOB_TOKEN", "CI_PROJECT_PATH")
+assert set(let_ci_through.source) == {"PATH", "GITLAB_CI", "CI_JOB_TOKEN"}  # `.ambient().only(...)` in practice
+
+explicit = OcxConfig(forge_token="glpat-secret")
+assert "glpat" not in repr(explicit)
+```
+
+`OcxConfig.forge_token`, `forge_git_token` and `forge_git_username` reach
+the child as `OCX_ANNOUNCE_TOKEN`, `OCX_ANNOUNCE_GIT_TOKEN` and
+`OCX_ANNOUNCE_GIT_USERNAME`, explicit winning over ambient like every other
+lever. The three token values — ambient or configured — are redacted from
+stderr, `on_log`, logged argv and exception text exactly as `OCX_AUTH_*` is.
+Exit 86 ([`ForgeCapabilityUnavailableError`](../reference/api.md#ocx_sdk.ForgeCapabilityUnavailableError))
+is the one forge failure a credential change cannot fix: the token is valid
+but the target project does not allow job-token push, and only an
+administrator's allowlist entry changes that.
+
 ## The one thing hardening does not cover: `OCX_AUTH_*` under `exec`
 
 ocx does not scrub non-forwarded variables from a spawned child's

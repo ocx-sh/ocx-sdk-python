@@ -61,6 +61,12 @@ write leaves the ambient value exactly as the host spelled it.
 | `OCX_NO_CONFIG_REFRESH` | `no_config_refresh: bool \| None` | `True` writes `1`; `False` explicitly clears an ambient value; `None` leaves it alone. |
 | `OCX_INSECURE_REGISTRIES` | `insecure_registries: Collection[str] \| None` | **Fail-closed**: any explicit value, including `()`, replaces the ambient set entirely rather than merging with it. |
 | `OCX_SIGSTORE_TRUSTED_ROOT` | `sigstore_trusted_root: str \| Path \| None` | *Always written*: a value sets it, `None` **pops** any ambient one. `None` therefore means ocx's own root of trust, not the host's — see the neutralization table for why. Typed `str \| Path` because CI configuration usually interpolates it as text. |
+| `OCX_RECORDS_DIR` | `records_dir: Path \| None` | Where `exec` writes its execution record; the directory must already exist. The per-call `records_dir=` on every `exec`/`spawn` verb overrides it. |
+| `OCX_RECORDS_NAME` | `records_name: str \| None` | The record's filename template (`{time}`, `{host}`, `{pid}`, `{rand}`). Per-call `records_name=` overrides it. |
+| `OCX_TOOLCHAIN_DIR` | `toolchain_dir: Path \| None` | Where the project toolchain links live. `OCX_TOOLCHAIN_PINNED` and `OCX_TOOLCHAIN_ACTIVATE` are deliberately not modelled — the former is the weakest tier under `pinned=` on `env`/`exec`, the latter is a shell-session concern. |
+| `OCX_ANNOUNCE_TOKEN` | `forge_token: str \| None` | The forge API credential `announce`/`claim` use — the top rung of the [identity ladder](../guide/hermetic-ci.md#the-forge-identity-ladder). `repr=False`; redacted. |
+| `OCX_ANNOUNCE_GIT_TOKEN` | `forge_git_token: str \| None` | The push-leg credential for `transport="git"`. `repr=False`; redacted. |
+| `OCX_ANNOUNCE_GIT_USERNAME` | `forge_git_username: str \| None` | The username the git push leg authenticates as. |
 
 ## Auth — `OCX_AUTH_<SLUG>_*`
 
@@ -87,7 +93,9 @@ that canonicalizes to an empty slug, raise `OcxError` rather than silently
 dropping or colliding credentials.
 
 Credentials the *host* exported are redacted from logs and error text
-alongside the ones the SDK wrote, in whatever case they were spelled.
+alongside the ones the SDK wrote, in whatever case they were spelled. The
+forge rungs — `OCX_ANNOUNCE_TOKEN`, `OCX_ANNOUNCE_GIT_TOKEN`, `CI_JOB_TOKEN`
+— are redacted the same way, ambient or configured.
 
 **Propagation**: ocx does not scrub non-forwarded variables from a spawned
 child's environment, so a tool started through `Project.exec` or

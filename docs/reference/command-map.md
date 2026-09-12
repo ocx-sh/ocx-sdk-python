@@ -20,7 +20,7 @@ No project path; operates on `$OCX_HOME`.
 | `ocx login` | [`Ocx.login`](api.md#ocx_sdk.Ocx.login) | T1 |
 | `ocx logout` | [`Ocx.logout`](api.md#ocx_sdk.Ocx.logout) | T1 |
 | `ocx status` | [`Ocx.project(path).status`](api.md#ocx_sdk.Project.status) | T1 |
-| `ocx clean` | — | T2 |
+| `ocx clean` | [`Ocx.clean`](api.md#ocx_sdk.Ocx.clean) | T1 |
 | any command | [`Ocx.invoke`](api.md#ocx_sdk.Ocx.invoke) / [`invoke_async`](api.md#ocx_sdk.Ocx.invoke_async) / [`spawn`](api.md#ocx_sdk.Ocx.spawn) / [`spawn_async`](api.md#ocx_sdk.Ocx.spawn_async) | raw escape hatch |
 | `ci*`, bare aliases | — | ✗ dead stubs |
 | `direnv*` | — | T3, needs human `direnv allow` |
@@ -64,7 +64,7 @@ project path.
 | `ocx package deps` | [`package.deps`](api.md#ocx_sdk.PackageCommands.deps) | T1 |
 | `ocx package pull` | [`package.pull`](api.md#ocx_sdk.PackageCommands.pull) | T1 |
 | `ocx package create` | [`package.create`](api.md#ocx_sdk.PackageCommands.create) | T1, author flow |
-| `ocx package test --script` | [`package.test`](api.md#ocx_sdk.PackageCommands.test) | T1, author flow — stable v1 JSON |
+| `ocx package test --script` | [`package.test`](api.md#ocx_sdk.PackageCommands.test) | T1, author flow — stable v1 JSON, report-then-fail ‡ |
 | `ocx package test -- CMD` | [`Ocx.invoke`](api.md#ocx_sdk.Ocx.invoke) | prints the child's raw stdout even under `--format json`; never parsed here |
 | `ocx package push` | [`package.push`](api.md#ocx_sdk.PackageCommands.push) | T1, author flow |
 | `ocx package description push` | [`package.description_push`](api.md#ocx_sdk.PackageCommands.description_push) | T1, author flow |
@@ -73,12 +73,22 @@ project path.
 | `ocx package attest` | [`package.attest`](api.md#ocx_sdk.PackageCommands.attest) | T1, author flow |
 | `ocx package sbom` | [`package.sbom`](api.md#ocx_sdk.PackageCommands.sbom) | T1 |
 | `ocx package copy` | [`package.copy`](api.md#ocx_sdk.PackageCommands.copy) | T1, author flow |
-| `ocx package announce` | — | T2 |
-| `ocx package cascade *` | — | T3, not a frozen wire contract |
+| `ocx package announce` | [`package.announce`](api.md#ocx_sdk.PackageCommands.announce) | T1, author flow — `--yank`, `--unyank`, `--fork`, `--out` stay `invoke`-only |
+| `ocx package claim` | [`package.claim`](api.md#ocx_sdk.PackageCommands.claim) | T1, author flow |
+| `ocx package cascade check` | [`package.cascade_check`](api.md#ocx_sdk.PackageCommands.cascade_check) | T1, report-then-fail ‡ |
+| `ocx package cascade repair` | [`package.cascade_repair`](api.md#ocx_sdk.PackageCommands.cascade_repair) | T1, author flow — report-then-fail ‡ |
 
 † `package which`'s JSON is doc-flagged "breaking, pre-1.0" — typed, but not
 on ocx's durable-anchor list. `EnvReport`'s four non-entry arrays carry the
 same flag.
+
+‡ Report-then-fail: ocx prints the report *and* exits non-zero when it has
+a finding (`package test` exits 1 on a failed assertion, `cascade *` exits
+65 on a stale or missing tag). The SDK tolerates that exit and hands the
+report back as a result — `TestResult.passed`, `CascadeCheckReport.clean`
+— because the finding *is* the answer. Only a non-zero exit with no report
+(an [error envelope](../guide/concepts/errors-and-security.md#the-error-envelope)
+or nothing parseable) raises. Guard: `tolerated_report`.
 
 ## Config tier — `Ocx.config`
 
@@ -119,3 +129,8 @@ mutates the machine outside `$OCX_HOME` — see
 [`bootstrap.ensure`](api.md#ocx_sdk.ensure) is a Python-only layer
 above the CLI: it resolves, downloads, verifies, and caches an ocx binary,
 then returns its path. See [bootstrap](../guide/bootstrap.md).
+
+[`package.receipt`](api.md#ocx_sdk.PackageCommands.receipt) reads the
+`<stem>-receipt.json` sidecar `package create` writes beside a bundle —
+no spawn, no ocx command behind it. `None` when the sidecar is absent;
+`ValueError` when it is malformed or of a version this SDK does not read.
