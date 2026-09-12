@@ -1,0 +1,62 @@
+{
+  "reports": [
+    {
+      "identifier": "127.0.0.1:5010/fx/hello",
+      "logical": null,
+      "aliases": {
+        "latest": {
+          "state": "present"
+        },
+        "1.0": {
+          "state": "present"
+        },
+        "1": {
+          "state": "present"
+        }
+      },
+      "rows": [
+        {
+          "tag": "latest",
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          "status": "ok",
+          "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+          "expected": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+          "source": "1.0.0",
+          "observed_source": "1.0.0"
+        },
+        {
+          "tag": "1.0",
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          "status": "ok",
+          "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+          "expected": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+          "source": "1.0.0",
+          "observed_source": "1.0.0"
+        },
+        {
+          "tag": "1",
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          },
+          "status": "ok",
+          "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+          "expected": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+          "source": "1.0.0",
+          "observed_source": "1.0.0"
+        }
+      ],
+      "index_findings": [],
+      "ignored_tags": [
+        "__ocx.keep.sha256-cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1"
+      ],
+      "unrepairable": []
+    }
+  ]
+}

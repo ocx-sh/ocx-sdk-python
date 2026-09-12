@@ -1,0 +1,21 @@
+{
+  "package": "acme/widget",
+  "status": "unchanged",
+  "desc_status": "unchanged",
+  "forge": "gitlab",
+  "transport": "git",
+  "credential_kind": "job-token",
+  "push_credential_kind": "job-token",
+  "branch": "indexbot-announce-acme-widget",
+  "pull_request_url": null,
+  "pull_request_number": null,
+  "fork": null,
+  "written_paths": [],
+  "capability_checks": [
+    { "name": "git-version", "status": "ok", "detail": "git version 2.45.2" },
+    { "name": "push-access", "status": "ok", "detail": null },
+    { "name": "job-token-push", "status": "ok", "detail": null },
+    { "name": "job-token-allowlist", "status": "skipped", "detail": null }
+  ],
+  "reserved_tags_dropped": []
+}

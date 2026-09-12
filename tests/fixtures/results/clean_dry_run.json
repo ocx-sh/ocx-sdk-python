@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "object",
+    "dry_run": true,
+    "path": "/tmp/ocx-recapture-home/blobs/ocx.sh/sha256/73/2d0ca425495fd2c0a6ad19f20b3475",
+    "held_by": []
+  },
+  {
+    "kind": "object",
+    "dry_run": true,
+    "path": "/tmp/ocx-recapture-home/blobs/ocx.sh/sha256/d7/376fbd3a828a90fce86cc7c7d9e4eb",
+    "held_by": []
+  },
+  {
+    "kind": "object",
+    "dry_run": true,
+    "path": "/tmp/ocx-recapture-home/blobs/ocx.sh/sha256/df/420d1c99d7e80ce6366104af4e6b57",
+    "held_by": []
+  },
+  {
+    "kind": "object",
+    "dry_run": true,
+    "path": "/tmp/ocx-recapture-home/layers/ocx.sh/sha256/6f/67366c71abca9df09885555bc8043e",
+    "held_by": []
+  },
+  {
+    "kind": "object",
+    "dry_run": true,
+    "path": "/tmp/ocx-recapture-home/packages/ocx.sh/sha256/df/420d1c99d7e80ce6366104af4e6b57",
+    "held_by": []
+  },
+  {
+    "kind": "consent",
+    "dry_run": true,
+    "path": "/tmp/ocx-recapture-home/state/projects/7d93745dcb9d3022",
+    "held_by": []
+  }
+]

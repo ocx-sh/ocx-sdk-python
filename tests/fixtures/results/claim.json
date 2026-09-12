@@ -1,0 +1,24 @@
+{
+  "package": "acme/widget",
+  "name": "acme/widget",
+  "status": "updated",
+  "forge": "gitlab",
+  "transport": "git",
+  "credential_kind": "job-token",
+  "push_credential_kind": "job-token",
+  "author": { "login": "carol", "id": 5 },
+  "author_identity_source": "ci-environment",
+  "owners": [{ "login": "carol", "id": 5 }],
+  "owner_identity_source": "ci-environment",
+  "branch": "indexbot-claim-acme-widget",
+  "pull_request_url": null,
+  "pull_request_number": null,
+  "fork": null,
+  "written_paths": ["p/acme/widget.json"],
+  "capability_checks": [
+    { "name": "git-version", "status": "skipped", "detail": null },
+    { "name": "push-access", "status": "skipped", "detail": null },
+    { "name": "job-token-push", "status": "skipped", "detail": null },
+    { "name": "job-token-allowlist", "status": "skipped", "detail": null }
+  ]
+}
