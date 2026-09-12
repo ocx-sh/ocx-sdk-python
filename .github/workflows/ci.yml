@@ -26,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.1"  # = TESTED_OCX_VERSION; `test_version_matches_the_tested_pin` guards drift
       - name: Verify
         run: task verify
       - name: Coverage XML
@@ -58,6 +60,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.1"  # = TESTED_OCX_VERSION; `test_version_matches_the_tested_pin` guards drift
       - name: Test
         run: task test -- --junitxml=test-results.xml
       # Platform-specific branches (POSIX process groups, the Windows kill
@@ -80,6 +84,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.1"  # = TESTED_OCX_VERSION; `test_version_matches_the_tested_pin` guards drift
       - name: Contract tests
         run: task test:contract
 
@@ -90,6 +96,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.1"  # = TESTED_OCX_VERSION; `test_version_matches_the_tested_pin` guards drift
       - name: Lint GitHub Actions workflows
         run: task lint:actions
       - name: Check for broken links

@@ -20,13 +20,15 @@ Provenance of `tests/fixtures/results/*.json`:
   0.6.0 capture: 0.6 renamed the `canonical_tags_written` key to
   `keep_tags_written` and changed the tag form, so the 0.5.8 recording
   specified a payload no supported binary emits.
-- `version`, `about`, and `status` were **recaptured against ocx 0.6.0** for
-  0.2.0: `MIN_SUPPORTED` is 0.6.0, so a fixture recording a binary the SDK now
-  refuses would specify a version it can never meet. Same shape, new values —
-  the recapture changed no key. `status` came from a one-tool scratch project
-  under `OCX_HOME=/tmp/ocx-recapture-home`, per the plan's fixture-capture
-  runbook. The rest still record 0.5.8, which the D7 absent-vs-null contract
-  they pin is unaffected by.
+- `version`, `about`, and `status` were **recaptured against ocx 0.6.1** for
+  the 0.6.1 adoption (and against 0.6.0 for 0.2.0 before it): `MIN_SUPPORTED`
+  is 0.6.1, so a fixture recording a binary the SDK now refuses would specify
+  a version it can never meet. Same shape, new values — the recapture changed
+  no key. `status` came from a one-tool scratch project; the scratch
+  `OCX_HOME`/project paths were normalized to `/tmp/ocx-recapture-home` and
+  `/tmp/ocx-recapture-prj` after capture, the one hand edit these files carry.
+  The rest still record 0.5.8, which the D7 absent-vs-null contract they pin
+  is unaffected by.
 - The 0.6 signing surface — `sign`, `verify`, `attest`, `sbom*`, `copy*`,
   `sweep*`, `push_signed`, `info_populated`, and both `partial/` fixtures —
   is a **live ocx 0.6.0 capture**, taken against a throwaway `zot:v2.1.18`
@@ -137,8 +139,8 @@ def _env_doc(**arrays: object) -> str:
 def test_version_info_from_recorded_fixture():
     info = VersionInfo.from_json(load("version.json"))
 
-    assert info.version == "0.6.0"
-    assert info.commit["describe"] == "v0.6.0"
+    assert info.version == "0.6.1"
+    assert info.commit["describe"] == "v0.6.1"
     assert info.commit["dirty"] is False
     assert info.build["target"] == "x86_64-unknown-linux-musl"
     assert info.ci["provider"] == "github-actions"
@@ -159,14 +161,14 @@ def test_version_info_needs_only_the_version():
 def test_about_info_from_recorded_fixture():
     about = AboutInfo.from_json(load("about.json"))
 
-    assert about.version == "0.6.0"
+    assert about.version == "0.6.1"
     assert about.registry == "ocx.sh"
     assert about.home == "/tmp/ocx-recapture-home"
     assert about.shell == "Zsh"
     assert about.platforms == ("linux/amd64",)
     assert about.libc == ("libc.glibc",)
     assert about.channel is None
-    assert about.commit["sha"] == "e48ef73cbd92ae1972868b1037bcabe1094d2180"
+    assert about.commit["sha"] == "24556040ec958db9adb1ae360d6c1d50953b5a98"
 
 
 # --- status -----------------------------------------------------------------
@@ -180,7 +182,7 @@ def test_status_report_from_recorded_fixture():
     assert status.lock.current is True
     assert status.lock.lock_version == 3
     assert status.lock.declaration_hash == status.lock.declaration_hash_expected
-    assert status.lock.generated_by == "ocx 0.6.0"
+    assert status.lock.generated_by == "ocx 0.6.1"
     assert status.lock.error is None
 
     binding = status.groups["default"].tools["task"]

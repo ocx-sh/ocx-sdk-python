@@ -1,4 +1,8 @@
-Pre-warm the object store from the project ocx.lock without creating symlinks
+Pre-warm the object store, then render the project toolchain.
+
+Fetches every digest-pinned entry the project `ocx.lock` declares into the local object store, then renders the project toolchain into `<project>/.ocx/toolchain/` - or under the `toolchain-dir` root, when one is configured: one link per `links/<group>/<entry>`, plus the `shells/default/bin` launchers for the default group, reached through the `active` link. That directory carries its own `.gitignore`, so `git status` stays clean. This is the primary way a project toolchain is rendered; `--dry-run` reports the delta and writes nothing.
+
+The package store's own `candidate` and `current` symlinks are left alone: those move only when you install or select a package.
 
 Usage: ocx pull [OPTIONS]
 
@@ -28,6 +32,18 @@ Options:
           See https://ocx.sh/docs/reference/command-line#arg-lazy-mode for the full resolution order.
           
           [possible values: never, always]
+
+      --consent
+          Record a consent stamp (the default unless OCX_NO_CONSENT is set)
+          
+          The stamp is what lets a shell prompt in this directory apply the project's tools and environment; without one the project is inert. It is the same stamp `ocx add`, `ocx lock`, `ocx pull` and `ocx exec` write as a side effect, and `ocx shell revoke` takes back. Pass this to stamp anyway where OCX_NO_CONSENT is set.
+          
+          https://ocx.sh/docs/in-depth/shell-integration
+
+      --no-consent
+          Run without consenting to this project's shell activation
+          
+          Consent later with `ocx shell allow`, or by running any mutating command in the directory. OCX_NO_CONSENT=1 is the same choice for every command at once.
 
   -h, --help
           Print help (see a summary with '-h')

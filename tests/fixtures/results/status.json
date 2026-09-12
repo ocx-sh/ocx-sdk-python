@@ -6,8 +6,8 @@
     "lock_version": 3,
     "declaration_hash": "sha256:5eefe47629be1456ade99cd4ece4a677825baba7fcd39377a9b6b237c8c4fd79",
     "declaration_hash_expected": "sha256:5eefe47629be1456ade99cd4ece4a677825baba7fcd39377a9b6b237c8c4fd79",
-    "generated_by": "ocx 0.6.0",
-    "generated_at": "2026-08-31T20:17:25Z"
+    "generated_by": "ocx 0.6.1",
+    "generated_at": "2026-09-12T15:57:15Z"
   },
   "groups": {
     "default": {

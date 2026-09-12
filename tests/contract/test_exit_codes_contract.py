@@ -23,7 +23,6 @@ from ocx_sdk import (
     ConfigError,
     DataError,
     ExitCode,
-    IoError,
     NotFoundError,
     Ocx,
     OcxProcessError,
@@ -84,10 +83,10 @@ def _stale_lock(project_factory: Callable[..., Project]) -> Project:
             id="65-data-stale-lock",
         ),
         pytest.param(
-            ExitCode.IO_ERR,
-            IoError,
+            ExitCode.USAGE,
+            UsageError,
             lambda ocx, factory, tmp_path: ocx.invoke(["--project", str(tmp_path), "status"]),
-            id="74-io-project-is-a-directory",
+            id="64-usage-project-dir-without-toml",
         ),
         pytest.param(
             ExitCode.CONFIG,
@@ -181,6 +180,10 @@ def test_package_inspect_reports_a_missing_package_when_online(ocx: Ocx) -> None
 #
 #   1  FAILURE        — generic; ocx assigns it to spawn failures inside `run`.
 #   69 UNAVAILABLE    — needs a registry that answers non-transiently; acceptance.
+#   74 IO_ERR         — needs a real filesystem failure. Up to 0.6.0 a `--project`
+#                      naming a directory (or a directory called `ocx.toml`)
+#                      reached it; 0.6.1 answers both with 64, so the code is no
+#                      longer provokable offline. Unit: `test_exit_code_maps_to_its_subclass`.
 #   75 TEMP_FAIL      — needs a registry returning 429/5xx; acceptance + unit retry tests.
 #   77 NO_PERM        — needs an unwritable $OCX_HOME; refused here as machine mutation.
 #   80 AUTH           — needs the htpasswd registry; acceptance (`test_login_password_stdin`).
@@ -211,3 +214,7 @@ def test_package_inspect_reports_a_missing_package_when_online(ocx: Ocx) -> None
 # neither can the standard library, so a throwaway key means adding `cosign` to
 # the toolchain — a decision above this file. 85 is reachable only because its
 # check runs before any key is read.
+#
+#   86 FORGE_CAPABILITY_UNAVAILABLE — raised only after a forge was reached and
+#                      refused a job-token push; needs a live GitLab. Unit:
+#                      `test_exit_code_maps_to_its_subclass`.

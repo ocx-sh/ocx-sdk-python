@@ -1,0 +1,23 @@
+Re-point a package's rolling tags at the content its versions imply.
+
+Rebuilds the whole index for every rolling tag `cascade check` reports as wrong and pushes it, using only content the registry already serves - a repair publishes nothing new, it re-points. The full plan is computed first and every manifest it references is checked to still exist, so a run that cannot be completed writes nothing at all.
+
+Repairing the registry does not update the public index. Pass `--announce-tags PATH` to record the tags this run moved, then hand that file to `ocx package announce --tags-file PATH`.
+
+Exits 0 when every attempted write succeeded, 65 when a finding remains (including a tag that cannot be fixed without publishing new content), and 64 when a package names a digest or a tag that is not a version, or when `--announce-tags` is given more than one package.
+
+Usage: ocx package cascade repair [OPTIONS] <PACKAGES>...
+
+Arguments:
+  <PACKAGES>...
+          Packages to repair
+
+Options:
+      --dry-run
+          Compute and print the same plan without writing anything
+
+      --announce-tags <PATH>
+          Write the rolling tags this run moved or created to this file, one per line, for `ocx package announce --tags-file`. Takes one package per run, since the file names no package and `announce` publishes it against one. Written on a dry run too, holding the whole plan it would have repaired; empty when nothing changed
+
+  -h, --help
+          Print help (see a summary with '-h')

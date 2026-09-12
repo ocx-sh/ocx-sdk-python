@@ -15,6 +15,9 @@
     "Catalog": {
       "$ref": "#/$defs/Catalog"
     },
+    "ClaimReport": {
+      "$ref": "#/$defs/ClaimReport"
+    },
     "Clean": {
       "$ref": "#/$defs/Clean"
     },
@@ -351,11 +354,41 @@
         },
         "status": {
           "type": "string",
-          "description": "`\"unchanged\"` when the rebuilt root was byte-identical to the committed\none, so nothing was committed; `\"updated\"` otherwise. An unchanged\n`--fork` run still ensures a pull request when its announce branch is\nahead of the index base."
+          "description": "`\"unchanged\"` when the rebuilt root was byte-identical to the committed\none, so nothing was committed; `\"updated\"` otherwise. An unchanged\n`--fork` run still ensures a pull request when its announce branch is\nahead of the index base, and still reports one when the branch has\ndiverged from the index base but its open pull request can still\nmerge."
         },
         "desc_status": {
           "type": "string",
           "description": "`\"updated\"` when the package's `__ocx.desc` artifact moved, so the\nroot's `desc` object was rebuilt and its readme (and logo) written as\nnew content-addressed objects; `\"unchanged\"` when the description sits\nwhere the committed root already recorded it, or there is none."
+        },
+        "forge": {
+          "type": "string",
+          "description": "The resolved forge kind, after `--forge`: `\"github\"` or `\"gitlab\"`."
+        },
+        "transport": {
+          "type": "string",
+          "description": "The selected write transport: `\"api\"` or `\"git\"`."
+        },
+        "credential_kind": {
+          "$ref": "#/$defs/CredentialKind",
+          "description": "The API credential's kind. `\"job-token\"` only when the credential is\nthis environment's own `CI_JOB_TOKEN` — ocx cannot tell a personal from\na project, group or OAuth token, so it reports no kind it cannot\nobserve."
+        },
+        "push_credential_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PushCredentialKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The push credential's kind, or `null` under the `api` transport, which\npushes nothing. `\"git-helper\"` means nothing was injected and git's own\ncredential helpers authenticated the push."
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The announce branch, or `null` under `--out`, which opens no request and\nso has no branch.\n\nAn `Option`, not a `String`, precisely because of that (DX-40.3):\n[`AnnounceOutcome::branch`] is empty on the `--out` arm, and `\"\"` is a\nvalue C-060's vocabulary has no meaning for — a consumer cannot tell it\nfrom a branch whose name failed to render. Unlike the claim report,\nwhose branch is derived from the package and therefore populated on\nevery path."
         },
         "pull_request_url": {
           "type": [
@@ -387,6 +420,13 @@
           },
           "description": "The relative paths written under the `--out` directory."
         },
+        "capability_checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CapabilityCheckEntry"
+          },
+          "description": "Every preflight row, including the ones that did not apply. Non-empty on\nevery run, so a pipeline can assert the preflight ran rather than\ntrusting a bare success."
+        },
         "reserved_tags_dropped": {
           "type": "array",
           "items": {
@@ -399,13 +439,85 @@
         "package",
         "status",
         "desc_status",
+        "forge",
+        "transport",
+        "credential_kind",
+        "push_credential_kind",
+        "branch",
         "pull_request_url",
         "pull_request_number",
         "fork",
         "written_paths",
+        "capability_checks",
         "reserved_tags_dropped"
       ],
-      "description": "Result of a successful `ocx package announce`.\n\nPlain format: a one-row table (`Package`, `Status`, `Pull Request`, `Fork`,\n`Written Paths`) — a dash marks a field the mode did not produce, and\n`Written Paths` is how many were written, not the list (it is unbounded by\nconstruction: one path per tag). Dropped reserved tags have no column; the\ncommand warns about them on stderr when there are any.\n\nJSON format:\n`{ \"package\", \"status\", \"desc_status\", \"pull_request_url\",\n\"pull_request_number\", \"fork\", \"written_paths\", \"reserved_tags_dropped\" }`.\n`status` and `desc_status` are each exactly `\"unchanged\"` or `\"updated\"`;\n`desc_status` is JSON-only, the plain table being at its column budget.\n`pull_request_url` /\n`pull_request_number` / `fork` are always `null` for `--out`; in `--fork`\nmode they are `null` only when the run made no pull request — an unchanged\nrun whose announce branch is ahead of the index base still ensures, and\ntherefore reports, one. `written_paths` is empty outside `--out`.\n`reserved_tags_dropped` is an array, empty rather than absent."
+      "description": "Result of a successful `ocx package announce`.\n\nPlain format: a one-row table (`Package`, `Status`, `Pull Request`, `Fork`,\n`Written Paths`) — a dash marks a field the mode did not produce, and\n`Written Paths` is how many were written, not the list (it is unbounded by\nconstruction: one path per tag). Dropped reserved tags have no column; the\ncommand warns about them on stderr when there are any.\n\n**C-061's six new keys are JSON-only**, the way `desc_status` already is.\nThe plain table is at its five-column budget, and the only room for\n`Transport` or `Branch` would come from dropping `Fork` or `Written Paths` —\nan uncontracted break of a shape scripts already read. C-061 contracts keys,\nnot columns; that this is a decision and not an oversight is why it is\nwritten here.\n\nJSON format:\n`{ \"package\", \"status\", \"desc_status\", \"forge\", \"transport\",\n\"credential_kind\", \"push_credential_kind\", \"branch\", \"pull_request_url\",\n\"pull_request_number\", \"fork\", \"written_paths\", \"capability_checks\",\n\"reserved_tags_dropped\" }`, in that order.\n`status` and `desc_status` are each exactly `\"unchanged\"` or `\"updated\"`;\n`forge` is `\"github\"` or `\"gitlab\"`; `transport` is `\"api\"` or `\"git\"`;\n`credential_kind` is `\"job-token\"`, `\"token\"` or `\"none\"`;\n`push_credential_kind` is `\"job-token\"`, `\"token\"`, `\"git-helper\"` or\n`null`, and always `null` under the `api` transport. `capability_checks` is\nnon-empty on every run, inapplicable rows carrying `\"skipped\"`, ordered by\n`CapabilityName`'s declaration order so the array is stable across runs.\n`pull_request_url` /\n`pull_request_number` / `fork` are always `null` for `--out`; in `--fork`\nmode they are `null` only when the run made no pull request — an unchanged\nrun whose announce branch is ahead of the index base still ensures, and\ntherefore reports, one. So does an unchanged run whose branch has\ndiverged from the index base but still holds an open, mergeable pull\nrequest: that pull request is reported too, not dropped. `written_paths`\nis empty outside `--out`.\n`reserved_tags_dropped` is an array, empty rather than absent.\n\n**The closed vocabularies are held typed, never as `String`.** The report is\na published schema (`report_roots!`), so a stringly-typed field would promise\nan open string where C-060 closes the set. The two pre-existing `status`\nfields stay `String` — they are `AnnounceStatus` rendered through\n[`status_label`], which predates this report's schema and is unchanged by\nC-061."
+    },
+    "CredentialKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "job-token",
+          "description": "The credential is this environment's own `CI_JOB_TOKEN`."
+        },
+        {
+          "type": "string",
+          "const": "token",
+          "description": "A credential ocx holds but cannot classify further."
+        },
+        {
+          "type": "string",
+          "const": "none",
+          "description": "The ladder resolved nothing — the unauthenticated `--out` path."
+        }
+      ],
+      "description": "The API credential's wire kind (C-060).\n\nocx **may not report a kind it cannot observe**: there is deliberately no\n`Pat`, no `DeployToken` and no `Oauth` arm, because nothing the forge tells\nocx distinguishes those from one another. Adding one is what\n`credential_kind_wire_spellings` exists to red."
+    },
+    "PushCredentialKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "job-token",
+          "description": "The push secret is this environment's own `CI_JOB_TOKEN`."
+        },
+        {
+          "type": "string",
+          "const": "token",
+          "description": "A push secret ocx injected but cannot classify further."
+        },
+        {
+          "type": "string",
+          "const": "git-helper",
+          "description": "Nothing was injected; git's own credential helpers are in charge."
+        }
+      ],
+      "description": "The push credential's wire kind (C-060).\n\n`null` is **not** a variant: it is `Option::None` at the call site, and it\nmeans \"the `api` transport pushes nothing\". [`Self::GitHelper`] is a\ndifferent statement — a push happened and git's own credential helpers\nauthenticated it — and collapsing the two is the defect\n`push_credential_kind_git_helper_is_distinct_from_null` exists to catch."
+    },
+    "CapabilityCheckEntry": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The capability's wire name — `git-version`, `push-access`,\n`job-token-push` or `job-token-allowlist`."
+        },
+        "status": {
+          "type": "string",
+          "description": "`\"passed\"`, `\"unknown\"` or `\"skipped\"`. There is no `\"failed\"`: a check\nthat fails raises an error and no report is rendered."
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "A human-readable qualifier where the forge exposes one, `null`\notherwise."
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "detail"
+      ],
+      "description": "One row of the write preflight.\n\nA report-side projection of [`CapabilityCheck`] rather than a re-export of\nit: the wire shape is this layer's contract, and the library type carries no\n`Serialize`. The two closed vocabularies are held as the library's own\nenums and rendered through [`serialize_display`], so a row cannot carry a\nname or a status the library has no variant for."
     },
     "AttestationReport": {
       "type": "object",
@@ -559,6 +671,156 @@
         }
       ],
       "description": "Polymorphic catalog payload: either a plain list of repository names or a\nmap of repository names to their tags."
+    },
+    "ClaimReport": {
+      "type": "object",
+      "properties": {
+        "package": {
+          "type": "string",
+          "description": "The claimed `<namespace>/<package>` identifier, as given."
+        },
+        "name": {
+          "type": "string",
+          "description": "The logical name written into the root."
+        },
+        "status": {
+          "type": "string",
+          "description": "`\"unchanged\"` when the open claim branch already carries a\nbyte-identical root; `\"updated\"` otherwise, which `--out` always is."
+        },
+        "forge": {
+          "type": "string",
+          "description": "The resolved forge kind, after `--forge`: `\"github\"` or `\"gitlab\"`."
+        },
+        "transport": {
+          "type": "string",
+          "description": "The selected write transport: `\"api\"` or `\"git\"`."
+        },
+        "credential_kind": {
+          "$ref": "#/$defs/CredentialKind",
+          "description": "The API credential's kind. `\"job-token\"` only when the credential is\nthis environment's own `CI_JOB_TOKEN` — ocx cannot tell a personal from\na project, group or OAuth token, so it reports no kind it cannot\nobserve."
+        },
+        "push_credential_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PushCredentialKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The push credential's kind, or `null` under the `api` transport, which\npushes nothing. `\"git-helper\"` means nothing was injected and git's own\ncredential helpers authenticated the push."
+        },
+        "author": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OwnerEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The identity that authored the request — the token identity, else the\nCI-environment identity. `null` when neither is available. Distinct from\n[`Self::owners`] by construction: authorship is not ownership.\n\n**Not attested.** The second rung is an ordinary environment read —\n`GITLAB_USER_LOGIN`/`GITLAB_USER_ID`, else `GITHUB_ACTOR`/`GITHUB_ACTOR_ID`\n— and an earlier pipeline step can set those to anything. Only the first\nrung is the forge's own answer about the credential. A consumer must not\ntreat this key as an attestation of who ran the command; which rung\nanswered is [`Self::author_identity_source`]."
+        },
+        "author_identity_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Which rule produced [`Self::author`]: `\"resolved\"` when the forge's own\nanswer about the credential did, `\"ci-environment\"` when the CI pair did.\n`null` exactly when `author` is.\n\nThe sibling of [`Self::owner_identity_source`] over a different subject,\nand the key that makes `author` usable: the login alone cannot say\nwhether the forge asserted it or a pipeline step wrote it into an\nenvironment variable, and a governance consumer needs that difference.\n`\"asserted\"` is unreachable here — no operator word is ever taken for\nthe author."
+        },
+        "owners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OwnerEntry"
+          },
+          "description": "The resolved owner list written into the root, in the order given."
+        },
+        "owner_identity_source": {
+          "type": "string",
+          "description": "Which rule produced [`Self::owners`]: `\"resolved\"`, `\"asserted\"` or\n`\"ci-environment\"`. The same word appears on stderr and in the request\nbody."
+        },
+        "branch": {
+          "type": "string",
+          "description": "The claim branch, so a script need not re-derive the naming convention.\nAlways present, `--out` included: the name is derived from the package,\nnot read from the forge, so a run that opens no request still reports\nthe branch a later run would use."
+        },
+        "pull_request_url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The opened or updated request's web URL."
+        },
+        "pull_request_number": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0,
+          "description": "The opened or updated request's number."
+        },
+        "fork": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The verified fork, as `namespace/project`; `null` on the direct path and\nunder the `git` transport."
+        },
+        "written_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The relative paths written under the `--out` directory; empty otherwise."
+        },
+        "capability_checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CapabilityCheckEntry"
+          },
+          "description": "Every preflight row, including the ones that did not apply. Non-empty on\nevery run, so a pipeline can assert the preflight ran rather than\ntrusting a bare success."
+        }
+      },
+      "required": [
+        "package",
+        "name",
+        "status",
+        "forge",
+        "transport",
+        "credential_kind",
+        "push_credential_kind",
+        "author",
+        "author_identity_source",
+        "owners",
+        "owner_identity_source",
+        "branch",
+        "pull_request_url",
+        "pull_request_number",
+        "fork",
+        "written_paths",
+        "capability_checks"
+      ],
+      "description": "Result of a successful `ocx package claim`.\n\nPlain format: a one-row table (`Package`, `Status`, `Transport`, `Branch`,\n`Pull Request`) — a dash marks a field the run did not produce. `owners`,\n`author`, `author_identity_source` and `capability_checks` are JSON-only,\nthe plain table being at its five-column budget.\n\nJSON format: `{ \"package\", \"name\", \"status\", \"forge\", \"transport\",\n\"credential_kind\", \"push_credential_kind\", \"author\",\n\"author_identity_source\", \"owners\", \"owner_identity_source\", \"branch\",\n\"pull_request_url\", \"pull_request_number\", \"fork\", \"written_paths\",\n\"capability_checks\" }`, in that order. The value vocabularies are contracted\nas tightly as the keys: `status` is `\"unchanged\"` or `\"updated\"`;\n`credential_kind` is\n`\"job-token\"`, `\"token\"` or `\"none\"`; `push_credential_kind` is\n`\"job-token\"`, `\"token\"`, `\"git-helper\"` or `null`, and always `null` under\nthe `api` transport; `owner_identity_source` is `\"resolved\"`, `\"asserted\"`\nor `\"ci-environment\"`; `author_identity_source` is `\"resolved\"`,\n`\"ci-environment\"` or `null`, never `\"asserted\"`. `capability_checks` is\nnon-empty on every run,\ninapplicable rows carrying `\"skipped\"`, ordered by `CapabilityName`'s\ndeclaration order so the array is stable across runs.\n\n`status` uses announce's two words over a **different subject**: claim\ncompares against the open claim branch, not the committed root, because a\ncommitted root has already exited 65. A claim `--out` run is therefore\nalways `\"updated\"`, where an announce `--out` run can report `\"unchanged\"`.\n\n**Every closed vocabulary above is held as its own enum, never as a\n`String`.** The report is a published schema (`report_roots!`), so a\nstringly-typed field would promise an open string where C-060 contracts a\nclosed set — and would let this layer spell a word the library cannot\nproduce. The two credential kinds are this crate's own enums and carry\n`Serialize`; the four `ocx_lib` owns render through\n[`serialize_display`](super::forge_report::serialize_display), which is why\ntheir JSON bytes are unchanged from the `.to_string()` form they replaced."
+    },
+    "OwnerEntry": {
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string",
+          "description": "The forge's canonical login spelling."
+        },
+        "id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "description": "The forge's immutable numeric account id."
+        }
+      },
+      "required": [
+        "login",
+        "id"
+      ],
+      "description": "One forge account, as the claim root spells it.\n\nThe same `{login, id}` shape the root file writes, so a consumer comparing\nthe report against the committed entry compares like with like. Never a bare\nlogin: an id is what survives a rename."
     },
     "Clean": {
       "type": "array",
@@ -1805,46 +2067,8 @@
       "description": "One row of the diff: what one alias holds for one platform versus what the\nfold says it should hold.\n\nDigests are the wire strings verbatim rather than parsed values: an index\nmay legitimately name a digest algorithm this build does not implement, and\na report must be able to show it."
     },
     "AliasTag": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "Root": {
-              "type": "object",
-              "properties": {
-                "variant": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "variant"
-              ]
-            }
-          },
-          "required": [
-            "Root"
-          ],
-          "additionalProperties": false,
-          "description": "The root of one track: `None` is the default track's `latest`, `Some`\nis a variant track's bare name."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "Version": {
-              "$ref": "#/$defs/Version"
-            }
-          },
-          "required": [
-            "Version"
-          ],
-          "additionalProperties": false,
-          "description": "Any other alias, named by the version it rolls."
-        }
-      ],
-      "description": "A tag that carries content on behalf of a whole subtree rather than one\nconcrete build.\n\nEvery alias but a track root is named by the [`Version`] it rolls (`3`,\n`3.28`, `3.28.1`). A track root — `latest` for the default track, the bare\nvariant name (`debug`) for a variant track — is named by no version at all,\nwhich is the only reason this enum exists rather than a bare `Version`."
+      "type": "string",
+      "description": "The registry tag itself, e.g. latest, 3, 3.28, 3.28.1, or a variant name."
     },
     "SlotStatus": {
       "oneOf": [
@@ -2563,12 +2787,6 @@
         },
         "variant": {
           "type": "string"
-        },
-        "features": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -3276,6 +3494,11 @@
         },
         {
           "type": "string",
+          "const": "covered",
+          "description": "The tag names the index another tag in this same sweep already acted on,\nso one referrer covers both and nothing was written for this tag.\n\nNot a failure, and it does not make the run exit non-zero: the tag *is*\nsigned (or attested), by the referrer the covering tag's row reports.\n`message` names that tag. A cascade release points several tags at one\nindex, and a referrer is filed against the subject digest, never against\na tag — so acting once per tag would publish N identical referrers, and\na second sweep N more."
+        },
+        {
+          "type": "string",
           "const": "failed",
           "description": "This tag failed. The sweep carried on to the rest and the run exits\nnon-zero at the end."
         }
@@ -3834,6 +4057,13 @@
             "$ref": "#/$defs/ProfileEntry"
           }
         },
+        "session_path": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionPathEntry"
+          },
+          "description": "Per-store session-PATH outcomes (C-036).\n\nAlways serialized, in every state — including `skipped_opt_out` and\n`skipped_unsupported` — because a `failed` store that reached no payload\nwould be an outcome computed and discarded, and absence-as-signal is not\nthis report's convention (`managed_config` is always present too)."
+        },
         "dirty_profiles": {
           "type": "array",
           "items": {
@@ -3851,7 +4081,7 @@
         },
         "reload_hint": {
           "type": "boolean",
-          "description": "Whether the user should re-source their profile to activate ocx now."
+          "description": "Whether this run changed a PATH surface that the user must act on: a shim or\nmanaged profile block (re-source the shell), or a session-PATH store (log out\nand back in, so programs started outside a shell see it too)."
         },
         "managed_config": {
           "$ref": "#/$defs/ManagedConfigEntry",
@@ -3863,9 +4093,10 @@
         "bootstrap",
         "shims",
         "profiles",
+        "session_path",
         "managed_config"
       ],
-      "description": "CLI wrapper around [`SetupOutcome`] for API reporting.\n\nPlain format: a key/value table — `Status`, `Bootstrap`, written shims,\nper-profile outcomes, and any advisory (exec-policy / conflicting ocx /\nreload hint) — with empty rows suppressed.\n\nJSON format (discriminated by `status`):\n- `{\"status\":\"completed\",\"bootstrap\":{…},\"shims\":[…],\"profiles\":[{\"path\":\"…\",\"outcome\":\"completed\"}],\"managed_config\":{\"status\":\"not_configured\"}}`\n- dirty → `{\"status\":\"skipped\",…,\"dirty_profiles\":[\"…\"]}`\n- `managed_config` is always present: `{\"status\":\"…\"}`, plus `\"digest\"` on\n  the adopt/refresh paths (`adopted` / `already_adopted` / `refreshed` /\n  `refresh_unavailable` / `would_refresh`), `\"previous_digest\"` on\n  `refreshed`, and `\"reason\"` on `refresh_unavailable`.\n- `exec_policy_warning`, `conflicting_ocx`, and `reload_hint` appear only\n  when present."
+      "description": "CLI wrapper around [`SetupOutcome`] for API reporting.\n\nPlain format: a key/value table — `Status`, `Bootstrap`, written shims,\nper-profile outcomes, and any advisory (exec-policy / conflicting ocx /\nreload hint) — with empty rows suppressed.\n\nJSON format (discriminated by `status`):\n- `{\"status\":\"completed\",\"bootstrap\":{…},\"shims\":[…],\"profiles\":[{\"path\":\"…\",\"outcome\":\"completed\"}],\"managed_config\":{\"status\":\"not_configured\"}}`\n- dirty → `{\"status\":\"skipped\",…,\"dirty_profiles\":[\"…\"]}`\n- `managed_config` is always present: `{\"status\":\"…\"}`, plus `\"digest\"` on\n  the adopt/refresh paths (`adopted` / `already_adopted` / `refreshed` /\n  `refresh_unavailable` / `would_refresh`), `\"previous_digest\"` on\n  `refreshed`, and `\"reason\"` on `refresh_unavailable`.\n- `session_path` is always present, one entry per store this host owns:\n  `[{\"location\":\"…\",\"outcome\":\"written\"}]`. Empty only where the platform\n  has no session-PATH facility at all.\n- `exec_policy_warning`, `conflicting_ocx`, and `reload_hint` appear only\n  when present."
     },
     "StatusKind": {
       "oneOf": [
@@ -3945,6 +4176,34 @@
         "skipped_dirty"
       ],
       "description": "Serde-facing mirror of [`ProfileOutcome`] (`snake_case` discriminant)."
+    },
+    "SessionPathEntry": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/SessionPathOutcomeKind"
+        }
+      },
+      "required": [
+        "location",
+        "outcome"
+      ],
+      "description": "JSON-serialized per-store session-PATH outcome\n(`{\"location\":\"…\",\"outcome\":\"written\"}`).\n\n`location` rather than `path`: on Windows the store is\n`HKCU\\Environment\\Path`, a registry location, and on a host with no\nfacility it is a deliberately unspellable placeholder."
+    },
+    "SessionPathOutcomeKind": {
+      "type": "string",
+      "enum": [
+        "written",
+        "unchanged",
+        "removed",
+        "skipped_opt_out",
+        "skipped_unsupported",
+        "failed"
+      ],
+      "description": "Serde-facing mirror of [`SessionPathOutcome`] (`snake_case` discriminant)."
     },
     "SelfUpdateData": {
       "type": "object",
@@ -4132,6 +4391,22 @@
           "type": "boolean",
           "description": "Whether `ocx self setup` has ever wired this machine's shell — probed\nas [`ocx_lib::setup::shims::WITNESS_SHIM`] under [`Self::ocx_home`].\n\nC-050 reason 6's first-prompt half tells the user \"the next prompt\napplies it\". That is true only once the rc/profile fence exists to\nsource the shim, and on a bare-binary install neither does. Without\nthis field the report answers the command's single most likely first\nuse — *\"I installed ocx, why isn't it working\"* — with a fix that can\nnever come true, so the renderer branches on it rather than promising\nconvergence that nothing will perform.\n\nDeliberately **not** a [`Reason`] arm: \"setup has not run\" is not a\nconsent state, and `consent::Reason` enumerates consent states."
         },
+        "toolchain_home": {
+          "type": "string",
+          "description": "The **resolved toolchain home** — a machine-readable contract field\n(C-056, S-004).\n\nThe supported way for an IDE, a devcontainer feature or a CI step to\ndiscover where a project's tree lives when `config.toml` relocates it\nwith `toolchain-dir`; without it the only route is re-deriving a 16-hex\nproject key from a path the discoverer would also have to canonicalize\nthe same way ocx does.\n\n`<project>/.ocx/toolchain` or `<toolchain-dir>/<project-key>/toolchain`\nfor the project in effect, and `$OCX_HOME/toolchain` when no project\nresolves — the tier that is always in effect, so the field never has to\nsay \"none\".\n\n**Always present, never `null`** (RUL-51): a `toolchain-dir` that fails\nC-017–C-019 is refused at *config load*, so every command — this one\nincluded — has already exited 78 before the report is built, and\n`ToolchainRoot::resolve` performs no filesystem write and accepts a root\nthat does not exist yet (RUL-5). Once the configuration parses, the home\nis always spellable, whether or not it has ever been rendered."
+        },
+        "toolchain_bin": {
+          "type": "string",
+          "description": "The **PATH-facing trampoline directory** for the same tier — the\ndirectory a consumer outside ocx puts on `PATH` (G-1, S-004).\n\n[`toolchain_home`](Self::toolchain_home) answers *where the tree is*;\nthis answers *what to export*, and the two are not one join apart.\nEvery published recipe used to build the second from the first with\n`.toolchain_home + \"/bin\"`, which the tree layout falsified — and\nfalsified silently, because a `jq` concatenation exits 0 whatever it\nproduces and the failure surfaces steps later in someone else's\nautomation with no ocx process in the trace.\n\nPublishing the resolved value is the only fix that survives the next\nlayout change: a documented `<toolchain_home>/active/bin` would leak a\ntree-internal name into every consumer's YAML and re-create the identical\ndefect the day that name moves.\n\n**Always present whenever [`toolchain_home`](Self::toolchain_home) is**,\nwhich is always (RUL-51), so no consumer has to branch. It names a\ndirectory that need not exist yet: nothing here renders, and a home that\nhas never been pulled reports the path it *would* hold — the same\npromise `toolchain_home` already makes."
+        },
+        "activate": {
+          "$ref": "#/$defs/ActivateMode",
+          "description": "The **effective** `activate` mode, past the whole ladder — the flag tier\n(absent here), then `ocx.toml`, then `OCX_TOOLCHAIN_ACTIVATE`, then the\nfloor (C-005, C-056).\n\nThe resolved answer, never a tier: reporting `ocx.toml`'s raw value would\nanswer a different question from the one a user asking \"why is my shell\nnot doing anything\" is asking."
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "The **effective** `pinned` value, resolved through the same ladder\n(C-056, C-066).\n\n`true` means a composing emitter yields digest paths and consults no\n`links/<group>/<entry>` link; `false` means it follows the rendered links, so\nan `ocx update` takes effect with no re-render."
+        },
         "lock_refusal": {
           "type": [
             "string",
@@ -4251,6 +4526,10 @@
         "ocx_home",
         "ocx_home_present",
         "shell_integration_installed",
+        "toolchain_home",
+        "toolchain_bin",
+        "activate",
+        "pinned",
         "lock_refusal",
         "carrier_present",
         "carrier_bytes",
@@ -4268,7 +4547,27 @@
         "inert_reason",
         "notes"
       ],
-      "description": "What `ocx shell state` reports — all derived, none of it mutating.\n\nRead-only, absolutely: it never writes a stamp, never repairs a ledger,\nnever emits a plan (A-29 names it a non-member of the six-writer stamp\nallowlist — a stamp written from here would consent to the very project it\nis diagnosing). Repair is the `unset __OCX_ENV_STATE` gesture or a new\nshell (C-012); this command is how a user checks the gesture worked."
+      "description": "What `ocx shell state` reports — all derived, none of it mutating.\n\nRead-only, absolutely: it never writes a stamp, never repairs a ledger,\nnever emits a plan (A-29 names it a non-member of the stamp-writer\nallowlist — a stamp written from here would consent to the very project it\nis diagnosing). Repair is the `unset __OCX_ENV_STATE` gesture or a new\nshell (C-012); this command is how a user checks the gesture worked."
+    },
+    "ActivateMode": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "env",
+          "description": "Compose the toolchain environment on every prompt — the shipped\nbehaviour, and the ladder's floor."
+        },
+        {
+          "type": "string",
+          "const": "bin",
+          "description": "Put `<home>/toolchain/active/bin` on `PATH` and compose nothing else, so a\ntool is resolved by its launcher trampoline at invocation time."
+        },
+        {
+          "type": "string",
+          "const": "none",
+          "description": "Neither. The reconciler withdraws whatever it owns and adds nothing."
+        }
+      ],
+      "description": "How a rendered toolchain home reaches a shell's environment.\n\n# C-006\n\nClosed, internal enum — no `#[non_exhaustive]` (`arch-principles.md`\n\"Internal enum exhaustiveness\"): `ocx_lib` ships no external API, so every\nmatch over `ActivateMode` stays total across the workspace.\n\n`Deserialize` rejects any wire value outside `\"env\"` / `\"bin\"` / `\"none\"`\n— the derived enum tag match is exhaustive by construction, so an unknown\n`ocx.toml` value surfaces as a parse error (C-012, exit 78) rather than\nsilently defaulting.\n\nDeliberately **no `Default` impl**. The floor is [`ACTIVATE_FLOOR`] and it\nis applied by [`crate::ladder::Ladder::resolve`]'s `floor` parameter at the\none site that resolves the ladder; a `Default` here would be a second floor\nthat no reader of the ladder can see (C-005)."
     },
     "Ledger": {
       "type": "object",
@@ -4534,7 +4833,7 @@
         {
           "type": "string",
           "const": "stamp",
-          "description": "Clause 1 — a valid stamp for this directory whose source set covers the\nlock's. A human ran one of the six stamp-writing commands here."
+          "description": "Clause 1 — a valid stamp for this directory whose source set covers the\nlock's. A human ran one of the stamp-writing commands here."
         },
         {
           "type": "string",
@@ -4923,6 +5222,29 @@
             "note"
           ],
           "description": "A `[shell.consent] paths` entry that can never match any project by\nconstruction — [`ocx_lib::consent_entry_defect`]'s classification of\nthe entry's own bytes, independent of which project is in view.\n`namespaces`' sibling grant refuses a pattern this broken at parse\ntime (A-27); a `paths` entry is an ordinary path and parses\nregardless of whether it can ever grant, so without this row it sits\nin the config forever, granting nothing and saying nothing."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "manifest": {
+              "type": "string",
+              "description": "The `ocx.toml` that would not parse — `$OCX_HOME/ocx.toml` for the\nglobal tier, the project's own otherwise."
+            },
+            "detail": {
+              "type": "string",
+              "description": "The parse failure, rendered for a human."
+            },
+            "note": {
+              "type": "string",
+              "const": "toolchain_manifest_unparsed"
+            }
+          },
+          "required": [
+            "manifest",
+            "detail",
+            "note"
+          ],
+          "description": "The `ocx.toml` that answers for the reported scope exists but will not\nparse, so its `activate` / `pinned` are absent and the ladder answered\nfrom `OCX_TOOLCHAIN_*` and then the floors.\n\nThe per-prompt path is deliberately lenient over these bytes — a\nmalformed `$OCX_HOME/ocx.toml` must not break every prompt on the\nmachine — and the hook discards the binary's stderr unconditionally\n(A-21). Without this row a typo'd `activate = \"nnone\"` therefore fails\n**open**, to `env`, the most-composing mode, and nothing anywhere tells\nthe user their restriction was ignored."
         }
       ],
       "description": "A reason row that is not a member of [`Reason`] because it does not make the\nshell inert on its own — it explains an answer the user would otherwise get\nwrong."
@@ -4941,6 +5263,22 @@
         "shell_integration_installed": {
           "type": "boolean",
           "description": "Whether `ocx self setup` has ever wired this machine's shell — probed\nas [`ocx_lib::setup::shims::WITNESS_SHIM`] under [`Self::ocx_home`].\n\nC-050 reason 6's first-prompt half tells the user \"the next prompt\napplies it\". That is true only once the rc/profile fence exists to\nsource the shim, and on a bare-binary install neither does. Without\nthis field the report answers the command's single most likely first\nuse — *\"I installed ocx, why isn't it working\"* — with a fix that can\nnever come true, so the renderer branches on it rather than promising\nconvergence that nothing will perform.\n\nDeliberately **not** a [`Reason`] arm: \"setup has not run\" is not a\nconsent state, and `consent::Reason` enumerates consent states."
+        },
+        "toolchain_home": {
+          "type": "string",
+          "description": "The **resolved toolchain home** — a machine-readable contract field\n(C-056, S-004).\n\nThe supported way for an IDE, a devcontainer feature or a CI step to\ndiscover where a project's tree lives when `config.toml` relocates it\nwith `toolchain-dir`; without it the only route is re-deriving a 16-hex\nproject key from a path the discoverer would also have to canonicalize\nthe same way ocx does.\n\n`<project>/.ocx/toolchain` or `<toolchain-dir>/<project-key>/toolchain`\nfor the project in effect, and `$OCX_HOME/toolchain` when no project\nresolves — the tier that is always in effect, so the field never has to\nsay \"none\".\n\n**Always present, never `null`** (RUL-51): a `toolchain-dir` that fails\nC-017–C-019 is refused at *config load*, so every command — this one\nincluded — has already exited 78 before the report is built, and\n`ToolchainRoot::resolve` performs no filesystem write and accepts a root\nthat does not exist yet (RUL-5). Once the configuration parses, the home\nis always spellable, whether or not it has ever been rendered."
+        },
+        "toolchain_bin": {
+          "type": "string",
+          "description": "The **PATH-facing trampoline directory** for the same tier — the\ndirectory a consumer outside ocx puts on `PATH` (G-1, S-004).\n\n[`toolchain_home`](Self::toolchain_home) answers *where the tree is*;\nthis answers *what to export*, and the two are not one join apart.\nEvery published recipe used to build the second from the first with\n`.toolchain_home + \"/bin\"`, which the tree layout falsified — and\nfalsified silently, because a `jq` concatenation exits 0 whatever it\nproduces and the failure surfaces steps later in someone else's\nautomation with no ocx process in the trace.\n\nPublishing the resolved value is the only fix that survives the next\nlayout change: a documented `<toolchain_home>/active/bin` would leak a\ntree-internal name into every consumer's YAML and re-create the identical\ndefect the day that name moves.\n\n**Always present whenever [`toolchain_home`](Self::toolchain_home) is**,\nwhich is always (RUL-51), so no consumer has to branch. It names a\ndirectory that need not exist yet: nothing here renders, and a home that\nhas never been pulled reports the path it *would* hold — the same\npromise `toolchain_home` already makes."
+        },
+        "activate": {
+          "$ref": "#/$defs/ActivateMode",
+          "description": "The **effective** `activate` mode, past the whole ladder — the flag tier\n(absent here), then `ocx.toml`, then `OCX_TOOLCHAIN_ACTIVATE`, then the\nfloor (C-005, C-056).\n\nThe resolved answer, never a tier: reporting `ocx.toml`'s raw value would\nanswer a different question from the one a user asking \"why is my shell\nnot doing anything\" is asking."
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "The **effective** `pinned` value, resolved through the same ladder\n(C-056, C-066).\n\n`true` means a composing emitter yields digest paths and consults no\n`links/<group>/<entry>` link; `false` means it follows the rendered links, so\nan `ocx update` takes effect with no re-render."
         },
         "lock_refusal": {
           "type": [
@@ -5061,6 +5399,10 @@
         "ocx_home",
         "ocx_home_present",
         "shell_integration_installed",
+        "toolchain_home",
+        "toolchain_bin",
+        "activate",
+        "pinned",
         "lock_refusal",
         "carrier_present",
         "carrier_bytes",
@@ -5078,7 +5420,7 @@
         "inert_reason",
         "notes"
       ],
-      "description": "What `ocx shell state` reports — all derived, none of it mutating.\n\nRead-only, absolutely: it never writes a stamp, never repairs a ledger,\nnever emits a plan (A-29 names it a non-member of the six-writer stamp\nallowlist — a stamp written from here would consent to the very project it\nis diagnosing). Repair is the `unset __OCX_ENV_STATE` gesture or a new\nshell (C-012); this command is how a user checks the gesture worked."
+      "description": "What `ocx shell state` reports — all derived, none of it mutating.\n\nRead-only, absolutely: it never writes a stamp, never repairs a ledger,\nnever emits a plan (A-29 names it a non-member of the stamp-writer\nallowlist — a stamp written from here would consent to the very project it\nis diagnosing). Repair is the `unset __OCX_ENV_STATE` gesture or a new\nshell (C-012); this command is how a user checks the gesture worked."
     },
     "StatusReport": {
       "type": "object",
@@ -5217,12 +5559,12 @@
     "PackageSettingsOut": {
       "type": "object",
       "properties": {
-        "no-patches": {
+        "no_patches": {
           "type": "boolean"
         }
       },
       "required": [
-        "no-patches"
+        "no_patches"
       ],
       "description": "Per-package resolve-time policy from `[package.\"<id>\"]`."
     },
@@ -5263,7 +5605,7 @@
         },
         "message": {
           "type": "string",
-          "description": "Human-readable cause, sanitized for the terminal (CWE-150). Present\nexactly when `status` is `failed`."
+          "description": "Human-readable cause, sanitized for the terminal (CWE-150). Present\nexactly when `status` is `failed` or `covered` — for a `covered` row it\nnames the tag whose run wrote the referrer, not a failure."
         }
       },
       "required": [
@@ -5309,7 +5651,7 @@
         },
         "message": {
           "type": "string",
-          "description": "Human-readable cause, sanitized for the terminal (CWE-150). Present\nexactly when `status` is `failed`."
+          "description": "Human-readable cause, sanitized for the terminal (CWE-150). Present\nexactly when `status` is `failed` or `covered` — for a `covered` row it\nnames the tag whose run wrote the referrer, not a failure."
         }
       },
       "required": [

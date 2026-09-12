@@ -48,5 +48,43 @@ Options:
           
           [possible values: never, always]
 
+      --pinned
+          Compose digest paths instead of the toolchain links.
+          
+          The environment then names the exact packages `ocx.lock` pins right now and consults no `links/<group>/<entry>` link.
+          
+          When neither flag is given, the value is read from `ocx.toml` (the `pinned` key), then from the `OCX_TOOLCHAIN_PINNED` environment variable, and finally defaults to following the links. Passing either flag overrides all of them.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-pinned for the full resolution order.
+
+      --no-pinned
+          Compose through the toolchain links instead of digest paths.
+          
+          The rendered `links/<group>/<entry>` links are followed, so a later `ocx update` takes effect with no re-render. This is the default; pass it to override an `ocx.toml` or `OCX_TOOLCHAIN_PINNED` that asked for digest paths.
+          
+          See https://ocx.sh/docs/reference/command-line#arg-pinned for the full resolution order.
+
+      --records-dir <DIRECTORY>
+          Directory to write this invocation's execution record into.
+          
+          Overrides `[records] dir` and `OCX_RECORDS_DIR`. Without any of the three, no record is written. A record captures the resolved package closure and executable immediately before the tool starts. See https://ocx.sh/docs/reference/execution-records for the record format.
+
+      --records-name <TEMPLATE>
+          Filename template for the record, e.g. `{time}-{host}-{pid}.json`.
+          
+          Placeholders: `{time}`, `{host}`, `{pid}`, `{rand}`. Defaults to `{time}-{pid}-{rand}.json`. The template must contain at least one of `{time}`, `{pid}` or `{rand}`; an unknown placeholder or a template that cannot vary exits 78. Overrides `[records] name` and `OCX_RECORDS_NAME`. See https://ocx.sh/docs/reference/execution-records#execution-records-filename for the full grammar.
+
+      --consent
+          Record a consent stamp (the default unless OCX_NO_CONSENT is set)
+          
+          The stamp is what lets a shell prompt in this directory apply the project's tools and environment; without one the project is inert. It is the same stamp `ocx add`, `ocx lock`, `ocx pull` and `ocx exec` write as a side effect, and `ocx shell revoke` takes back. Pass this to stamp anyway where OCX_NO_CONSENT is set.
+          
+          https://ocx.sh/docs/in-depth/shell-integration
+
+      --no-consent
+          Run without consenting to this project's shell activation
+          
+          Consent later with `ocx shell allow`, or by running any mutating command in the directory. OCX_NO_CONSENT=1 is the same choice for every command at once.
+
   -h, --help
           Print help (see a summary with '-h')
