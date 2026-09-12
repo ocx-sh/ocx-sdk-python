@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "command": "package announce",
+  "exit_code": 86,
+  "error": {
+    "kind": "forge_capability_unavailable",
+    "message": "job-token push is disabled on ocx-sh/index",
+    "remediation": "enable job-token push on the target project, or add the publishing project to its allowlist",
+    "context": {
+      "index_repo": "ocx-sh/index",
+      "transport": "git"
+    }
+  }
+}

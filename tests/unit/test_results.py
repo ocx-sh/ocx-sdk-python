@@ -64,7 +64,7 @@ from pathlib import Path
 import pytest
 
 from ocx_sdk import _results
-from ocx_sdk._errors import OcxProcessError
+from ocx_sdk._errors import DataError, ForgeCapabilityUnavailableError, OcxProcessError
 from ocx_sdk._results import (
     AboutInfo,
     Advisory,
@@ -77,6 +77,7 @@ from ocx_sdk._results import (
     DryRunEntry,
     EnvEntry,
     EnvReport,
+    ErrorEnvelope,
     InspectReport,
     InstallReport,
     LoginResult,
@@ -90,6 +91,7 @@ from ocx_sdk._results import (
     TestResult,
     VerificationReport,
     VersionInfo,
+    error_envelope,
     parse_description_pull,
     parse_package_pull,
     parse_pull_dry_run,
@@ -97,6 +99,7 @@ from ocx_sdk._results import (
     parse_tool_rows,
     parse_which,
     partial_report,
+    tolerated_report,
 )
 from ocx_sdk._types import HostEnv, PackageRef
 
@@ -758,6 +761,11 @@ def _parse_sweep(raw: str) -> SweepReport:
     return SweepReport.from_json(raw, SignatureReport.from_dict)
 
 
+def _parse_envelope(raw: str) -> ErrorEnvelope:
+    """The envelope, parsed the way `error_envelope` parses a caught error's stdout."""
+    return ErrorEnvelope.from_dict(json.loads(raw))
+
+
 def _without(payload: dict, key: str) -> dict:
     """The payload minus one key — a wire document that dropped a required field."""
     return {name: value for name, value in payload.items() if name != key}
@@ -880,6 +888,8 @@ _LOGIN = {"registry": "r", "username": "u"}
 _LOGOUT = {"registry": "r"}
 _CONFIG_UPDATE = {"status": "not_configured"}
 _MANAGED_CONFIG = {"status": "would_adopt"}
+_ENVELOPE_ERROR: dict = {"kind": "data_error", "message": "m", "context": {}}
+_ENVELOPE_HEAD: dict = {"schema_version": 1, "command": "package claim", "exit_code": 65, "error": _ENVELOPE_ERROR}
 """One minimal payload per struct, holding its **required** keys and nothing else.
 
 Every key here earns a missing-field row below by being dropped in turn, so an
@@ -888,7 +898,7 @@ never comes. Written as dicts rather than JSON literals because the rows differ
 by one key each, and a literal per row would be a hundred near-copies drifting
 apart.
 
-Required means **always written by `ocx 0.6.0`'s serde** — a field with no
+Required means **always written by `ocx 0.6.1`'s serde** — a field with no
 `skip_serializing_if`, whether or not its Rust type is `Option` (D7's
 always-present-nullable third category). The `.get` half of the same contract
 is `_OPTIONAL_KEYS` below.
@@ -1000,6 +1010,9 @@ _REQUIRED_FIELD_SOURCES = [
     ("BlobSummary", CopyReport.from_json, _BLOB_SUMMARY, lambda sub: _bare({**_COPY_HEAD, "blobs": sub})),
     ("CopyReport", CopyReport.from_json, _COPY_HEAD, _bare),
     ("PushResult", PushResult.from_json, _PUSH_HEAD, _bare),
+    # Two rows: the envelope reads three keys at its root and three inside `error`.
+    ("ErrorEnvelope", _parse_envelope, _ENVELOPE_HEAD, _bare),
+    ("ErrorEnvelope", _parse_envelope, _ENVELOPE_ERROR, lambda sub: _bare({**_ENVELOPE_HEAD, "error": sub})),
 ]
 """Every struct in `_results`, with the payload whose keys become its missing-field rows.
 
@@ -1191,8 +1204,9 @@ _OPTIONAL_KEYS: dict[str, set[str]] = {
         "kill_switches",
     },
     "ConfigSetupReport": set(),
+    "ErrorEnvelope": {"detail", "remediation"},
 }
-"""Struct name to the wire keys ocx 0.6.0 may omit — the `.get` half of D7.
+"""Struct name to the wire keys ocx 0.6.1 may omit — the `.get` half of D7.
 
 Optional means the field carries a `skip_serializing_if` upstream, or sits in a
 manual `Serialize` impl that writes it only for some shapes (`InspectedPackage`'s
@@ -1988,6 +2002,105 @@ def test_copy_report_description_is_an_outcome_not_the_description_text():
 def _failed(stdout: str, exit_code: int = 79) -> OcxProcessError:
     """The exception a non-zero exit raises, carrying stdout as `_exit_error` sets it."""
     return OcxProcessError(exit_code, ("ocx", "package", "sign"), "boom", stdout=stdout)
+
+
+def _finished(stdout: str, exit_code: int) -> CommandResult:
+    """A finished call as `_client` hands it to `tolerated_report`."""
+    return CommandResult(argv=("ocx", "package", "cascade", "check"), exit_code=exit_code, stdout=stdout, stderr="log")
+
+
+def test_error_envelope_reads_every_field_of_a_recorded_hard_failure():
+    """C-S1-1: the envelope `verify` printed for a reference that does not exist.
+
+    `detail` is asserted against `kind`: same failure, two vocabularies, and
+    a parser that read one key into both would still pass an existence check.
+    """
+    envelope = error_envelope(_failed(load("partial/error_envelope.json")))
+
+    assert envelope is not None
+    assert envelope.schema_version == 1
+    assert envelope.command == "package verify"
+    assert envelope.exit_code == 79
+    assert envelope.kind == "not_found"
+    assert envelope.detail == "target_not_found"
+    assert envelope.message == "127.0.0.1:5198/wp4/absent:9.9.9: no manifest for platform any"
+    assert envelope.context == {"identifier": "127.0.0.1:5198/wp4/absent:9.9.9"}
+    assert envelope.remediation is None
+
+
+def test_error_envelope_carries_a_remediation_when_ocx_starts_emitting_one():
+    """Doc-derived: `remediation` is reserved in the frozen shape, never emitted by 0.6.
+
+    `kind` is `ErrorCategory`'s own serde spelling for exit 86
+    (`error_category.rs`), not a guess — the row that proves the optional is
+    read rather than merely tolerated.
+    """
+    envelope = error_envelope(_failed(load("partial/error_envelope_remediation.json"), exit_code=86))
+
+    assert envelope is not None
+    assert envelope.kind == "forge_capability_unavailable"
+    assert envelope.remediation is not None
+    assert envelope.remediation.startswith("enable job-token push")
+    assert envelope.detail is None
+    assert envelope.context["transport"] == "git"
+
+
+def test_error_envelope_and_partial_report_are_duals():
+    """For any one failure at most one of the two answers, and the envelope is never a report.
+
+    The recorded envelope and the recorded partial sweep are the two shapes
+    a non-zero stdout can take; each helper must claim exactly its own.
+    """
+    hard = _failed(load("partial/error_envelope.json"))
+    partial = _failed(load("partial/sweep_failed.json"))
+
+    assert (partial_report(hard), error_envelope(partial)) == (None, None)
+    assert error_envelope(hard) is not None
+    assert partial_report(partial) is not None
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        pytest.param("", id="no-stdout"),
+        pytest.param("error: something went wrong\n", id="plain-text"),
+        pytest.param("[1, 2]", id="json-array"),
+        pytest.param(_bare(_COPY_HEAD), id="a-report"),
+    ],
+)
+def test_error_envelope_answers_none_when_stdout_is_not_an_envelope(stdout):
+    assert error_envelope(_failed(stdout)) is None
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        pytest.param(_finished(_bare(_COPY_HEAD), 0), None, id="exit-0-passthrough"),
+        pytest.param(_finished(_bare({"reports": []}), 65), None, id="65-with-report"),
+        pytest.param(_finished(_bare(_ENVELOPE_HEAD), 65), DataError, id="65-with-envelope-raises-DataError"),
+        pytest.param(_finished("no json here", 65), DataError, id="65-with-non-json-raises"),
+        pytest.param(_finished("", 86), ForgeCapabilityUnavailableError, id="86-empty-raises-its-own-class"),
+        pytest.param(_finished("", 137), OcxProcessError, id="unknown-code-raises-bare"),
+    ],
+)
+def test_tolerated_report_table(result: CommandResult, expected: type[OcxProcessError] | None):
+    """A tolerated non-zero exit is a result only when stdout is a report.
+
+    The raised error is the class the exit code maps to, exactly as
+    `_process` would have raised had the code not been tolerated — and it
+    keeps stdout, so `error_envelope(err)` still works on it.
+    """
+    if expected is None:
+        assert tolerated_report(result) == result.stdout
+        return
+
+    with pytest.raises(expected, match=f"exited {result.exit_code}") as caught:
+        tolerated_report(result)
+
+    assert type(caught.value) is expected
+    assert caught.value.stdout == result.stdout
+    assert caught.value.argv == result.argv
+    assert caught.value.stderr == "log"
 
 
 def test_partial_report_recovers_an_enveloped_report():

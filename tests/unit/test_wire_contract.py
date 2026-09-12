@@ -92,6 +92,17 @@ a new parser with no row here fails rather than going unchecked.
 """
 
 
+_UNPUBLISHED: dict[str, str] = {
+    "ErrorEnvelope": "C-S1-1 — frozen as its own contract in `error_envelope.rs`, not a `reports/v1.json` root",
+}
+"""Parsing structs whose wire shape ocx publishes nowhere in `reports/v1.json`.
+
+Each names the document that freezes it instead. They join the set-equality
+gate so a new parser cannot dodge both tables, and skip the three per-struct
+checks, which have nothing to compare against.
+"""
+
+
 _WAIVED: dict[str, dict[str, set[str]]] = {
     "AboutInfo": {"lossy": {"build", "channel", "ci", "commit"}},
     "VersionInfo": {"lossy": {"build", "channel", "ci", "commit"}},
@@ -144,10 +155,11 @@ def _waived(struct: str, kind: str) -> set[str]:
 
 
 def test_every_parsing_struct_is_mapped():
-    """A parser with no contract row is a parser nothing pins."""
+    """A parser with no contract row — published or recorded as unpublished — is a parser nothing pins."""
     from test_results import _parsing_structs
 
-    assert set(_DEFS) == _parsing_structs()
+    assert set(_DEFS) | set(_UNPUBLISHED) == _parsing_structs()
+    assert set(_DEFS) & set(_UNPUBLISHED) == set()
 
 
 @pytest.mark.parametrize(("struct", "names"), sorted(_DEFS.items()))
