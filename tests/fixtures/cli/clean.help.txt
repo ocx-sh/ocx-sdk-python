@@ -1,0 +1,15 @@
+Remove unreferenced objects from the local object store
+
+Usage: ocx clean [OPTIONS]
+
+Options:
+      --dry-run
+          Show what would be removed without actually removing anything
+
+      --force
+          Ignore the project registry and collect all unreferenced packages, including those held by other projects' `ocx.lock` files.
+          
+          Without `--force`, `ocx clean` consults the per-user project registry (`$OCX_HOME/projects.json`) and retains any package pinned by a registered lock. With `--force`, that guard is bypassed entirely. Live install symlinks are always honoured regardless of this flag.
+
+  -h, --help
+          Print help (see a summary with '-h')

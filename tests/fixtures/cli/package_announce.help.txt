@@ -1,0 +1,68 @@
+Observe an owner-curated set of registry tags and publish the rebuilt package entry into the index.
+
+Reads the currently-committed index entry, re-observes the given tags on the registry, and writes the rebuilt entry to a local directory (`--out`), or opens a pull or merge request against the index repository. The request comes from a fork with `--fork`, and from a branch on the index repository itself when `--fork` is omitted, which needs push access there. A run that changes nothing reports as unchanged and commits nothing; it opens a request only to recover one an earlier run left unopened.
+
+Opening a pull or merge request needs a forge credential: `OCX_ANNOUNCE_TOKEN`, or the job token under `--transport git` inside a GitLab job. Writing to `--out` works without one.
+
+Usage: ocx package announce [OPTIONS] <PACKAGE>
+
+Arguments:
+  [PACKAGE]
+          Package to announce, as `<namespace>/<package>` (e.g. `acme/widget`).
+          
+          The positional is the canonical form; flags come before it.
+
+Options:
+      --tags <TAGS>
+          Replace the curated tag set with this comma-separated list. A currently-committed tag that is not named here is dropped. So is a reserved tag named here: an `__ocx` tag (the keep tag included) or a legacy `sha256.<hex>` one is not a version, so the run still succeeds and reports the drops
+
+      --tags-file <PATH>
+          Add the tags listed in this file to the already-committed curated set. The file holds comma- or newline-separated tag names. Never removes a committed tag; use `--tags` for that
+
+      --tags-from-registry
+          Add every tag the package's registry repository currently holds to the already-committed curated set. Use it to announce versions that were published before the package was in the index, or that an earlier announce missed. Never removes a committed tag, and a yanked tag stays yanked
+
+      --refresh
+          Re-observe every already-committed tag, picking up a digest that moved (e.g. `latest`) without changing which tags are curated
+
+      --index-repo <REPOSITORY>
+          Index repository the request targets, as `[HOST/]NAMESPACE/PROJECT`.
+          
+          Give the host for a self-hosted GitHub Enterprise Server or GitLab instance; omit it for github.com. The namespace may be a nested GitLab group path. Defaults to `ocx-sh/index`.
+          
+          [default: ocx-sh/index]
+
+      --forge <FORGE>
+          Which forge hosts the index repository.
+          
+          Inferred from the host in `--index-repo` for github.com and gitlab.com; required for a self-hosted instance, whose hostname says nothing about which forge runs there.
+          
+          [possible values: github, gitlab]
+
+      --transport <TRANSPORT>
+          How the request is written.
+          
+          `api` opens it through the forge's REST API. `git` clones the index repository and creates the request from a single authenticated push, which is the only way a GitLab CI job token can open a merge request: that credential can push and can read the API, but cannot open a merge request through it. Defaults to `api`, and `git` is GitLab-only.
+          
+          [default: api]
+          [possible values: api, git]
+
+      --fork <REPOSITORY>
+          Open (or update) the request from this fork, as `[HOST/]NAMESPACE/PROJECT`.
+          
+          Omit it to push the branch straight to `--index-repo` and open the request from there, which needs push access on that repository. Whichever of the two you choose, the change lands as a pull or merge request, never as a direct commit to the index's default branch. `--out` writes locally instead and opens neither.
+
+      --out <DIRECTORY>
+          Write the rendered index entry under this directory instead of opening a request. Works without a credential
+
+      --yank <TAG>
+          Mark a tag as yanked. Repeat for multiple tags. Requires `--yank-reason`; only applies to a tag already in the curated set
+
+      --unyank <TAG>
+          Clear the yanked marker from a tag. Repeat for multiple tags
+
+      --yank-reason <TEXT>
+          Reason recorded on every tag named by `--yank` in this run
+
+  -h, --help
+          Print help (see a summary with '-h')

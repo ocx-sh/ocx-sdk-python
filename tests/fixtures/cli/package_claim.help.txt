@@ -1,0 +1,74 @@
+Claim a package in the index so its tags can be announced.
+
+Renders the package's index entry and opens a pull or merge request against the index repository, or writes the entry to a local directory with `--out`. A package that is already claimed is refused: announce it with `ocx package announce` instead.
+
+Owners default to the CI environment's user variables, else to the identity behind the credential. Name them explicitly with `--owner`, which replaces the detected list rather than adding to it.
+
+Opening a request needs a forge credential: `OCX_ANNOUNCE_TOKEN`, or the job token under `--transport git` inside a GitLab job. Writing to `--out` works without one.
+
+Usage: ocx package claim [OPTIONS] --repository <REPOSITORY> <PACKAGE>
+
+Arguments:
+  <PACKAGE>
+          Namespace and package to claim, as `<namespace>/<package>` (e.g. `acme/widget`).
+          
+          The positional is the only form; flags come before it.
+
+Options:
+      --index-repo <REPOSITORY>
+          Index repository the request targets, as `[HOST/]NAMESPACE/PROJECT`.
+          
+          Give the host for a self-hosted GitHub Enterprise Server or GitLab instance; omit it for github.com. The namespace may be a nested GitLab group path. Defaults to `ocx-sh/index`.
+          
+          [default: ocx-sh/index]
+
+      --forge <FORGE>
+          Which forge hosts the index repository.
+          
+          Inferred from the host in `--index-repo` for github.com and gitlab.com; required for a self-hosted instance, whose hostname says nothing about which forge runs there.
+          
+          [possible values: github, gitlab]
+
+      --transport <TRANSPORT>
+          How the request is written.
+          
+          `api` opens it through the forge's REST API. `git` clones the index repository and creates the request from a single authenticated push, which is the only way a GitLab CI job token can open a merge request: that credential can push and can read the API, but cannot open a merge request through it. Defaults to `api`, and `git` is GitLab-only.
+          
+          [default: api]
+          [possible values: api, git]
+
+      --fork <REPOSITORY>
+          Open (or update) the request from this fork, as `[HOST/]NAMESPACE/PROJECT`.
+          
+          Omit it to push the branch straight to `--index-repo` and open the request from there, which needs push access on that repository. Whichever of the two you choose, the change lands as a pull or merge request, never as a direct commit to the index's default branch. `--out` writes locally instead and opens neither.
+
+      --out <DIRECTORY>
+          Write the rendered index entry under this directory instead of opening a request. Works without a credential
+
+      --repository <REPOSITORY>
+          The physical OCI repository the package's bytes live in, as `oci://HOST/PATH`.
+          
+          This is the pointer every later `ocx package announce` resolves tags against, so it names the registry repository, not the index.
+
+      --owner <OWNER>
+          An owner of the package, as `LOGIN` or `LOGIN:ID`. Repeat for several, in the order they should be recorded.
+          
+          Giving any `--owner` replaces the detected list; the invoking identity is not added to it. A bare `LOGIN` is resolved against the forge's users API and needs it reachable; `LOGIN:ID` is taken on your word and is the form to use when it is not.
+
+      --upstream-org <ORGANIZATION>
+          The upstream organization this package mirrors or repackages.
+          
+          Give it for a third-party package so the index entry records who the software actually comes from. It is the anchor for the other two `--upstream-*` flags: neither is accepted without it.
+
+      --upstream-repository-url <URL>
+          The upstream project's repository URL, as an absolute `http` or `https` URL carrying no embedded credentials.
+          
+          Any other form is a usage error, including a URL with a username or password in it, which is what a forwarded `CI_REPOSITORY_URL` looks like. The value is written verbatim into the index entry, which a catalog may render as a link, so neither a scheme ocx cannot vouch for nor a secret ever reaches it.
+
+      --upstream-disclaimer <TEXT>
+          A disclaimer recorded on the index entry, for a package that is not operated by the upstream project.
+          
+          The text reaches the index entry only. It is never interpolated into the pull or merge request, so it fires no mentions and renders no markdown in a repository humans review.
+
+  -h, --help
+          Print help (see a summary with '-h')

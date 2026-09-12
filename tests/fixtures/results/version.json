@@ -1,23 +1,23 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "commit": {
-    "sha": "e48ef73cbd92ae1972868b1037bcabe1094d2180",
-    "short": "e48ef73c",
-    "describe": "v0.6.0",
+    "sha": "24556040ec958db9adb1ae360d6c1d50953b5a98",
+    "short": "24556040",
+    "describe": "v0.6.1",
     "dirty": false,
-    "timestamp": "2026-08-30T23:03:41.000000000Z"
+    "timestamp": "2026-09-08T12:54:51.000000000Z"
   },
   "build": {
-    "timestamp": "2026-08-30T23:08:01.710233837Z",
+    "timestamp": "2026-09-08T12:59:12.487219972Z",
     "profile": "release",
     "target": "x86_64-unknown-linux-musl",
     "rustc": "1.95.0"
   },
   "ci": {
     "provider": "github-actions",
-    "run_url": "https://github.com/ocx-sh/ocx/actions/runs/33340792839",
+    "run_url": "https://github.com/ocx-sh/ocx/actions/runs/34228846661",
     "workflow": "Release",
-    "ref": "refs/tags/v0.6.0",
-    "sha": "e48ef73cbd92ae1972868b1037bcabe1094d2180"
+    "ref": "refs/tags/v0.6.1",
+    "sha": "24556040ec958db9adb1ae360d6c1d50953b5a98"
   }
 }

@@ -48,7 +48,7 @@ whatever the ambient environment allows).
 from ocx_sdk import HostEnv, Ocx, OcxConfig, bootstrap
 
 ocx = Ocx(
-    exe=bootstrap.ensure(version="0.6.0"),        # pinned, not "latest"
+    exe=bootstrap.ensure(version="0.6.1"),        # pinned, not "latest"
     host_env=HostEnv.minimal(),                   # PATH/HOME/TMPDIR only
     config=OcxConfig(
         insecure_registries=(),                   # fail-closed

@@ -24,6 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.1"  # = TESTED_OCX_VERSION; `test_version_matches_the_tested_pin` guards drift
       # docker and docker compose are preinstalled on the ubuntu runners, and
       # the compose stack is brought up by the pytest session fixture — so the
       # tier stays one command here and one command locally.
