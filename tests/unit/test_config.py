@@ -45,6 +45,11 @@ _DEFAULTS = {
     "mirrors": None,
     "no_update_check": True,
     "no_config_refresh": None,
+    # Off by default: an SDK call is a program step, and the stamp it would
+    # leave behind makes the project live at the developer's next prompt. The
+    # spawn-side halves (written either way, beats an ambient `=0`) are in
+    # `tests/unit/test_env.py`.
+    "consent": False,
     "retry": None,
     "timeout": None,
 }

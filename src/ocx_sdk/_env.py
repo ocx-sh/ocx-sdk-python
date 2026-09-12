@@ -76,6 +76,15 @@ _AUTH_PREFIX: Final = "OCX_AUTH_"
 _AUTH_SUFFIXES: Final = ("TYPE", "USER", "TOKEN")
 """The `OCX_AUTH_<SLUG>_*` triple ocx reads (ocx_lib `auth::get_env_auth`)."""
 
+_FORGE_SECRETS: Final = ("OCX_ANNOUNCE_TOKEN", "OCX_ANNOUNCE_GIT_TOKEN", "CI_JOB_TOKEN")
+"""The forge credentials `announce`/`claim` read, redacted like an `OCX_AUTH_*` token.
+
+`OCX_ANNOUNCE_TOKEN` is the API credential, `CI_JOB_TOKEN` its GitLab-job
+rung, and `OCX_ANNOUNCE_GIT_TOKEN` the push secret — ocx never forwards that
+last one to a child, but the SDK's composed env carries all three to ocx
+itself, so every one can surface in its trace output.
+"""
+
 _REDACTED: Final = "***"
 """What a secret is replaced with in logs, errors, and captured output."""
 
@@ -159,7 +168,10 @@ def _secrets(mapping: Mapping[str, str]) -> list[str]:
 
     Each basic credential also contributes the base64 of `user:password` —
     the form an `Authorization: Basic` header carries, so a trace-level log
-    of the request would otherwise leak it past a plaintext-only scrub.
+    of the request would otherwise leak it past a plaintext-only scrub. The
+    three forge credentials (`_FORGE_SECRETS`) join the set as bare values:
+    a forge token travels as a bearer or a URL userinfo, never as a
+    user:password pair the SDK could pre-encode.
 
     Names are matched per the module's case rule. A credential left out of
     this set by a case mismatch reaches captured stderr, `on_log`, logged argv
@@ -175,6 +187,9 @@ def _secrets(mapping: Mapping[str, str]) -> list[str]:
     secrets: list[str] = []
     for key, token in mapping.items():
         name = key.upper()
+        if name in _FORGE_SECRETS:
+            secrets.append(token)
+            continue
         if not (name.startswith(_AUTH_PREFIX) and name.endswith("_TOKEN")):
             continue
         secrets.append(token)
@@ -210,10 +225,11 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
     A plain `bool` is set-only: `False` carries no "leave the ambient value"
     tier, so it means "not requested" and the host's value survives. The
     fields that can actively clear an ambient value are typed `| None`, and
-    the `None` arm is what defers to the host — except on the two variables
-    written either way, `OCX_NO_UPDATE_CHECK` and `OCX_SIGSTORE_TRUSTED_ROOT`,
-    where saying nothing has to mean ocx's default rather than the host's
-    value. Both carry the reason at their write site.
+    the `None` arm is what defers to the host — except on the three variables
+    written either way, `OCX_NO_UPDATE_CHECK`, `OCX_NO_CONSENT` and
+    `OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean the SDK's
+    default rather than the host's value. Each carries the reason at its
+    write site.
 
     Every write and clear **in this function** goes through `_put`, so the
     SDK's answer replaces the host's in any spelling. `_apply_auth` writes
@@ -232,6 +248,13 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
     # OCX_NO_UPDATE_CHECK=1, which a set-only write could not do. ocx parses
     # "0" as false through env::flag → BooleanString.
     _put(mapping, "OCX_NO_UPDATE_CHECK", "1" if config.no_update_check else "0")
+
+    # Same shape, same reason: consent defaults off, so opting in has to beat
+    # an ambient OCX_NO_CONSENT=1 — and opting out has to beat its absence,
+    # since without the variable every add/lock/pull/exec/update/init stamps
+    # `state/projects/<key>/consent.json` and the project goes live at the
+    # developer's next prompt. `ocx exec` forwards it to nested ocx too.
+    _put(mapping, "OCX_NO_CONSENT", "0" if config.consent else "1")
 
     for key, value in (
         ("OCX_HOME", config.home),

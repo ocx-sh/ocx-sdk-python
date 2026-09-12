@@ -176,6 +176,27 @@ def test_package_inspect_reports_a_missing_package_when_online(ocx: Ocx) -> None
     assert ocx.package.inspect(SMOKE_PACKAGE).packages
 
 
+def test_consent_stamp_is_refused_by_default(project_factory: Callable[..., Project], tmp_path: Path) -> None:
+    """A project-tier mutator leaves no `consent.json` behind unless asked to.
+
+    ocx stamps `state/projects/<key>/consent.json` on every `add`/`lock`/
+    `pull`/`exec`/`update`/`init` unless `OCX_NO_CONSENT` says otherwise, and
+    the stamp is what lets the developer's next shell prompt activate the
+    project. The SDK writes the variable either way; this is the binary
+    agreeing that `"1"` refuses and `"0"` consents. A throwaway home per
+    half, so the session store's other projects cannot color the answer.
+    """
+    project = project_factory(_TOOLS_ONLY, lock=False)
+    refused = project.with_config(home=tmp_path / "refused")
+    consented = project.with_config(home=tmp_path / "consented", consent=True)
+
+    refused.lock()
+    consented.lock()
+
+    assert list((tmp_path / "refused").rglob("consent.json")) == []
+    assert [stamp.name for stamp in (tmp_path / "consented").rglob("consent.json")] == ["consent.json"]
+
+
 # Codes this tier cannot reach, and where they are covered instead:
 #
 #   1  FAILURE        — generic; ocx assigns it to spawn failures inside `run`.

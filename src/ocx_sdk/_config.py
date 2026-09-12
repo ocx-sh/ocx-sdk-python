@@ -84,6 +84,7 @@ class ConfigOverrides(TypedDict, total=False):
     mirrors: Mapping[str, str] | None
     no_update_check: bool
     no_config_refresh: bool | None
+    consent: bool
     retry: RetryPolicy | None
     timeout: float | None
 
@@ -146,6 +147,15 @@ class OcxConfig:
             SDK call is a program step, not an interactive session.
         no_config_refresh: Suppress the managed-config refresh; `None` leaves
             the decision to whoever owns that tier.
+        consent: Let the project-tier mutators (`add`, `lock`, `pull`, `exec`,
+            `update`, `init`) record the per-project consent stamp that lets
+            a shell prompt in that directory activate the project. `False` by
+            default — an SDK call is a program step, and a stamp it left
+            behind would make the project live at the developer's next prompt
+            without anyone having run `ocx shell allow`. Travels as
+            `OCX_NO_CONSENT`, written either way so an ambient value cannot
+            decide it. This is the per-project stamp, not the shell-activation
+            consent `ocx shell allow` records — that command is not wrapped.
         retry: Retry policy for failures ocx marked transient; `None` disables
             retrying.
         timeout: Per-attempt budget in seconds; `None` waits indefinitely.
@@ -173,6 +183,7 @@ class OcxConfig:
     mirrors: Mapping[str, str] | None = None
     no_update_check: bool = True
     no_config_refresh: bool | None = None
+    consent: bool = False
     retry: RetryPolicy | None = None
     timeout: float | None = None
 

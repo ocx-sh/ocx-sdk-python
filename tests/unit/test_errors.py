@@ -39,6 +39,7 @@ from ocx_sdk._errors import (
     DistManifestError,
     DownloadError,
     ExitCode,
+    ForgeCapabilityUnavailableError,
     IoError,
     NotFoundError,
     OcxError,
@@ -114,6 +115,7 @@ _ERROR_INSTANCES = _instances()
         pytest.param(ExitCode.TRANSPARENCY_LOG_UNAVAILABLE, 83, id="transparency-log-unavailable"),
         pytest.param(ExitCode.REFERRERS_UNSUPPORTED, 84, id="referrers-unsupported"),
         pytest.param(ExitCode.UNSUPPORTED_KEY_BACKEND, 85, id="unsupported-key-backend"),
+        pytest.param(ExitCode.FORGE_CAPABILITY_UNAVAILABLE, 86, id="forge-capability-unavailable"),
     ],
 )
 def test_exit_code_taxonomy(member: ExitCode, value: int) -> None:
@@ -121,7 +123,7 @@ def test_exit_code_taxonomy(member: ExitCode, value: int) -> None:
 
 
 def test_exit_code_has_no_members_beyond_the_documented_table() -> None:
-    assert {int(code) for code in ExitCode} == {0, 1, 64, 65, 69, 74, 75, 77, 78, 79, 80, 81, 82, 83, 84, 85}
+    assert {int(code) for code in ExitCode} == {0, 1, 64, 65, 69, 74, 75, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86}
 
 
 @pytest.mark.parametrize(
@@ -141,6 +143,7 @@ def test_exit_code_has_no_members_beyond_the_documented_table() -> None:
         pytest.param(ExitCode.TRANSPARENCY_LOG_UNAVAILABLE, TransparencyLogUnavailableError, id="83-transparency-log"),
         pytest.param(ExitCode.REFERRERS_UNSUPPORTED, ReferrersUnsupportedError, id="84-referrers"),
         pytest.param(ExitCode.UNSUPPORTED_KEY_BACKEND, UnsupportedKeyBackendError, id="85-key-backend"),
+        pytest.param(ExitCode.FORGE_CAPABILITY_UNAVAILABLE, ForgeCapabilityUnavailableError, id="86-forge-capability"),
     ],
 )
 def test_exit_code_maps_to_its_subclass(code: ExitCode, expected: type[OcxProcessError]) -> None:
@@ -359,6 +362,9 @@ _SIGNING_EXIT_CODES = [
     pytest.param(ExitCode.TRANSPARENCY_LOG_UNAVAILABLE, TransparencyLogUnavailableError, id="83-transparency-log"),
     pytest.param(ExitCode.REFERRERS_UNSUPPORTED, ReferrersUnsupportedError, id="84-referrers"),
     pytest.param(ExitCode.UNSUPPORTED_KEY_BACKEND, UnsupportedKeyBackendError, id="85-key-backend"),
+    # 0.6.1's forge row rides the same table: the same "own hint, never
+    # retried" rule applies, and its remedy is likewise not the caller's.
+    pytest.param(ExitCode.FORGE_CAPABILITY_UNAVAILABLE, ForgeCapabilityUnavailableError, id="86-forge-capability"),
 ]
 
 
@@ -414,6 +420,23 @@ def test_unsupported_key_backend_error_names_every_unimplemented_scheme() -> Non
     assert "not implemented" in message
     assert "keyless" in message
     assert "trusted root" not in message
+
+
+def test_forge_capability_error_says_the_credential_is_fine_and_names_the_admin_fix() -> None:
+    # ocx 0.6.1 exit 86: the forge was reached and the credential was valid, so
+    # a hint pointing at `ocx.login`/`OCX_AUTH_*` (80's remedy) or at a retry
+    # (75's) would send the caller after the two things that are not wrong.
+    # The remedy is on the target project's settings, which an administrator
+    # holds — both halves of that are what the hint must say.
+    message = str(ForgeCapabilityUnavailableError(86, ["ocx", "package", "announce", "acme/widget"]))
+
+    assert "credential is valid" in message
+    assert "retrying will not help" in message
+    assert "administrator" in message
+    assert "job-token" in message
+    assert "allowlist" in message
+    assert "OCX_AUTH" not in message
+    assert "login" not in message
 
 
 @pytest.mark.parametrize(("code", "cls"), _SIGNING_EXIT_CODES)
