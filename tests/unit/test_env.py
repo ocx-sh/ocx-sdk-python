@@ -203,6 +203,13 @@ def test_a_neutralized_verification_switch_is_dropped_even_alongside_a_full_conf
         # refusal, and the opt-in is what a caller has to spell.
         pytest.param(OcxConfig(), {"OCX_NO_CONSENT": "1"}, id="consent-refused-by-default"),
         pytest.param(OcxConfig(consent=True), {"OCX_NO_CONSENT": "0"}, id="consent-opt-in"),
+        pytest.param(
+            OcxConfig(records_dir=Path("/var/rec")), {"OCX_RECORDS_DIR": str(Path("/var/rec"))}, id="records-dir"
+        ),
+        pytest.param(OcxConfig(records_name="{time}.json"), {"OCX_RECORDS_NAME": "{time}.json"}, id="records-name"),
+        pytest.param(
+            OcxConfig(toolchain_dir=Path("/opt/tc")), {"OCX_TOOLCHAIN_DIR": str(Path("/opt/tc"))}, id="toolchain-dir"
+        ),
         pytest.param(OcxConfig(forge_token="glpat-x"), {"OCX_ANNOUNCE_TOKEN": "glpat-x"}, id="forge-token"),
         pytest.param(OcxConfig(forge_git_token="glpat-y"), {"OCX_ANNOUNCE_GIT_TOKEN": "glpat-y"}, id="forge-git-token"),
         pytest.param(
@@ -268,6 +275,8 @@ def test_a_false_flag_leaves_the_ambient_value_alone(config: OcxConfig, key: str
         pytest.param(OcxConfig(), "OCX_NO_CONFIG_REFRESH", id="no-config-refresh"),
         pytest.param(OcxConfig(), "DOCKER_CONFIG", id="docker-config"),
         pytest.param(OcxConfig(), "OCX_ANNOUNCE_TOKEN", id="forge-token"),
+        pytest.param(OcxConfig(), "OCX_RECORDS_DIR", id="records-dir"),
+        pytest.param(OcxConfig(), "OCX_TOOLCHAIN_DIR", id="toolchain-dir"),
         pytest.param(OcxConfig(), "OCX_ANNOUNCE_GIT_USERNAME", id="forge-git-username"),
     ],
 )

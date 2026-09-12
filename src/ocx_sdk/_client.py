@@ -55,9 +55,11 @@ from ._results import (
     AboutInfo,
     AnnounceReport,
     AttestationReport,
+    BuildReceipt,
     CascadeCheckReport,
     CascadeRepairReport,
     ClaimReport,
+    CleanEntry,
     CommandResult,
     ConfigSetupReport,
     ConfigUpdateReport,
@@ -81,6 +83,7 @@ from ._results import (
     ToolRow,
     VerificationReport,
     WhichResult,
+    parse_clean,
     parse_description_pull,
     parse_package_pull,
     parse_pull_dry_run,
@@ -501,6 +504,38 @@ class Ocx:
         positionals = () if registry is None else (registry,)
         result = self._runner.typed(("logout",), positionals, timeout=timeout, retry=retry)
         return LogoutResult.from_json(result.stdout)
+
+    def clean(
+        self,
+        *,
+        dry_run: bool = False,
+        force: bool = False,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> tuple[CleanEntry, ...]:
+        """Remove unreferenced objects from the local object store.
+
+        `mutating=not dry_run` (D5), as `copy`: the preview writes nothing.
+        The rows are the read-only view of what the store holds loose — the
+        `kind: "consent"` entries among them are the stamps `OcxConfig.consent`
+        governs, so a preview says which projects a real run would deactivate.
+
+        Args:
+            dry_run: Report what would be removed and remove nothing.
+            force: Ignore the per-user project registry and collect every
+                unreferenced package, including ones a registered
+                `ocx.lock` still pins. Live install symlinks are always
+                honoured regardless.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the config's,
+                which D5 resolves to no retries unless `dry_run`.
+
+        Returns:
+            One row per removal, or intended removal.
+        """
+        command = ["clean", *_switch("--dry-run", dry_run), *_switch("--force", force)]
+        result = self._runner.typed(command, timeout=timeout, retry=retry, mutating=not dry_run)
+        return parse_clean(result.stdout)
 
     def invoke(
         self,
@@ -1164,6 +1199,7 @@ class Project:
         pull: bool | None = None,
         lazy_mode: LazyMode | None = None,
         show_patches: bool = False,
+        pinned: bool | None = None,
         timeout: MaybeTimeout = UNSET,
         retry: MaybeRetry = UNSET,
     ) -> EnvReport:
@@ -1184,6 +1220,11 @@ class Project:
                 choice to ocx's own default.
             lazy_mode: When content downloads — now, or on first use.
             show_patches: Include patch-contributed entries.
+            pinned: Resolve through the rendered toolchain's pinned digests
+                rather than following its links — ocx's `--pinned` /
+                `--no-pinned`. `None` leaves the choice to `ocx.toml`'s
+                `pinned` key, then `OCX_TOOLCHAIN_PINNED`, then ocx's
+                default of following the links.
             timeout: Seconds per attempt. Omitted takes the config's.
             retry: Retry policy. `None` opts out; omitted takes the config's.
 
@@ -1198,6 +1239,7 @@ class Project:
             *_toggle("--pull", "--no-pull", pull),
             *_flag("--lazy-mode", lazy_mode),
             *_switch("--show-patches", show_patches),
+            *_toggle("--pinned", "--no-pinned", pinned),
             *_env_flags(env),
         ]
         raw = self._call(command, timeout=timeout, retry=retry).stdout
@@ -1212,6 +1254,9 @@ class Project:
         clean: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        pinned: bool | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         capture: bool = True,
         check: bool = True,
         timeout: MaybeTimeout = UNSET,
@@ -1229,6 +1274,19 @@ class Project:
             clean: Strip the ambient parent environment before composing.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            pinned: Resolve through the rendered toolchain's pinned digests
+                rather than following its links — ocx's `--pinned` /
+                `--no-pinned`. `None` leaves the choice to `ocx.toml`, then
+                `OCX_TOOLCHAIN_PINNED`, then ocx's default.
+            records_dir: Write an execution record — the resolved closure
+                and executable, captured just before the child starts —
+                under this directory, which must already exist (ocx warns
+                and skips the record otherwise). `None` leaves it to
+                `[records] dir` and `OCX_RECORDS_DIR`; with none of the
+                three, no record.
+            records_name: The record's filename template, over `{time}`,
+                `{host}`, `{pid}` and `{rand}`. `None` leaves it to
+                `[records] name` and `OCX_RECORDS_NAME`.
             capture: Pipe and capture both streams. `False` inherits stdio
                 and forwards SIGINT to the child.
             check: Raise on a non-zero child exit instead of returning it.
@@ -1242,7 +1300,7 @@ class Project:
             OcxProcessError: The child exited non-zero under `check`.
             OcxTimeoutError: The timeout expired.
         """
-        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode)
+        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode, pinned, records_dir, records_name)
         self._runner.gate()
         return self._runner.finish(composed, capture=capture, check=check, timeout=timeout, retry=None)
 
@@ -1255,6 +1313,9 @@ class Project:
         clean: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        pinned: bool | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         capture: bool = True,
         check: bool = True,
         timeout: MaybeTimeout = UNSET,
@@ -1268,6 +1329,9 @@ class Project:
             clean: Strip the ambient parent environment before composing.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            pinned: Resolve through pinned digests — see `exec`.
+            records_dir: Write an execution record here — see `exec`.
+            records_name: The record's filename template — see `exec`.
             capture: Pipe and capture both streams.
             check: Raise on a non-zero child exit instead of returning it.
             timeout: Seconds for the whole run. Omitted takes the config's.
@@ -1281,7 +1345,7 @@ class Project:
             OcxProcessError: The child exited non-zero under `check`.
             OcxTimeoutError: The timeout expired.
         """
-        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode)
+        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode, pinned, records_dir, records_name)
         await self._runner.gate_async()
         return await self._runner.finish_async(composed, capture=capture, check=check, timeout=timeout, retry=None)
 
@@ -1294,6 +1358,9 @@ class Project:
         clean: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        pinned: bool | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         **popen_kw: Any,
     ) -> subprocess.Popen[Any]:
         """Start a command in the project's environment and return `Popen`.
@@ -1306,6 +1373,9 @@ class Project:
             env: Extra `[env]` entries for this call, not the child's
                 environment — that one is SDK-composed.
             lazy_mode: When content downloads — now, or on first use.
+            pinned: Resolve through pinned digests — see `exec`.
+            records_dir: Write an execution record here — see `exec`.
+            records_name: The record's filename template — see `exec`.
             **popen_kw: Forwarded to `Popen`. `args`, `shell`, and
                 `executable` are rejected.
 
@@ -1315,7 +1385,7 @@ class Project:
         Raises:
             ValueError: `argv` is empty, or a rejected keyword was passed.
         """
-        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode)
+        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode, pinned, records_dir, records_name)
         self._runner.gate()
         return self._runner.launch(composed, popen_kw)
 
@@ -1328,6 +1398,9 @@ class Project:
         clean: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        pinned: bool | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         **popen_kw: Any,
     ) -> asyncio.subprocess.Process:
         """Start a command in the project's environment, on the event loop.
@@ -1339,6 +1412,9 @@ class Project:
             clean: Strip the ambient parent environment before composing.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            pinned: Resolve through pinned digests — see `exec`.
+            records_dir: Write an execution record here — see `exec`.
+            records_name: The record's filename template — see `exec`.
             **popen_kw: Forwarded to the subprocess factory. `args`,
                 `shell`, and `executable` are rejected.
 
@@ -1348,7 +1424,7 @@ class Project:
         Raises:
             ValueError: `argv` is empty, or a rejected keyword was passed.
         """
-        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode)
+        composed = self._child_argv(argv, names, groups, clean, env, lazy_mode, pinned, records_dir, records_name)
         await self._runner.gate_async()
         return await self._runner.launch_async(composed, popen_kw)
 
@@ -1371,6 +1447,9 @@ class Project:
         clean: bool,
         env: Mapping[str, EnvValue] | None,
         lazy_mode: LazyMode | None,
+        pinned: bool | None,
+        records_dir: str | Path | None,
+        records_name: str | None,
     ) -> tuple[str, ...]:
         """Compose `ocx exec --project … [NAMES] -- ARGV`."""
         command = [
@@ -1378,6 +1457,8 @@ class Project:
             *_repeated("--group", groups),
             *_switch("--clean", clean),
             *_flag("--lazy-mode", lazy_mode),
+            *_toggle("--pinned", "--no-pinned", pinned),
+            *_records_flags(records_dir, records_name),
             *_env_flags(env),
         ]
         return self._runner.compose_child(command, tuple(names), tuple(argv), project=self.path)
@@ -1567,6 +1648,8 @@ class PackageCommands:
         private: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         capture: bool = True,
         check: bool = True,
         timeout: MaybeTimeout = UNSET,
@@ -1585,6 +1668,13 @@ class PackageCommands:
             private: Compose the private surface — ocx's `--self`.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            records_dir: Write an execution record — the resolved closure
+                and executable — under this directory. `None` leaves it to
+                `[records] dir` and `OCX_RECORDS_DIR`; with none of the
+                three, no record is written.
+            records_name: The record's filename template, over `{time}`,
+                `{host}`, `{pid}` and `{rand}`. `None` leaves it to
+                `[records] name` and `OCX_RECORDS_NAME`.
             capture: Pipe and capture both streams.
             check: Raise on a non-zero child exit instead of returning it.
             timeout: Seconds for the whole run. Omitted takes the config's.
@@ -1597,7 +1687,7 @@ class PackageCommands:
             OcxProcessError: The child exited non-zero under `check`.
             OcxTimeoutError: The timeout expired.
         """
-        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode)
+        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode, records_dir, records_name)
         self._runner.gate()
         return self._runner.finish(composed, capture=capture, check=check, timeout=timeout, retry=None)
 
@@ -1611,6 +1701,8 @@ class PackageCommands:
         private: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         capture: bool = True,
         check: bool = True,
         timeout: MaybeTimeout = UNSET,
@@ -1625,6 +1717,13 @@ class PackageCommands:
             private: Compose the private surface — ocx's `--self`.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            records_dir: Write an execution record — the resolved closure
+                and executable — under this directory. `None` leaves it to
+                `[records] dir` and `OCX_RECORDS_DIR`; with none of the
+                three, no record is written.
+            records_name: The record's filename template, over `{time}`,
+                `{host}`, `{pid}` and `{rand}`. `None` leaves it to
+                `[records] name` and `OCX_RECORDS_NAME`.
             capture: Pipe and capture both streams.
             check: Raise on a non-zero child exit instead of returning it.
             timeout: Seconds for the whole run. Omitted takes the config's.
@@ -1638,7 +1737,7 @@ class PackageCommands:
             OcxProcessError: The child exited non-zero under `check`.
             OcxTimeoutError: The timeout expired.
         """
-        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode)
+        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode, records_dir, records_name)
         await self._runner.gate_async()
         return await self._runner.finish_async(composed, capture=capture, check=check, timeout=timeout, retry=None)
 
@@ -1652,6 +1751,8 @@ class PackageCommands:
         private: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         **popen_kw: Any,
     ) -> subprocess.Popen[Any]:
         """Start a command in a packages' environment and return `Popen`.
@@ -1664,6 +1765,13 @@ class PackageCommands:
             private: Compose the private surface — ocx's `--self`.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            records_dir: Write an execution record — the resolved closure
+                and executable — under this directory. `None` leaves it to
+                `[records] dir` and `OCX_RECORDS_DIR`; with none of the
+                three, no record is written.
+            records_name: The record's filename template, over `{time}`,
+                `{host}`, `{pid}` and `{rand}`. `None` leaves it to
+                `[records] name` and `OCX_RECORDS_NAME`.
             **popen_kw: Forwarded to `Popen`. `args`, `shell`, and
                 `executable` are rejected.
 
@@ -1673,7 +1781,7 @@ class PackageCommands:
         Raises:
             ValueError: `argv` is empty, or a rejected keyword was passed.
         """
-        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode)
+        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode, records_dir, records_name)
         self._runner.gate()
         return self._runner.launch(composed, popen_kw)
 
@@ -1687,6 +1795,8 @@ class PackageCommands:
         private: bool = False,
         env: Mapping[str, EnvValue] | None = None,
         lazy_mode: LazyMode | None = None,
+        records_dir: str | Path | None = None,
+        records_name: str | None = None,
         **popen_kw: Any,
     ) -> asyncio.subprocess.Process:
         """Start a command in a packages' environment, on the event loop.
@@ -1699,6 +1809,13 @@ class PackageCommands:
             private: Compose the private surface — ocx's `--self`.
             env: Extra `[env]` entries for this call.
             lazy_mode: When content downloads — now, or on first use.
+            records_dir: Write an execution record — the resolved closure
+                and executable — under this directory. `None` leaves it to
+                `[records] dir` and `OCX_RECORDS_DIR`; with none of the
+                three, no record is written.
+            records_name: The record's filename template, over `{time}`,
+                `{host}`, `{pid}` and `{rand}`. `None` leaves it to
+                `[records] name` and `OCX_RECORDS_NAME`.
             **popen_kw: Forwarded to the subprocess factory. `args`,
                 `shell`, and `executable` are rejected.
 
@@ -1708,7 +1825,7 @@ class PackageCommands:
         Raises:
             ValueError: `argv` is empty, or a rejected keyword was passed.
         """
-        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode)
+        composed = self._exec_argv(refs, argv, platform, clean, private, env, lazy_mode, records_dir, records_name)
         await self._runner.gate_async()
         return await self._runner.launch_async(composed, popen_kw)
 
@@ -3089,6 +3206,27 @@ class PackageCommands:
         result = self._call(command, (package,), timeout=timeout, retry=retry, mutating=True)
         return ClaimReport.from_json(result.stdout)
 
+    def receipt(self, bundle: str | Path) -> BuildReceipt | None:
+        """Read the build receipt `create` wrote beside a bundle, if any.
+
+        Not an ocx command: the receipt is a local file with no printing
+        command and no schema, so this spawns nothing and skips the
+        compatibility gate. It answers what `push` and `test` would fall
+        back to for the flags a caller leaves out.
+
+        Args:
+            bundle: The bundle archive `create` wrote.
+
+        Returns:
+            The receipt, or `None` when no sidecar sits beside the bundle —
+            the ordinary state for a bundle handed over from elsewhere.
+
+        Raises:
+            ValueError: The sidecar exists but is not a readable receipt, or
+                declares a format version this SDK does not read.
+        """
+        return BuildReceipt.from_bundle(bundle)
+
     def cascade_check(
         self,
         *refs: PackageLike,
@@ -3199,6 +3337,8 @@ class PackageCommands:
         private: bool,
         env: Mapping[str, EnvValue] | None,
         lazy_mode: LazyMode | None,
+        records_dir: str | Path | None,
+        records_name: str | None,
     ) -> tuple[str, ...]:
         """Compose `ocx package exec PKG... -- CMD...`."""
         command = [
@@ -3208,6 +3348,7 @@ class PackageCommands:
             *_switch("--self", private),
             *_flag("--platform", platform),
             *_flag("--lazy-mode", lazy_mode),
+            *_records_flags(records_dir, records_name),
             *_env_flags(env),
         ]
         return self._runner.compose_child(command, _identifiers(refs), tuple(argv))
@@ -3370,6 +3511,11 @@ def _repeated(name: str, values: Iterable[str]) -> list[str]:
 def _resolve_flag(resolve: Resolve | None) -> list[str]:
     """Render `--candidate`/`--current`, or nothing when ocx should decide."""
     return [] if resolve is None else [f"--{resolve}"]
+
+
+def _records_flags(records_dir: str | Path | None, records_name: str | None) -> list[str]:
+    """Render the execution-record pair `exec` and `package exec` share."""
+    return [*_flag("--records-dir", records_dir), *_flag("--records-name", records_name)]
 
 
 def _forge_flags(index_repo: str | None, forge: Forge | None, transport: Transport | None) -> list[str]:

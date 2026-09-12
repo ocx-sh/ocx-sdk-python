@@ -689,6 +689,10 @@ _MACHINE_CASES = [
         id="logout",
     ),
     pytest.param(lambda o: o.logout(), '{"registry":"ocx.sh"}', ["logout"], id="logout-default-registry"),
+    pytest.param(lambda o: o.clean(), "[]", ["clean"], id="clean"),
+    pytest.param(
+        lambda o: o.clean(dry_run=True, force=True), "[]", ["clean", "--dry-run", "--force"], id="clean-flags"
+    ),
     pytest.param(
         lambda o: o.package.install("a", "b"),
         _INSTALLED,
@@ -1113,6 +1117,8 @@ _PROJECT_CASES = [
         ["env", "--group", "ci", "--no-pull", "--show-patches"],
         id="env-flags",
     ),
+    pytest.param(lambda p: p.env(pinned=True), _ENVELOPE, ["env", "--pinned"], id="env-pinned"),
+    pytest.param(lambda p: p.env(pinned=False), _ENVELOPE, ["env", "--no-pinned"], id="env-no-pinned"),
 ]
 
 
@@ -1309,6 +1315,7 @@ def test_an_explicit_none_opts_out_of_retries(exe: Path, process: _Process) -> N
             _CLAIMED,
             id="package-claim",
         ),
+        pytest.param(lambda o: o.clean(), "[]", id="clean"),
     ],
 )
 def test_mutating_commands_retry_disabled(exe: Path, process: _Process, call: Any, stdout: str) -> None:
@@ -1317,6 +1324,16 @@ def test_mutating_commands_retry_disabled(exe: Path, process: _Process, call: An
     call(Ocx(exe, config=OcxConfig(retry=RetryPolicy()), host_env=HostEnv.clean()))
 
     assert process.last.kwargs["retry"] is None
+
+
+def test_clean_dry_run_keeps_the_session_retry_policy(exe: Path, process: _Process) -> None:
+    """D5: `clean(dry_run=True)` removes nothing, so a blip is worth retrying."""
+    policy = RetryPolicy()
+    process.stdout = "[]"
+
+    Ocx(exe, config=OcxConfig(retry=policy), host_env=HostEnv.clean()).clean(dry_run=True)
+
+    assert process.last.kwargs["retry"] is policy
 
 
 def test_a_mutating_command_still_honors_an_explicit_policy(exe: Path, process: _Process) -> None:
@@ -1689,6 +1706,9 @@ def test_project_exec_composes_every_flag_before_its_two_groups(project: Project
         groups=["dev", "ci"],
         clean=True,
         lazy_mode="never",
+        pinned=True,
+        records_dir="/var/records",
+        records_name="{time}-{pid}.json",
         env={"CC": "clang"},
     )
 
@@ -1704,6 +1724,11 @@ def test_project_exec_composes_every_flag_before_its_two_groups(project: Project
         "--clean",
         "--lazy-mode",
         "never",
+        "--pinned",
+        "--records-dir",
+        "/var/records",
+        "--records-name",
+        "{time}-{pid}.json",
         "--env",
         "CC=clang",
         "uv",
@@ -1711,6 +1736,63 @@ def test_project_exec_composes_every_flag_before_its_two_groups(project: Project
         "pytest",
         "-q",
     ]
+
+
+def test_project_exec_no_pinned_follows_the_links(project: Project, process: _Process) -> None:
+    """`pinned=False` is the other side of the toggle, not the absence of the flag."""
+    project.exec(["true"], pinned=False)
+
+    assert process.last.command[-4:] == ["exec", "--no-pinned", "--", "true"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda p: p.exec(["true"], records_dir="/r"), id="project-exec"),
+        pytest.param(lambda p: p.spawn(["true"], records_name="{rand}.json"), id="project-spawn"),
+        pytest.param(lambda p: p.exec(["true"], pinned=True), id="project-exec-pinned"),
+    ],
+)
+def test_the_0_6_1_exec_flags_reach_every_project_verb(project: Project, process: _Process, call: Any) -> None:
+    call(project)
+
+    assert any(flag in process.last.command for flag in ("--records-dir", "--records-name", "--pinned"))
+
+
+async def test_the_0_6_1_exec_flags_reach_the_async_project_verbs(project: Project, process: _Process) -> None:
+    await project.exec_async(["true"], pinned=False, records_dir="/r")
+    assert process.last.command[-6:] == ["exec", "--no-pinned", "--records-dir", "/r", "--", "true"]
+
+    await project.spawn_async(["true"], records_name="{pid}.json")
+    assert process.last.command[-5:] == ["exec", "--records-name", "{pid}.json", "--", "true"]
+
+
+def test_package_exec_records_flags_reach_every_verb(ocx: Ocx, process: _Process) -> None:
+    ocx.package.exec(["a"], ["ls"], records_dir="/r", records_name="{time}.json")
+    assert process.last.command[-7:] == ["--records-dir", "/r", "--records-name", "{time}.json", "a", "--", "ls"]
+
+    ocx.package.spawn(["a"], ["ls"], records_dir="/r")
+    assert process.last.command[-5:] == ["--records-dir", "/r", "a", "--", "ls"]
+
+
+async def test_package_exec_records_flags_reach_the_async_verbs(ocx: Ocx, process: _Process) -> None:
+    await ocx.package.exec_async(["a"], ["ls"], records_name="{rand}.json")
+    assert process.last.command[-5:] == ["--records-name", "{rand}.json", "a", "--", "ls"]
+
+    await ocx.package.spawn_async(["a"], ["ls"], records_dir="/r")
+    assert process.last.command[-5:] == ["--records-dir", "/r", "a", "--", "ls"]
+
+
+def test_receipt_spawns_nothing(ocx: Ocx, process: _Process, tmp_path: Path) -> None:
+    """The receipt is a local file, not a command: no spawn, no probe, no gate."""
+    (tmp_path / "pkg-receipt.json").write_text('{"version": 1, "platform": "linux/amd64"}', encoding="utf-8")
+
+    receipt = ocx.package.receipt(tmp_path / "pkg.tar.xz")
+    absent = ocx.package.receipt(tmp_path / "other.tar.xz")
+
+    assert receipt is not None and receipt.platform == "linux/amd64"
+    assert absent is None
+    assert process.calls == []
 
 
 # --------------------------------------------------------------------------

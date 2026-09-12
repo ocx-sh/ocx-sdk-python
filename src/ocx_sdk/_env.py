@@ -262,6 +262,9 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         ("OCX_INDEX", config.index),
         ("DOCKER_CONFIG", config.docker_config),
         ("OCX_JOBS", config.jobs),
+        ("OCX_RECORDS_DIR", config.records_dir),
+        ("OCX_RECORDS_NAME", config.records_name),
+        ("OCX_TOOLCHAIN_DIR", config.toolchain_dir),
         # The forge identity ladder's explicit rung: ocx reads these for
         # `announce`/`claim`, and `_secrets` scrubs the two tokens whether
         # the config or the host supplied them.

@@ -313,6 +313,46 @@ def test_project_calls_carry_the_project_flag(ocx: Ocx, project_factory: Callabl
     assert argv[argv.index("--project") + 1] == str(project.path)
 
 
+def test_the_0_6_1_exec_flags_reach_ocx(project_factory: Callable[..., Project], tmp_path: Path) -> None:
+    """`pinned`, `records_dir` and `records_name` are argv ocx 0.6.1 parses — and acts on.
+
+    The execution record is the evidence: ocx writes one only when told where,
+    under the name template it was given. The directory has to exist first —
+    ocx warns and skips the record otherwise, it never creates it.
+    """
+    records = tmp_path / "records"
+    records.mkdir()
+
+    result = project_factory(_PROJECT).exec(
+        ["printenv", "WP10_SMOKE"], pinned=True, records_dir=records, records_name="wp17-{rand}.json"
+    )
+
+    assert result.stdout.strip() == "on"
+    (record,) = records.iterdir()
+    assert record.name.startswith("wp17-") and record.suffix == ".json"
+    assert json.loads(record.read_text(encoding="utf-8"))["kind"] == "sh.ocx.execution-record"
+
+
+def test_clean_dry_run_reads_the_store_without_touching_it(ocx: Ocx) -> None:
+    """`ocx clean --dry-run` parses into `CleanEntry` rows, every one flagged as a plan."""
+    entries = ocx.clean(dry_run=True)
+
+    assert all(entry.dry_run for entry in entries)
+    assert {entry.kind for entry in entries} <= {"object", "temp", "consent"}
+
+
+def test_receipt_round_trips_through_the_real_binary(ocx: Ocx, tmp_path: Path) -> None:
+    """The sidecar `package create` writes reads back as the flags it was given (#14)."""
+    bundle, _ = _authored(ocx, tmp_path)
+
+    receipt = ocx.package.receipt(bundle)
+
+    assert receipt is not None
+    assert (receipt.version, receipt.platform, receipt.identifier) == (1, "linux/amd64", "wp10.local/hello:1.0.0")
+    assert str(receipt.ref) == "wp10.local/hello:1.0.0"
+    assert ocx.package.receipt(tmp_path / "never-built.tar.xz") is None
+
+
 def test_project_handle_accepts_a_directory(ocx: Ocx, tmp_path: Path) -> None:
     """`Ocx.project(directory)` works, as its docstring and the design examples promise."""
     root = tmp_path / "by-directory"

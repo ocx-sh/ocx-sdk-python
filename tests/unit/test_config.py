@@ -50,6 +50,9 @@ _DEFAULTS = {
     # spawn-side halves (written either way, beats an ambient `=0`) are in
     # `tests/unit/test_env.py`.
     "consent": False,
+    "records_dir": None,
+    "records_name": None,
+    "toolchain_dir": None,
     # The forge identity ladder's explicit rung; the two tokens are
     # `repr=False`, which `tests/unit/test_env.py` pins.
     "forge_token": None,
