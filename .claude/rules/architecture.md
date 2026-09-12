@@ -23,7 +23,12 @@ Every change and every review is checked against these.
   byte-for-byte (tested).
 - **Never write ocx-owned files** (`ocx.toml`, `ocx.lock`, `config.toml`).
   Read via tomllib + published schemas. Write side waits on
-  [ocx#326](https://github.com/ocx-sh/ocx/issues/326).
+  [ocx#326](https://github.com/ocx-sh/ocx/issues/326). The build receipt
+  (`<stem>-receipt.json` beside a `package create` bundle) is the one
+  ocx-owned file read without a published schema: `package.receipt()` is
+  read-only, pins its shape by a contract test against a receipt the real
+  binary wrote, and treats malformed or unknown-version as an error, never
+  as absent.
 - `OCX_ENV`, `OCX_PATCHES`, `OCX_BINARY_PIN`: opaque pass-through. Never
   parse, rewrite, or synthesize.
 
@@ -123,6 +128,9 @@ Every change and every review is checked against these.
   holding it there would serialize callers and fake a nesting safety the
   API deliberately doesn't offer. Concurrent code uses `.mapping`.
 - Always neutralize ambient `OCX_PROJECT`/`OCX_GLOBAL`/`OCX_QUIET` on spawn.
+- Always write `OCX_NO_CONSENT` on spawn (`"1"` unless `OcxConfig.consent`):
+  a library must not stamp `state/projects/<key>/consent.json` as a side
+  effect of a `pull`/`exec`/`lock` — consent is config-only, never argv.
 
 ## Security
 

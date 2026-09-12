@@ -85,6 +85,9 @@ class ConfigOverrides(TypedDict, total=False):
     no_update_check: bool
     no_config_refresh: bool | None
     consent: bool
+    records_dir: Path | None
+    records_name: str | None
+    toolchain_dir: Path | None
     forge_token: str | None
     forge_git_token: str | None
     forge_git_username: str | None
@@ -159,6 +162,20 @@ class OcxConfig:
             `OCX_NO_CONSENT`, written either way so an ambient value cannot
             decide it. This is the per-project stamp, not the shell-activation
             consent `ocx shell allow` records — that command is not wrapped.
+        records_dir: Where `exec` and `package exec` write execution
+            records — `OCX_RECORDS_DIR`. `None` leaves it to `[records] dir`
+            in the project (or an ambient value); without any, no record is
+            written. The per-call `records_dir=` on the exec verbs outranks
+            this.
+        records_name: The record filename template — `OCX_RECORDS_NAME`.
+            `None` leaves it to `[records] name` or ocx's default.
+        toolchain_dir: The root ocx renders project toolchains under —
+            `OCX_TOOLCHAIN_DIR` — instead of `<project>/.ocx/toolchain/`.
+            `None` keeps ocx's default. `OCX_TOOLCHAIN_PINNED` and
+            `OCX_TOOLCHAIN_ACTIVATE` are deliberately not modelled: the
+            first is the weakest tier of a choice `pinned=` makes at the
+            call site, the second governs shell activation the SDK never
+            performs.
         forge_token: The forge API credential `package.announce` and
             `package.claim` open their request with — `OCX_ANNOUNCE_TOKEN`.
             `None` leaves an ambient one alone; explicit wins over ambient,
@@ -196,6 +213,9 @@ class OcxConfig:
     no_update_check: bool = True
     no_config_refresh: bool | None = None
     consent: bool = False
+    records_dir: Path | None = None
+    records_name: str | None = None
+    toolchain_dir: Path | None = None
     forge_token: str | None = field(default=None, repr=False)
     forge_git_token: str | None = field(default=None, repr=False)
     forge_git_username: str | None = None
