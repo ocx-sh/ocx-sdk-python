@@ -35,11 +35,19 @@ _CONTRACT = json.loads((Path(__file__).parents[1] / "fixtures/contract/reports.v
 _DEFS: dict[str, tuple[str, ...]] = {
     "AboutInfo": ("About",),
     "Advisory": ("LazyAdvisoryReport",),
+    "AnnounceReport": ("AnnounceReport",),
     "Assertion": ("AssertionRecord",),
     "AttestationOutcome": ("AttestationOutcome",),
     "AttestationReport": ("AttestationReport",),
     "BlobSummary": ("BlobSummary",),
     "Candidate": ("CandidateOut",),
+    "CapabilityCheck": ("CapabilityCheckEntry",),
+    "CascadeCheckReport": ("PackageCascadeCheck",),
+    "CascadeRepairReport": ("PackageCascadeRepair",),
+    "CascadeReport": ("CascadeReport",),
+    "ClaimOwner": ("OwnerEntry",),
+    "ClaimReport": ("ClaimReport",),
+    "CleanEntry": ("CleanEntry",),
     # The SDK flattens ocx's one-key envelope, so it reads across both levels.
     "ConfigSetupReport": ("ConfigSetupData", "ManagedConfigEntry"),
     "ConfigUpdateReport": ("ConfigUpdateData",),
@@ -51,6 +59,7 @@ _DEFS: dict[str, tuple[str, ...]] = {
     "EnvEntry": ("EnvEntry",),
     "EnvReport": ("EnvVars",),
     "GroupStatus": ("GroupStatus",),
+    "IndexFinding": ("IndexFinding",),
     "InspectReport": ("InspectReport",),
     "InspectedPackage": ("PackageInspect",),
     "InstalledPackage": ("InstallEntry",),
@@ -66,6 +75,10 @@ _DEFS: dict[str, tuple[str, ...]] = {
     "PushResult": ("PushReport",),
     "RefusedEntry": ("RefusedEntry",),
     "RemovalResult": ("RemovedEntry",),
+    "RepairEntry": ("RepairEntry",),
+    # The row's `outcome` is a `WriteOutcome` object whose own `outcome` key is
+    # the discriminator, so the parser reads across both definitions.
+    "RepairOutcome": ("RepairOutcome", "WriteOutcome"),
     "SbomEntry": ("SbomEntry",),
     "SbomListingReport": ("SbomListingReport",),
     "SbomSummaryOut": ("SbomSummaryOut",),
@@ -73,6 +86,7 @@ _DEFS: dict[str, tuple[str, ...]] = {
     "SignatureLegReport": ("SignatureLegReport",),
     "SignatureReport": ("SignatureReport",),
     "SignedPlatformReport": ("SignedPlatformReport",),
+    "SlotRow": ("SlotRow",),
     "StatusReport": ("StatusReport",),
     "SweepReport": ("SweepReport",),
     "SweptTagReport": ("SweptTagReport",),
@@ -94,6 +108,7 @@ a new parser with no row here fails rather than going unchecked.
 
 _UNPUBLISHED: dict[str, str] = {
     "ErrorEnvelope": "C-S1-1 — frozen as its own contract in `error_envelope.rs`, not a `reports/v1.json` root",
+    "BuildReceipt": "a build artifact, no schema, no printing command (`build_receipt.rs`); the contract tier pins it",
 }
 """Parsing structs whose wire shape ocx publishes nowhere in `reports/v1.json`.
 

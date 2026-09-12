@@ -1,0 +1,21 @@
+{
+  "package": "acme/widget",
+  "status": "updated",
+  "desc_status": "unchanged",
+  "forge": "github",
+  "transport": "api",
+  "credential_kind": "token",
+  "push_credential_kind": null,
+  "branch": "indexbot-announce-acme-widget",
+  "pull_request_url": "https://github.com/ocx-sh/index/pull/42",
+  "pull_request_number": 42,
+  "fork": "forkuser/index",
+  "written_paths": [],
+  "capability_checks": [
+    { "name": "git-version", "status": "skipped", "detail": null },
+    { "name": "push-access", "status": "skipped", "detail": null },
+    { "name": "job-token-push", "status": "skipped", "detail": null },
+    { "name": "job-token-allowlist", "status": "skipped", "detail": null }
+  ],
+  "reserved_tags_dropped": ["__ocx.desc"]
+}

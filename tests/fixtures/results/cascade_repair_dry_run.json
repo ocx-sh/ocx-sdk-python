@@ -1,0 +1,186 @@
+{
+  "entries": [
+    {
+      "report": {
+        "identifier": "127.0.0.1:5010/fx/hello",
+        "logical": null,
+        "aliases": {
+          "latest": {
+            "state": "present"
+          },
+          "1.0": {
+            "state": "present"
+          },
+          "1": {
+            "state": "present"
+          }
+        },
+        "rows": [
+          {
+            "tag": "latest",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "status": "stale",
+            "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+            "expected": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+            "source": "1.0.1",
+            "observed_source": "1.0.0"
+          },
+          {
+            "tag": "1.0",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "status": "stale",
+            "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+            "expected": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+            "source": "1.0.1",
+            "observed_source": "1.0.0"
+          },
+          {
+            "tag": "1",
+            "platform": {
+              "architecture": "amd64",
+              "os": "linux"
+            },
+            "status": "stale",
+            "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+            "expected": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+            "source": "1.0.1",
+            "observed_source": "1.0.0"
+          }
+        ],
+        "index_findings": [],
+        "ignored_tags": [
+          "__ocx.keep.sha256-2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+          "__ocx.keep.sha256-cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1"
+        ],
+        "unrepairable": []
+      },
+      "planned": [
+        {
+          "tag": "latest",
+          "index": {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [
+              {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+                "size": 448,
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                }
+              }
+            ],
+            "artifactType": "application/vnd.sh.ocx.package.v1"
+          },
+          "observed_digest": "sha256:dd26a042dd85932fbfc8df32af7b53dee58123a02fafaae00e23ed88305a281c",
+          "referenced_digests": [
+            "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f"
+          ],
+          "reasons": [
+            {
+              "tag": "latest",
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "status": "stale",
+              "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+              "expected": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+              "source": "1.0.1",
+              "observed_source": "1.0.0"
+            }
+          ]
+        },
+        {
+          "tag": "1.0",
+          "index": {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [
+              {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+                "size": 448,
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                }
+              }
+            ],
+            "artifactType": "application/vnd.sh.ocx.package.v1"
+          },
+          "observed_digest": "sha256:dd26a042dd85932fbfc8df32af7b53dee58123a02fafaae00e23ed88305a281c",
+          "referenced_digests": [
+            "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f"
+          ],
+          "reasons": [
+            {
+              "tag": "1.0",
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "status": "stale",
+              "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+              "expected": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+              "source": "1.0.1",
+              "observed_source": "1.0.0"
+            }
+          ]
+        },
+        {
+          "tag": "1",
+          "index": {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [
+              {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+                "size": 448,
+                "platform": {
+                  "architecture": "amd64",
+                  "os": "linux"
+                }
+              }
+            ],
+            "artifactType": "application/vnd.sh.ocx.package.v1"
+          },
+          "observed_digest": "sha256:dd26a042dd85932fbfc8df32af7b53dee58123a02fafaae00e23ed88305a281c",
+          "referenced_digests": [
+            "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f"
+          ],
+          "reasons": [
+            {
+              "tag": "1",
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              },
+              "status": "stale",
+              "observed": "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1",
+              "expected": "sha256:2ae97c58d80ddd8eb19afa7239b8402897e85d6b50886ff514ab89fce19b5b5f",
+              "source": "1.0.1",
+              "observed_source": "1.0.0"
+            }
+          ]
+        }
+      ],
+      "outcomes": [],
+      "announce_tags": [
+        "1",
+        "1.0",
+        "latest"
+      ]
+    }
+  ],
+  "dry_run": true,
+  "announce_tags_path": "/tmp/ocx-recapture-announce-tags.txt"
+}

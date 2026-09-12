@@ -68,7 +68,13 @@ from ocx_sdk._errors import DataError, ForgeCapabilityUnavailableError, OcxProce
 from ocx_sdk._results import (
     AboutInfo,
     Advisory,
+    AnnounceReport,
     AttestationReport,
+    BuildReceipt,
+    CascadeCheckReport,
+    CascadeRepairReport,
+    ClaimOwner,
+    ClaimReport,
     CommandResult,
     ConfigSetupReport,
     ConfigUpdateReport,
@@ -92,6 +98,7 @@ from ocx_sdk._results import (
     VerificationReport,
     VersionInfo,
     error_envelope,
+    parse_clean,
     parse_description_pull,
     parse_package_pull,
     parse_pull_dry_run,
@@ -99,6 +106,7 @@ from ocx_sdk._results import (
     parse_tool_rows,
     parse_which,
     partial_report,
+    receipt_path,
     tolerated_report,
 )
 from ocx_sdk._types import HostEnv, PackageRef
@@ -889,6 +897,63 @@ _LOGOUT = {"registry": "r"}
 _CONFIG_UPDATE = {"status": "not_configured"}
 _MANAGED_CONFIG = {"status": "would_adopt"}
 _ENVELOPE_ERROR: dict = {"kind": "data_error", "message": "m", "context": {}}
+_CAPABILITY = {"name": "git-version", "status": "skipped", "detail": None}
+_FORGE_HEAD: dict = {
+    "forge": "github",
+    "transport": "api",
+    "credential_kind": "token",
+    "push_credential_kind": None,
+    "pull_request_url": None,
+    "pull_request_number": None,
+    "fork": None,
+    "written_paths": [],
+    "capability_checks": [],
+}
+_ANNOUNCE_HEAD: dict = {
+    **_FORGE_HEAD,
+    "package": "acme/widget",
+    "status": "updated",
+    "desc_status": "unchanged",
+    "branch": None,
+    "reserved_tags_dropped": [],
+}
+_CLAIM_OWNER = {"login": "carol", "id": 5}
+_CLAIM_HEAD: dict = {
+    **_FORGE_HEAD,
+    "package": "acme/widget",
+    "name": "acme/widget",
+    "status": "updated",
+    "author": None,
+    "author_identity_source": None,
+    "owners": [],
+    "owner_identity_source": "resolved",
+    "branch": "indexbot-claim-acme-widget",
+}
+_SLOT_ROW: dict = {
+    "tag": "latest",
+    "platform": {},
+    "status": "ok",
+    "observed": None,
+    "expected": None,
+    "source": None,
+    "observed_source": None,
+}
+_INDEX_FINDING = {"tag": "latest", "finding": "not-committed"}
+_CASCADE_REPORT: dict = {
+    "identifier": "127.0.0.1:5010/fx/hello",
+    "logical": None,
+    "aliases": {},
+    "rows": [],
+    "index_findings": [],
+    "ignored_tags": [],
+    "unrepairable": [],
+}
+_CASCADE_CHECK_HEAD: dict = {"reports": []}
+_REPAIR_OUTCOME: dict = {"tag": "latest", "outcome": {"outcome": "written"}}
+_REPAIR_ENTRY: dict = {"report": _CASCADE_REPORT, "planned": [], "outcomes": [], "announce_tags": []}
+_CASCADE_REPAIR_HEAD: dict = {"entries": [], "dry_run": False, "announce_tags_path": None}
+_CLEAN_ENTRY: dict = {"kind": "object", "dry_run": True, "path": "/p", "held_by": []}
+_RECEIPT = {"version": 1}
 _ENVELOPE_HEAD: dict = {"schema_version": 1, "command": "package claim", "exit_code": 65, "error": _ENVELOPE_ERROR}
 """One minimal payload per struct, holding its **required** keys and nothing else.
 
@@ -1013,6 +1078,54 @@ _REQUIRED_FIELD_SOURCES = [
     # Two rows: the envelope reads three keys at its root and three inside `error`.
     ("ErrorEnvelope", _parse_envelope, _ENVELOPE_HEAD, _bare),
     ("ErrorEnvelope", _parse_envelope, _ENVELOPE_ERROR, lambda sub: _bare({**_ENVELOPE_HEAD, "error": sub})),
+    (
+        "CapabilityCheck",
+        AnnounceReport.from_json,
+        _CAPABILITY,
+        lambda sub: _bare({**_ANNOUNCE_HEAD, "capability_checks": [sub]}),
+    ),
+    ("AnnounceReport", AnnounceReport.from_json, _ANNOUNCE_HEAD, _bare),
+    ("ClaimOwner", ClaimReport.from_json, _CLAIM_OWNER, lambda sub: _bare({**_CLAIM_HEAD, "owners": [sub]})),
+    ("ClaimReport", ClaimReport.from_json, _CLAIM_HEAD, _bare),
+    (
+        "SlotRow",
+        CascadeCheckReport.from_json,
+        _SLOT_ROW,
+        lambda sub: _bare({"reports": [{**_CASCADE_REPORT, "rows": [sub]}]}),
+    ),
+    (
+        "IndexFinding",
+        CascadeCheckReport.from_json,
+        _INDEX_FINDING,
+        lambda sub: _bare({"reports": [{**_CASCADE_REPORT, "index_findings": [sub]}]}),
+    ),
+    ("CascadeReport", CascadeCheckReport.from_json, _CASCADE_REPORT, lambda sub: _bare({"reports": [sub]})),
+    ("CascadeCheckReport", CascadeCheckReport.from_json, _CASCADE_CHECK_HEAD, _bare),
+    # Two rows: `RepairOutcome` reads `tag` and `outcome` on the row and
+    # `outcome` again inside the nested `WriteOutcome`.
+    (
+        "RepairOutcome",
+        CascadeRepairReport.from_json,
+        _REPAIR_OUTCOME,
+        lambda sub: _bare({**_CASCADE_REPAIR_HEAD, "entries": [{**_REPAIR_ENTRY, "outcomes": [sub]}]}),
+    ),
+    (
+        "RepairOutcome",
+        CascadeRepairReport.from_json,
+        {"outcome": "written"},
+        lambda sub: _bare(
+            {**_CASCADE_REPAIR_HEAD, "entries": [{**_REPAIR_ENTRY, "outcomes": [{**_REPAIR_OUTCOME, "outcome": sub}]}]}
+        ),
+    ),
+    (
+        "RepairEntry",
+        CascadeRepairReport.from_json,
+        _REPAIR_ENTRY,
+        lambda sub: _bare({**_CASCADE_REPAIR_HEAD, "entries": [sub]}),
+    ),
+    ("CascadeRepairReport", CascadeRepairReport.from_json, _CASCADE_REPAIR_HEAD, _bare),
+    ("CleanEntry", parse_clean, _CLEAN_ENTRY, lambda sub: json.dumps([sub])),
+    ("BuildReceipt", BuildReceipt.from_json, _RECEIPT, _bare),
 ]
 """Every struct in `_results`, with the payload whose keys become its missing-field rows.
 
@@ -1050,6 +1163,11 @@ PARSERS = {
     "package pull": parse_package_pull,
     "package uninstall": parse_removals,
     "lock": parse_tool_rows,
+    "package announce": AnnounceReport.from_json,
+    "package claim": ClaimReport.from_json,
+    "package cascade check": CascadeCheckReport.from_json,
+    "package cascade repair": CascadeRepairReport.from_json,
+    "clean": parse_clean,
 }
 
 
@@ -1081,6 +1199,7 @@ def test_every_parser_names_the_command_on_garbage(parse):
         pytest.param(parse_tool_rows, "{}", id="object-for-array"),
         pytest.param(parse_removals, "{}", id="object-for-removals"),
         pytest.param(parse_pull_dry_run, "{}", id="object-for-dry-run"),
+        pytest.param(parse_clean, "{}", id="object-for-clean"),
     ],
 )
 def test_a_payload_of_the_wrong_shape_is_refused(parse, wrong):
@@ -1205,6 +1324,19 @@ _OPTIONAL_KEYS: dict[str, set[str]] = {
     },
     "ConfigSetupReport": set(),
     "ErrorEnvelope": {"detail", "remediation"},
+    "CapabilityCheck": set(),
+    "AnnounceReport": set(),
+    "ClaimOwner": set(),
+    "ClaimReport": set(),
+    "SlotRow": set(),
+    "IndexFinding": {"committed", "live"},
+    "CascadeReport": set(),
+    "CascadeCheckReport": set(),
+    "RepairOutcome": set(),
+    "RepairEntry": set(),
+    "CascadeRepairReport": set(),
+    "CleanEntry": set(),
+    "BuildReceipt": {"platform", "identifier"},
 }
 """Struct name to the wire keys ocx 0.6.1 may omit — the `.get` half of D7.
 
@@ -2278,3 +2410,329 @@ def test_partial_report_hands_back_a_copy_refused_on_a_sidecar_conflict():
 
     assert recovered is not None
     assert CopyReport.from_json(recovered).sidecar_conflicts == (conflict,)
+
+
+# --- the 0.6.1 author flow: announce, claim, cascade, clean, receipt ----------
+#
+# The four cascade fixtures and `clean_dry_run` are live ocx 0.6.1 captures —
+# cascade against this repo's own `registry:2` compose stack, clean against a
+# throwaway `OCX_HOME` holding one uninstalled package and one orphaned
+# consent stamp (scratch paths normalized to `/tmp/ocx-recapture-*` after
+# capture). `receipt` is what `package create --identifier --platform` wrote
+# beside its bundle. The announce and claim documents are doc-derived from
+# the serde tests in `api/data/announce.rs` and `claim.rs` at 0.6.1: neither
+# command runs without a forge.
+
+FX_HELLO = "127.0.0.1:5010/fx/hello"
+FX_V1 = "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1"
+
+
+def test_announce_report_reads_every_field_of_an_updated_run():
+    """Doc-derived (C-061): the fourteen keys, `null`s read as `None`, never defaulted."""
+    report = AnnounceReport.from_json(load("announce_updated.json"))
+
+    assert report.package == "acme/widget"
+    assert report.status == "updated"
+    assert report.desc_status == "unchanged"
+    assert (report.forge, report.transport) == ("github", "api")
+    assert report.credential_kind == "token"
+    assert report.push_credential_kind is None
+    assert report.branch == "indexbot-announce-acme-widget"
+    assert report.pull_request_url == "https://github.com/ocx-sh/index/pull/42"
+    assert report.pull_request_number == 42
+    assert report.fork == "forkuser/index"
+    assert report.written_paths == ()
+    assert [check.name for check in report.capability_checks] == [
+        "git-version",
+        "push-access",
+        "job-token-push",
+        "job-token-allowlist",
+    ]
+    assert report.capability_checks[0].status == "skipped"
+    assert report.capability_checks[0].detail is None
+    assert report.reserved_tags_dropped == ("__ocx.desc",)
+
+
+def test_announce_report_of_an_unchanged_git_run_carries_the_job_token_rung():
+    """Doc-derived: `git` transport under a GitLab job — both credential kinds are `job-token`."""
+    report = AnnounceReport.from_json(load("announce_unchanged.json"))
+
+    assert report.status == "unchanged"
+    assert (report.forge, report.transport) == ("gitlab", "git")
+    assert (report.credential_kind, report.push_credential_kind) == ("job-token", "job-token")
+    assert (report.pull_request_url, report.pull_request_number, report.fork) == (None, None, None)
+    assert report.capability_checks[0].detail == "git version 2.45.2"
+    assert report.capability_checks[1].status == "ok"
+
+
+def test_claim_report_reads_author_and_owners_as_forge_accounts():
+    """Doc-derived (C-060): `author` is one `OwnerEntry` or `null`; `owners` a list of them.
+
+    The author's `id` is asserted as an `int`: the forge's immutable account
+    id is the half a consumer keys on, and a parser that stringified it
+    would still compare equal to nothing here.
+    """
+    report = ClaimReport.from_json(load("claim.json"))
+
+    assert (report.package, report.name) == ("acme/widget", "acme/widget")
+    assert report.status == "updated"
+    assert (report.forge, report.transport) == ("gitlab", "git")
+    assert report.author == ClaimOwner(login="carol", id=5)
+    assert report.author_identity_source == "ci-environment"
+    assert report.owners == (ClaimOwner(login="carol", id=5),)
+    assert report.owner_identity_source == "ci-environment"
+    assert report.branch == "indexbot-claim-acme-widget"
+    assert report.written_paths == ("p/acme/widget.json",)
+    assert report.pull_request_url is None
+    assert len(report.capability_checks) == 4
+
+
+def test_claim_report_reads_a_null_author_as_none():
+    """Doc-derived: the `--out` shape with no identity behind the credential."""
+    report = ClaimReport.from_json(_bare(_CLAIM_HEAD))
+
+    assert report.author is None
+    assert report.author_identity_source is None
+    assert report.owners == ()
+
+
+def test_cascade_check_of_a_clean_registry_is_exit_0_with_every_row_ok():
+    """Live 0.6.1: `1.0.0` pushed with `--cascade`, so `latest`, `1.0` and `1` all agree."""
+    report = CascadeCheckReport.from_json(load("cascade_check_clean.json"))
+
+    assert report.clean is True
+    assert report.exit_code == 0
+    (audit,) = report.reports
+    assert audit.identifier == FX_HELLO
+    assert str(audit.ref) == FX_HELLO
+    assert audit.logical is None
+    assert audit.clean is True
+    assert set(audit.aliases) == {"latest", "1.0", "1"}
+    assert audit.aliases["latest"] == {"state": "present"}
+    assert [(row.tag, row.status) for row in audit.rows] == [("latest", "ok"), ("1.0", "ok"), ("1", "ok")]
+    row = audit.rows[0]
+    assert row.platform == {"architecture": "amd64", "os": "linux"}
+    assert row.observed == row.expected == FX_V1
+    assert (row.source, row.observed_source) == ("1.0.0", "1.0.0")
+    assert audit.index_findings == ()
+    assert audit.ignored_tags == (f"__ocx.keep.{FX_V1.replace(':', '-')}",)
+    assert audit.unrepairable == ()
+
+
+def test_cascade_check_findings_arrive_as_a_result_carrying_exit_65():
+    """Live 0.6.1: `1.0.1` pushed *without* `--cascade`, so every rolling tag is stale.
+
+    `source` and `observed_source` differ by construction here — the fold
+    wants `1.0.1`, the alias still carries `1.0.0` — which is what separates
+    reading both keys from reading one twice.
+    """
+    report = CascadeCheckReport.from_json(load("cascade_check_findings.json"), exit_code=65)
+
+    assert report.clean is False
+    assert report.exit_code == 65
+    (audit,) = report.reports
+    assert audit.clean is False
+    assert [(row.tag, row.status, row.source, row.observed_source) for row in audit.rows] == [
+        ("latest", "stale", "1.0.1", "1.0.0"),
+        ("1.0", "stale", "1.0.1", "1.0.0"),
+        ("1", "stale", "1.0.1", "1.0.0"),
+    ]
+    assert audit.rows[0].observed == FX_V1
+    assert audit.rows[0].expected != FX_V1
+
+
+def test_cascade_report_carries_index_findings_and_unrepairable_entries():
+    """Doc-derived: the two `IndexFinding` arms, and `unrepairable` carried untyped.
+
+    Off `ocx.sh` the live registry never reports either, so the arms come from
+    `package_cascade_check.rs`'s serde. `stale` carries both digests;
+    `not-committed` carries neither, which the `.get` reads answer with `None`.
+    """
+    report = CascadeCheckReport.from_json(
+        _bare(
+            {
+                "reports": [
+                    {
+                        **_CASCADE_REPORT,
+                        "index_findings": [
+                            {"tag": "latest", "committed": "sha256:c", "live": "sha256:l", "finding": "stale"},
+                            {"tag": "1", "finding": "not-committed"},
+                        ],
+                        "unrepairable": [{"tag": "1.0", "digest": "sha256:d", "reason": "child-manifest-missing"}],
+                    }
+                ]
+            }
+        )
+    )
+
+    (audit,) = report.reports
+    stale, missing = audit.index_findings
+    assert (stale.tag, stale.finding, stale.committed, stale.live) == ("latest", "stale", "sha256:c", "sha256:l")
+    assert (missing.tag, missing.finding, missing.committed, missing.live) == ("1", "not-committed", None, None)
+    assert audit.unrepairable == ({"tag": "1.0", "digest": "sha256:d", "reason": "child-manifest-missing"},)
+    assert audit.clean is False
+
+
+def test_cascade_repair_dry_run_plans_without_outcomes_and_names_the_tags_file():
+    """Live 0.6.1: `--dry-run --announce-tags`, exit 65 because the plan is non-empty."""
+    report = CascadeRepairReport.from_json(load("cascade_repair_dry_run.json"), exit_code=65)
+
+    assert report.dry_run is True
+    assert report.clean is False
+    assert report.announce_tags_path == "/tmp/ocx-recapture-announce-tags.txt"
+    (entry,) = report.entries
+    assert entry.report.identifier == FX_HELLO
+    assert [row.status for row in entry.report.rows] == ["stale", "stale", "stale"]
+    assert [plan["tag"] for plan in entry.planned] == ["latest", "1.0", "1"]
+    assert set(entry.planned[0]) == {"tag", "index", "observed_digest", "referenced_digests", "reasons"}
+    assert entry.outcomes == ()
+    assert entry.announce_tags == ("1", "1.0", "latest")
+
+
+def test_cascade_repair_reports_one_written_outcome_per_tag():
+    """Live 0.6.1: the real repair, exit 0, every alias re-pointed and read back verified."""
+    report = CascadeRepairReport.from_json(load("cascade_repair.json"))
+
+    assert report.dry_run is False
+    assert report.clean is True
+    assert report.announce_tags_path is None
+    (entry,) = report.entries
+    assert [(outcome.tag, outcome.outcome) for outcome in entry.outcomes] == [
+        ("latest", "written"),
+        ("1.0", "written"),
+        ("1", "written"),
+    ]
+    written = entry.outcomes[0].detail
+    assert written["verified"] is True
+    assert written["digest"].startswith("sha256:")
+    assert "dropped" not in written
+
+
+def test_repair_outcome_variants_ride_along_untyped():
+    """Doc-derived: the `raced` and `failed` arms of `WriteOutcome`, discriminator typed, rest carried."""
+    report = CascadeRepairReport.from_json(
+        _bare(
+            {
+                **_CASCADE_REPAIR_HEAD,
+                "entries": [
+                    {
+                        **_REPAIR_ENTRY,
+                        "outcomes": [
+                            {"tag": "latest", "outcome": {"outcome": "raced", "expected": "sha256:e", "live": None}},
+                            {"tag": "1", "outcome": {"outcome": "failed", "message": "registry rejected the write"}},
+                        ],
+                    }
+                ],
+            }
+        ),
+        exit_code=65,
+    )
+
+    raced, failed = report.entries[0].outcomes
+    assert (raced.outcome, raced.detail["expected"], raced.detail["live"]) == ("raced", "sha256:e", None)
+    assert (failed.outcome, failed.detail["message"]) == ("failed", "registry rejected the write")
+
+
+def test_clean_dry_run_rows_name_objects_and_the_consent_stamp():
+    """Live 0.6.1: an uninstalled package's objects plus the stamp of a project that moved away.
+
+    `kind: "consent"` is the row a preview must carry — revoking a project's
+    activation is the most consequential thing `clean` does.
+    """
+    rows = parse_clean(load("clean_dry_run.json"))
+
+    assert [row.kind for row in rows] == ["object"] * 5 + ["consent"]
+    assert all(row.dry_run is True and row.held_by == () for row in rows)
+    assert rows[0].path.startswith("/tmp/ocx-recapture-home/blobs/")
+    assert rows[-1].path == "/tmp/ocx-recapture-home/state/projects/7d93745dcb9d3022"
+
+
+def test_clean_entry_carries_the_locks_that_hold_it():
+    """Doc-derived: `held_by` names the registered `ocx.lock` files protecting an entry."""
+    (row,) = parse_clean(json.dumps([{**_CLEAN_ENTRY, "kind": "temp", "held_by": ["/srv/a/ocx.lock"]}]))
+
+    assert row.kind == "temp"
+    assert row.held_by == ("/srv/a/ocx.lock",)
+
+
+def test_build_receipt_from_a_recorded_create():
+    """The sidecar `package create --identifier --platform` wrote beside its bundle."""
+    receipt = BuildReceipt.from_json(load("receipt.json"))
+
+    assert receipt.version == 1
+    assert receipt.platform == "linux/amd64"
+    assert receipt.identifier == "127.0.0.1:5010/fx/hello:1.0.0"
+    assert str(receipt.ref) == "127.0.0.1:5010/fx/hello:1.0.0"
+
+
+@pytest.mark.parametrize(
+    ("fixture", "platform", "identifier"),
+    [
+        pytest.param("receipt_platform_only.json", "linux/amd64+libc.glibc", None, id="platform-only"),
+        pytest.param("receipt_identifier_only.json", None, "ocx.sh/acme/widget:1.2.3", id="identifier-only"),
+    ],
+)
+def test_build_receipt_records_whichever_half_create_knew(fixture, platform, identifier):
+    """Doc-derived: both fields are `skip_serializing_if`, so a half-receipt omits the other key."""
+    receipt = BuildReceipt.from_json(load(fixture))
+
+    assert (receipt.platform, receipt.identifier) == (platform, identifier)
+    assert (receipt.ref is None) is (identifier is None)
+
+
+@pytest.mark.parametrize(
+    ("bundle", "expected"),
+    [
+        pytest.param("pkg.tar.gz", "pkg-receipt.json", id="tar-gz"),
+        pytest.param("pkg.tar.xz", "pkg-receipt.json", id="tar-xz"),
+        pytest.param("pkg.tar", "pkg-receipt.json", id="tar"),
+        pytest.param("pkg.tgz", "pkg-receipt.json", id="tgz"),
+        pytest.param("pkg.zip", "pkg-receipt.json", id="zip"),
+        pytest.param("pkg", "pkg-receipt.json", id="bare"),
+        pytest.param("pkg.bin", "pkg-receipt.json", id="unknown-suffix"),
+        pytest.param("hello-1.0.0-linux-amd64.tar.xz", "hello-1.0.0-linux-amd64-receipt.json", id="real-bundle"),
+    ],
+)
+def test_receipt_path_follows_ocx_sidecar_convention(bundle, expected):
+    """`conventions.rs`: the last suffix goes, then one trailing archive extension of the stem."""
+    assert receipt_path(Path("dist") / bundle) == Path("dist") / expected
+
+
+def test_receipt_from_bundle_answers_none_when_no_sidecar_exists(tmp_path):
+    """Absent is a supported state: a bundle handed over from elsewhere has no receipt."""
+    assert BuildReceipt.from_bundle(tmp_path / "pkg.tar.xz") is None
+
+
+def test_receipt_from_bundle_reads_the_sidecar_beside_the_bundle(tmp_path):
+    (tmp_path / "pkg-receipt.json").write_text(load("receipt.json"), encoding="utf-8")
+
+    receipt = BuildReceipt.from_bundle(tmp_path / "pkg.tar.xz")
+
+    assert receipt is not None
+    assert receipt.identifier == "127.0.0.1:5010/fx/hello:1.0.0"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param("not json", "not JSON", id="malformed"),
+        pytest.param("[1]", "expected a JSON object", id="wrong-shape"),
+        pytest.param('{"platform": "linux/amd64"}', "no 'version' field", id="no-version"),
+        pytest.param('{"version": 2}', "format version 2", id="newer-version"),
+    ],
+)
+def test_receipt_from_bundle_refuses_a_broken_sidecar_naming_the_file(tmp_path, text, expected):
+    """A receipt that exists but cannot be read must never degrade into "there is no receipt".
+
+    ocx's own reader (`build_receipt.rs`) fails a corrupt or newer-version
+    receipt rather than falling back to "absent", because absent turns a
+    recorded value into a usage error about a flag the publisher never
+    needed. The SDK reads it the same way, and names the file.
+    """
+    sidecar = tmp_path / "pkg-receipt.json"
+    sidecar.write_text(text, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=expected) as caught:
+        BuildReceipt.from_bundle(tmp_path / "pkg.tar.xz")
+
+    assert str(caught.value).startswith(str(sidecar))

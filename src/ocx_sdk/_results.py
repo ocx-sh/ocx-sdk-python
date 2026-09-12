@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, Literal
 
@@ -92,12 +93,28 @@ _PUSH: Final = "package push"
 _COPY: Final = "package copy"
 _DESCRIPTION_PULL: Final = "package description pull"
 _SWEEP: Final = "package sign/attest --tags"
+_ANNOUNCE: Final = "package announce"
+_CLAIM: Final = "package claim"
+_CASCADE: Final = "package cascade check/repair"
+_CASCADE_CHECK: Final = "package cascade check"
+_CASCADE_REPAIR: Final = "package cascade repair"
+_CLEAN: Final = "clean"
+_RECEIPT: Final = "package create"
 """The commands each parser names when a required field is missing.
 
 `_SWEEP` names both, because one `SweepReport` serves `sign --tags` and
 `attest --tags` alike (C-017) and the row itself carries nothing that says
-which — the caller's row parser is the only thing that knows.
+which — the caller's row parser is the only thing that knows. `_CASCADE`
+names both cascade commands for the same reason: one `CascadeReport` is the
+`check` document and the `report` inside every `repair` entry. `_RECEIPT`
+names the command that *wrote* the build receipt, since no command prints it.
 """
+
+_RECEIPT_VERSION: Final = 1
+"""The one build-receipt format version this SDK reads (`build_receipt.rs`)."""
+
+_ARCHIVE_SUFFIXES: Final = (".tar", ".tar.gz", ".tgz", ".zip")
+"""What `conventions.rs` strips off a bundle's stem before naming its sidecars."""
 
 type EnvEntryType = Literal["constant", "path", "list"]
 """The `type` an `ocx env` entry declares. Mirrors ocx's `--env KEY:TYPE=VALUE`."""
@@ -2324,6 +2341,603 @@ class CopyReport:
 
 
 @dataclass(frozen=True, slots=True)
+class CapabilityCheck:
+    """One forge capability `announce`/`claim` probed before writing.
+
+    Attributes:
+        name: The capability — `git-version`, `push-access`, `job-token-push`
+            or `job-token-allowlist` — carried as raw `str` (D8).
+        status: What the probe found: `ok`, `skipped` for a check the
+            transport made inapplicable, or a failure status. Raw `str`.
+        detail: What the probe saw, when it recorded anything. Always on the
+            wire, `null` when empty.
+    """
+
+    name: str
+    status: str
+    detail: str | None
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> CapabilityCheck:
+        """Build from one decoded `capability_checks` entry."""
+        return cls(
+            name=_need(data, "name", _ANNOUNCE),
+            status=_need(data, "status", _ANNOUNCE),
+            detail=_need(data, "detail", _ANNOUNCE),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AnnounceReport:
+    """`ocx package announce` — what reached the index (C-061).
+
+    **Payload is bare** (D11). Every one of the fourteen keys is always on
+    the wire; the nullable ones are `null` rather than absent, so all are
+    read with `_need` and typed `| None` where upstream is `Option`.
+
+    Attributes:
+        package: The announced `<namespace>/<package>`.
+        status: `"updated"` when a rebuilt root was committed, `"unchanged"`
+            when it was byte-identical to the committed one. An unchanged run
+            can still report a pull request it ensured.
+        desc_status: `"updated"` when the package's `__ocx.desc` artifact
+            moved, else `"unchanged"`.
+        forge: `"github"` or `"gitlab"`, as resolved.
+        transport: `"api"` or `"git"`.
+        credential_kind: `"job-token"`, `"token"` or `"none"` — what the
+            identity ladder resolved for the API credential.
+        push_credential_kind: `"job-token"`, `"token"`, `"git-helper"`, or
+            `None` under the `api` transport, which pushes nothing.
+        branch: The announce branch, or `None` under `--out`.
+        pull_request_url: The request's URL, when one was opened or ensured.
+        pull_request_number: Its number, likewise.
+        fork: The fork the request came from, when `--fork` was given.
+        written_paths: Files written under `--out`; empty otherwise.
+        capability_checks: The forge probes, in `CapabilityName` order.
+        reserved_tags_dropped: `__ocx` and legacy `sha256.<hex>` tags named
+            on the command line and dropped: a reported fact of a
+            successful run, never a failure.
+    """
+
+    package: str
+    status: str
+    desc_status: str
+    forge: str
+    transport: str
+    credential_kind: str
+    push_credential_kind: str | None
+    branch: str | None
+    pull_request_url: str | None
+    pull_request_number: int | None
+    fork: str | None
+    written_paths: tuple[str, ...]
+    capability_checks: tuple[CapabilityCheck, ...]
+    reserved_tags_dropped: tuple[str, ...]
+
+    @classmethod
+    def from_json(cls, raw: str) -> AnnounceReport:
+        """Parse `ocx --format json package announce` output."""
+        data = _object(raw, _ANNOUNCE)
+        return cls(
+            package=_need(data, "package", _ANNOUNCE),
+            status=_need(data, "status", _ANNOUNCE),
+            desc_status=_need(data, "desc_status", _ANNOUNCE),
+            forge=_need(data, "forge", _ANNOUNCE),
+            transport=_need(data, "transport", _ANNOUNCE),
+            credential_kind=_need(data, "credential_kind", _ANNOUNCE),
+            push_credential_kind=_need(data, "push_credential_kind", _ANNOUNCE),
+            branch=_need(data, "branch", _ANNOUNCE),
+            pull_request_url=_need(data, "pull_request_url", _ANNOUNCE),
+            pull_request_number=_need(data, "pull_request_number", _ANNOUNCE),
+            fork=_need(data, "fork", _ANNOUNCE),
+            written_paths=_texts(_need(data, "written_paths", _ANNOUNCE)),
+            capability_checks=tuple(
+                CapabilityCheck.from_dict(row) for row in _rows(_need(data, "capability_checks", _ANNOUNCE))
+            ),
+            reserved_tags_dropped=_texts(_need(data, "reserved_tags_dropped", _ANNOUNCE)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimOwner:
+    """One forge account on a `claim` report, as author or owner.
+
+    Attributes:
+        login: The forge's canonical login spelling.
+        id: The forge's immutable numeric account id.
+    """
+
+    login: str
+    id: int
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ClaimOwner:
+        """Build from a decoded `author` or `owners` entry."""
+        return cls(login=_need(data, "login", _CLAIM), id=_need(data, "id", _CLAIM))
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimReport:
+    """`ocx package claim` — the index entry a claim rendered (C-060).
+
+    **Payload is bare** (D11), seventeen keys, every one always on the wire.
+    A package that is already claimed never produces this: ocx exits 65 with
+    an error envelope instead, which `error_envelope(err)` recovers.
+
+    Attributes:
+        package: The claimed `<namespace>/<package>`, as given.
+        name: The logical name written into the root.
+        status: `"updated"` or `"unchanged"` — against the open claim
+            branch, not the committed root, so a `--out` run is always
+            `"updated"`.
+        forge: `"github"` or `"gitlab"`.
+        transport: `"api"` or `"git"`.
+        credential_kind: `"job-token"`, `"token"` or `"none"`.
+        push_credential_kind: `"job-token"`, `"token"`, `"git-helper"`, or
+            `None` under the `api` transport.
+        author: The identity that authored the request, or `None` when
+            neither the token nor the CI environment named one. **Not
+            attested** — see `author_identity_source`.
+        author_identity_source: `"resolved"` when the forge's own answer
+            about the credential produced `author`, `"ci-environment"` when
+            an ordinary environment read did; `None` exactly when `author` is.
+        owners: The recorded owners, in order.
+        owner_identity_source: `"resolved"`, `"asserted"` or
+            `"ci-environment"`.
+        branch: The claim branch.
+        pull_request_url: The request's URL, when one was opened.
+        pull_request_number: Its number, likewise.
+        fork: The fork the request came from, when `--fork` was given.
+        written_paths: Files written under `--out`; empty otherwise.
+        capability_checks: The forge probes, in `CapabilityName` order.
+    """
+
+    package: str
+    name: str
+    status: str
+    forge: str
+    transport: str
+    credential_kind: str
+    push_credential_kind: str | None
+    author: ClaimOwner | None
+    author_identity_source: str | None
+    owners: tuple[ClaimOwner, ...]
+    owner_identity_source: str
+    branch: str
+    pull_request_url: str | None
+    pull_request_number: int | None
+    fork: str | None
+    written_paths: tuple[str, ...]
+    capability_checks: tuple[CapabilityCheck, ...]
+
+    @classmethod
+    def from_json(cls, raw: str) -> ClaimReport:
+        """Parse `ocx --format json package claim` output."""
+        data = _object(raw, _CLAIM)
+        author = _need(data, "author", _CLAIM)
+        return cls(
+            package=_need(data, "package", _CLAIM),
+            name=_need(data, "name", _CLAIM),
+            status=_need(data, "status", _CLAIM),
+            forge=_need(data, "forge", _CLAIM),
+            transport=_need(data, "transport", _CLAIM),
+            credential_kind=_need(data, "credential_kind", _CLAIM),
+            push_credential_kind=_need(data, "push_credential_kind", _CLAIM),
+            author=ClaimOwner.from_dict(_table(author)) if author is not None else None,
+            author_identity_source=_need(data, "author_identity_source", _CLAIM),
+            owners=tuple(ClaimOwner.from_dict(row) for row in _rows(_need(data, "owners", _CLAIM))),
+            owner_identity_source=_need(data, "owner_identity_source", _CLAIM),
+            branch=_need(data, "branch", _CLAIM),
+            pull_request_url=_need(data, "pull_request_url", _CLAIM),
+            pull_request_number=_need(data, "pull_request_number", _CLAIM),
+            fork=_need(data, "fork", _CLAIM),
+            written_paths=_texts(_need(data, "written_paths", _CLAIM)),
+            capability_checks=tuple(
+                CapabilityCheck.from_dict(row) for row in _rows(_need(data, "capability_checks", _CLAIM))
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SlotRow:
+    """One (rolling tag, platform) slot `cascade check` examined.
+
+    Attributes:
+        tag: The rolling tag — `latest`, `3`, `3.28`, or a variant name.
+        platform: The OCI platform object of the slot, carried untyped: the
+            published schema types it as `true` (anything), and no dispatch
+            here needs its fields.
+        status: `ok`, `missing`, `stale`, `orphan` or `duplicate` — the
+            finding, as raw `str` (D8). Anything but `ok` is what makes
+            `check` exit 65.
+        observed: The digest the alias carries for this platform, if any.
+        expected: The digest the fold expects, if any.
+        source: The version the expectation was folded from, e.g.
+            `"1.0.1"`, or `None`. Typed from the recorded fixture: the
+            published schema names an integer `Version` here, a generator
+            artifact the wire does not bear out.
+        observed_source: The version the observed digest belongs to, or
+            `None` when the alias points at content no observed leaf carries.
+    """
+
+    tag: str
+    platform: Mapping[str, Any]
+    status: str
+    observed: str | None
+    expected: str | None
+    source: str | None
+    observed_source: str | None
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> SlotRow:
+        """Build from one decoded `rows` entry."""
+        return cls(
+            tag=_need(data, "tag", _CASCADE),
+            platform=_table(_need(data, "platform", _CASCADE)),
+            status=_need(data, "status", _CASCADE),
+            observed=_need(data, "observed", _CASCADE),
+            expected=_need(data, "expected", _CASCADE),
+            source=_need(data, "source", _CASCADE),
+            observed_source=_need(data, "observed_source", _CASCADE),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class IndexFinding:
+    """Where the public index disagrees with the registry about an alias.
+
+    Internally tagged on `finding`: `stale` carries the two digests, and
+    `not-committed` carries only the tag. Reported for `ocx.sh/...` packages
+    alone, and never fixed by `repair` — announcing the tag is what fixes it.
+
+    Attributes:
+        tag: The rolling tag.
+        finding: `"stale"` or `"not-committed"`, raw `str` (D8).
+        committed: The digest the index committed, under `stale`.
+        live: The digest the alias points at today, under `stale`.
+    """
+
+    tag: str
+    finding: str
+    committed: str | None = None
+    live: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> IndexFinding:
+        """Build from one decoded `index_findings` entry."""
+        return cls(
+            tag=_need(data, "tag", _CASCADE),
+            finding=_need(data, "finding", _CASCADE),
+            committed=data.get("committed"),
+            live=data.get("live"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CascadeReport:
+    """One package's rolling-tag audit — the `check` document, and the `report` inside a `repair` entry.
+
+    First-cut depth: the rows, the index findings and the tag lists are
+    typed; `aliases` and `unrepairable` are carried as opaque mappings
+    (`Integration.payload`'s precedent) until a consumer needs their fields.
+
+    Attributes:
+        identifier: The physical repository the graph was read from.
+        logical: The logical name the caller gave, when it differed.
+        aliases: Rolling tag to its alias state (`{"state": "present"}`,
+            `{"state": "absent"}`, or `{"state": "not-an-index", "digest":
+            ...}`), untyped.
+        rows: One slot per (rolling tag, platform).
+        index_findings: Public-index disagreements; empty off `ocx.sh`.
+        ignored_tags: Tags the audit skipped — the keep tags among them.
+        unrepairable: Findings `repair` refuses to fix, each `{tag, reason,
+            digest?}`, untyped.
+    """
+
+    identifier: str
+    logical: str | None
+    aliases: Mapping[str, Mapping[str, Any]]
+    rows: tuple[SlotRow, ...]
+    index_findings: tuple[IndexFinding, ...]
+    ignored_tags: tuple[str, ...]
+    unrepairable: tuple[Mapping[str, Any], ...]
+
+    @property
+    def ref(self) -> PackageRef:
+        """The audited repository, as a `PackageRef`."""
+        return PackageRef(self.identifier)
+
+    @property
+    def clean(self) -> bool:
+        """Whether nothing disagrees: every row `ok`, no index finding, nothing unrepairable."""
+        return all(row.status == "ok" for row in self.rows) and not self.index_findings and not self.unrepairable
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> CascadeReport:
+        """Build from one decoded `reports` entry (or a repair entry's `report`)."""
+        aliases = {tag: _table(state) for tag, state in _table(_need(data, "aliases", _CASCADE)).items()}
+        return cls(
+            identifier=_need(data, "identifier", _CASCADE),
+            logical=_need(data, "logical", _CASCADE),
+            aliases=MappingProxyType(aliases),
+            rows=tuple(SlotRow.from_dict(row) for row in _rows(_need(data, "rows", _CASCADE))),
+            index_findings=tuple(IndexFinding.from_dict(row) for row in _rows(_need(data, "index_findings", _CASCADE))),
+            ignored_tags=_texts(_need(data, "ignored_tags", _CASCADE)),
+            unrepairable=_rows(_need(data, "unrepairable", _CASCADE)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CascadeCheckReport:
+    """`ocx package cascade check` — one audit per package, in input order.
+
+    **Report-then-fail**: a finding makes the process exit 65 *with* this
+    document on stdout, so the client tolerates that code and hands the
+    report back as a result (`tolerated_report`). `exit_code` is the process's
+    own, carried so a caller can branch without re-deriving it from the rows.
+
+    Attributes:
+        reports: One entry per package audited.
+        exit_code: `0` when everything agreed, `65` when anything did not.
+    """
+
+    reports: tuple[CascadeReport, ...]
+    exit_code: int = 0
+
+    @property
+    def clean(self) -> bool:
+        """Whether the audit found nothing — the exit code's answer."""
+        return self.exit_code == 0
+
+    @classmethod
+    def from_json(cls, raw: str, *, exit_code: int = 0) -> CascadeCheckReport:
+        """Parse `ocx --format json package cascade check` output.
+
+        Args:
+            raw: Captured stdout.
+            exit_code: The process's exit status, carried onto the result.
+        """
+        data = _object(raw, _CASCADE_CHECK)
+        reports = _rows(_need(data, "reports", _CASCADE_CHECK))
+        return cls(reports=tuple(CascadeReport.from_dict(row) for row in reports), exit_code=exit_code)
+
+
+@dataclass(frozen=True, slots=True)
+class RepairOutcome:
+    """What `cascade repair` did to one rolling tag.
+
+    The wire nests a `WriteOutcome` object under `outcome`, internally
+    tagged on its own `outcome` key: `written` (with `digest`, `verified`,
+    and `dropped` when child digests were pruned), `refused` (an
+    unrepairable finding's `tag`/`reason`/`digest`), `raced` (`expected`,
+    `live`) or `failed` (`message`). First-cut depth: the discriminator is
+    typed and the variant's fields ride along untyped.
+
+    Attributes:
+        tag: The rolling tag.
+        outcome: `"written"`, `"refused"`, `"raced"` or `"failed"`, raw
+            `str` (D8).
+        detail: The whole `WriteOutcome` object, `outcome` key included.
+    """
+
+    tag: str
+    outcome: str
+    detail: Mapping[str, Any]
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> RepairOutcome:
+        """Build from one decoded `outcomes` entry."""
+        detail = _table(_need(data, "outcome", _CASCADE_REPAIR))
+        return cls(
+            tag=_need(data, "tag", _CASCADE_REPAIR), outcome=_need(detail, "outcome", _CASCADE_REPAIR), detail=detail
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RepairEntry:
+    """One package's `cascade repair` run.
+
+    Attributes:
+        report: The audit the plan was computed from — the same shape
+            `check` reports.
+        planned: The alias indexes the run would write (or wrote), each
+            `{tag, index, observed_digest, referenced_digests, reasons}`,
+            carried untyped: the `index` is a whole OCI image index.
+        outcomes: What happened per tag. Empty on a dry run.
+        announce_tags: The rolling tags this run moved or created — the
+            lines `--announce-tags` writes, echoed for a JSON consumer.
+    """
+
+    report: CascadeReport
+    planned: tuple[Mapping[str, Any], ...]
+    outcomes: tuple[RepairOutcome, ...]
+    announce_tags: tuple[str, ...]
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> RepairEntry:
+        """Build from one decoded `entries` entry."""
+        return cls(
+            report=CascadeReport.from_dict(_table(_need(data, "report", _CASCADE_REPAIR))),
+            planned=_rows(_need(data, "planned", _CASCADE_REPAIR)),
+            outcomes=tuple(RepairOutcome.from_dict(row) for row in _rows(_need(data, "outcomes", _CASCADE_REPAIR))),
+            announce_tags=_texts(_need(data, "announce_tags", _CASCADE_REPAIR)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CascadeRepairReport:
+    """`ocx package cascade repair` — what was re-pointed, or would be.
+
+    **Report-then-fail** like `check`: exit 65 with this document when a
+    finding remains — including on a `dry_run`, where "planned anything"
+    is the finding — so `exit_code` rather than an exception says whether
+    the registry now agrees with itself.
+
+    Attributes:
+        entries: One entry per package, in input order.
+        dry_run: `True` when nothing was written because the run was a preview.
+        announce_tags_path: Where `--announce-tags` was written, when given.
+        exit_code: `0` when every attempted write succeeded and nothing
+            remains, `65` otherwise.
+    """
+
+    entries: tuple[RepairEntry, ...]
+    dry_run: bool
+    announce_tags_path: str | None
+    exit_code: int = 0
+
+    @property
+    def clean(self) -> bool:
+        """Whether no finding remains — the exit code's answer."""
+        return self.exit_code == 0
+
+    @classmethod
+    def from_json(cls, raw: str, *, exit_code: int = 0) -> CascadeRepairReport:
+        """Parse `ocx --format json package cascade repair` output.
+
+        Args:
+            raw: Captured stdout.
+            exit_code: The process's exit status, carried onto the result.
+        """
+        data = _object(raw, _CASCADE_REPAIR)
+        return cls(
+            entries=tuple(RepairEntry.from_dict(row) for row in _rows(_need(data, "entries", _CASCADE_REPAIR))),
+            dry_run=_need(data, "dry_run", _CASCADE_REPAIR),
+            announce_tags_path=_need(data, "announce_tags_path", _CASCADE_REPAIR),
+            exit_code=exit_code,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CleanEntry:
+    """One thing `ocx clean` removed, or would remove.
+
+    Attributes:
+        kind: `"object"` for a store object, `"temp"` for a temp directory,
+            or `"consent"` for a `state/projects/<key>/` directory whose
+            consent stamp was swept — the entry that revokes a project's
+            shell activation, which is why a preview names it. Raw `str` (D8).
+        dry_run: Whether this was a preview.
+        path: What was (or would be) removed.
+        held_by: Project `ocx.lock` paths holding the entry; empty when no
+            registered project protects it, or under `--force`.
+    """
+
+    kind: str
+    dry_run: bool
+    path: str
+    held_by: tuple[str, ...]
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> CleanEntry:
+        """Build from one decoded array entry."""
+        return cls(
+            kind=_need(data, "kind", _CLEAN),
+            dry_run=_need(data, "dry_run", _CLEAN),
+            path=_need(data, "path", _CLEAN),
+            held_by=_texts(_need(data, "held_by", _CLEAN)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BuildReceipt:
+    """The `<bundle-stem>-receipt.json` sidecar `ocx package create` writes.
+
+    A build artifact, not a report: ocx prints it through no command and
+    publishes no schema for it (`build_receipt.rs`). It records what `create`
+    was told — the platform it resolved against and the identifier the bundle
+    will publish under — so `push` and `test` need not restate either. Read
+    from disk by `from_bundle`; an absent sidecar is a supported state (a
+    bundle handed over from elsewhere), a malformed one is not.
+
+    Attributes:
+        version: The receipt format version; only `1` is read.
+        platform: The `--platform` recorded, canonical grammar, when given.
+        identifier: The `--identifier` recorded, resolved against the
+            default registry, when given.
+    """
+
+    version: int
+    platform: str | None = None
+    identifier: str | None = None
+
+    @property
+    def ref(self) -> PackageRef | None:
+        """The recorded identifier as a `PackageRef`, or `None` when none was recorded."""
+        return PackageRef(self.identifier) if self.identifier is not None else None
+
+    @classmethod
+    def from_json(cls, raw: str) -> BuildReceipt:
+        """Parse a receipt's text.
+
+        Raises:
+            ValueError: `raw` is not a JSON object, lacks `version`, or
+                declares a version this SDK does not read — a receipt from a
+                newer ocx must fail loudly, never read as version 1.
+        """
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"the build receipt is not JSON: {_excerpt(raw)!r}.") from exc
+        if not _is_object(data):
+            raise ValueError(f"the build receipt is {_excerpt(raw)!r}, expected a JSON object.")
+        data = _table(data)
+        version = _need(data, "version", _RECEIPT)
+        if version != _RECEIPT_VERSION:
+            raise ValueError(
+                f"the build receipt declares format version {version!r}; this SDK reads version "
+                f"{_RECEIPT_VERSION}. Refusing rather than guessing — upgrade ocx-sdk if ocx moved the format."
+            )
+        return cls(version=version, platform=data.get("platform"), identifier=data.get("identifier"))
+
+    @classmethod
+    def from_bundle(cls, bundle: str | Path) -> BuildReceipt | None:
+        """Read the receipt beside a bundle, or `None` when there is none.
+
+        Args:
+            bundle: The bundle archive `create` wrote (or would have).
+
+        Returns:
+            The receipt, or `None` when no sidecar exists — the ordinary
+            "handed a bundle from elsewhere" case.
+
+        Raises:
+            ValueError: The sidecar exists but is not a readable receipt; it
+                names the file. A receipt that exists but cannot be read must
+                never degrade into "there is no receipt".
+        """
+        path = receipt_path(bundle)
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return None
+        try:
+            return cls.from_json(raw)
+        except ValueError as exc:
+            raise ValueError(f"{path}: {exc}") from exc
+
+
+def receipt_path(bundle: str | Path) -> Path:
+    """Return where `create` puts the receipt for `bundle` (`conventions.rs`).
+
+    The last suffix comes off first, then one trailing archive extension of
+    what remains: `pkg.tar.gz` and `pkg.tar.xz` both derive `pkg`, `pkg.tgz`
+    and `pkg.zip` do too, and a suffix-less name is its own stem.
+
+    Example:
+        >>> receipt_path("dist/hello-1.0.0-linux-amd64.tar.xz").name
+        'hello-1.0.0-linux-amd64-receipt.json'
+    """
+    path = Path(bundle)
+    stem = path.stem
+    for suffix in _ARCHIVE_SUFFIXES:
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    return path.with_name(f"{stem}-receipt.json")
+
+
+@dataclass(frozen=True, slots=True)
 class LoginResult:
     """`ocx login` — which registry, as whom."""
 
@@ -2463,6 +3077,11 @@ def parse_package_pull(raw: str) -> Mapping[str, str]:
 def parse_removals(raw: str) -> tuple[RemovalResult, ...]:
     """Parse `ocx --format json package uninstall` (or `deselect`) output."""
     return tuple(RemovalResult.from_dict(row) for row in _array(raw, "package uninstall"))
+
+
+def parse_clean(raw: str) -> tuple[CleanEntry, ...]:
+    """Parse `ocx --format json clean` output — a bare root array, one row per removal."""
+    return tuple(CleanEntry.from_dict(row) for row in _array(raw, _CLEAN))
 
 
 def parse_pull_dry_run(raw: str) -> tuple[DryRunEntry, ...]:

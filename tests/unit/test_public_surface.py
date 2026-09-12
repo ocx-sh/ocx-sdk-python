@@ -52,6 +52,9 @@ _EXPECTED = {
     "AttestationReport", "AttestationOutcome", "SweptTagReport", "SweepReport",
     "SignedPlatformReport", "ListingSummary", "SbomEntry", "RefusedEntry", "SbomSummaryOut",
     "SbomListingReport", "CopiedPlatformRow", "BlobSummary", "CopyReport",
+    # Results — the ocx 0.6.1 author flow: announce, claim, cascade, clean, and the build receipt.
+    "AnnounceReport", "CapabilityCheck", "ClaimReport", "ClaimOwner", "CascadeCheckReport", "CascadeReport",
+    "SlotRow", "IndexFinding", "CascadeRepairReport", "RepairEntry", "RepairOutcome", "CleanEntry", "BuildReceipt",
     # The partial-failure escape hatch (D10), its dual, and the report-then-fail guard.
     "partial_report", "ErrorEnvelope", "error_envelope", "tolerated_report",
     # Errors.
