@@ -52,8 +52,8 @@ _EXPECTED = {
     "AttestationReport", "AttestationOutcome", "SweptTagReport", "SweepReport",
     "SignedPlatformReport", "ListingSummary", "SbomEntry", "RefusedEntry", "SbomSummaryOut",
     "SbomListingReport", "CopiedPlatformRow", "BlobSummary", "CopyReport",
-    # The partial-failure escape hatch (D10).
-    "partial_report",
+    # The partial-failure escape hatch (D10), its dual, and the report-then-fail guard.
+    "partial_report", "ErrorEnvelope", "error_envelope", "tolerated_report",
     # Errors.
     "ExitCode", "OcxError", "OcxExecutionError", "OcxProcessError", "OcxTimeoutError",
     "UsageError", "DataError", "UnavailableError", "IoError", "TempFailError",

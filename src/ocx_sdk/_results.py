@@ -47,7 +47,14 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, Literal
 
-from ._errors import OcxProcessError
+# _EXIT_CODE_ERRORS is package-internal; `_process` and `tolerated_report`
+# below are its two consumers, both raising for an exit the caller did not
+# tolerate.
+from ._errors import (
+    _EXIT_CODE_ERRORS,  # pyright: ignore[reportPrivateUsage]
+    ExitCode,
+    OcxProcessError,
+)
 from ._types import TESTED_OCX_VERSION, ConstVar, EnvValue, ListVar, PackageRef, PathVar
 
 if TYPE_CHECKING:
@@ -73,6 +80,9 @@ _ATTESTATION_FAILED: Final = "failed"
 
 _ERROR: Final = "error"
 """The C-S1-1 envelope's failure payload. Never a report: `partial_report` answers `None` for it."""
+
+_ENVELOPE: Final = "error envelope"
+"""What `ErrorEnvelope` names when a required field is missing — no command produces it, every failing one may."""
 
 _SIGN: Final = "package sign"
 _VERIFY: Final = "package verify"
@@ -297,6 +307,104 @@ def _envelope(raw: str, what: str) -> Mapping[str, Any]:
     return _table(_need(_object(raw, what), "data", what))
 
 
+def _is_envelope(payload: Any) -> bool:
+    """Whether a decoded stdout is the C-S1-1 error envelope rather than a report.
+
+    Tested before any report shape, never after: an error envelope is a JSON
+    object too, and reading it as one would hand the failure's own message
+    back as if a command had reported it.
+    """
+    return _is_object(payload) and _ERROR in payload
+
+
+@dataclass(frozen=True, slots=True)
+class ErrorEnvelope:
+    """The structured failure ocx prints under `--format json` (C-S1-1).
+
+    `{schema_version, command, exit_code, error: {kind, detail?, message,
+    remediation?, context}}` — a contract frozen separately from the reports
+    schema, and printed on stdout only when the failing command wrote no
+    report of its own. `error_envelope(err)` is how a caller reaches it.
+
+    The exit code is still the category (`_errors`): `kind` restates it as
+    ocx's own vocabulary, and `detail` — when present — is the fine-grained
+    slug to branch on. `message` is prose, free to be reworded.
+
+    Attributes:
+        schema_version: The envelope's own version; `1` for every 0.6 binary.
+        command: The canonical command string, e.g. `"package claim"`.
+        exit_code: The exit status the process returned.
+        kind: The coarse category, snake_case (`"data_error"`, `"auth_error"`, ...).
+        message: The outermost message of the error chain.
+        detail: The fine-grained variant slug, when ocx assigned one.
+        remediation: A remediation hint. Reserved upstream and never emitted
+            by a 0.6 binary; carried so a consumer treating it as optional
+            keeps working when it appears.
+        context: Structured context (identifiers, digests, URLs), untyped.
+    """
+
+    schema_version: int
+    command: str
+    exit_code: int
+    kind: str
+    message: str
+    detail: str | None = None
+    remediation: str | None = None
+    context: Mapping[str, Any] = _EMPTY
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> ErrorEnvelope:
+        """Build from a decoded envelope, reading across its two levels."""
+        error = _table(_need(data, _ERROR, _ENVELOPE))
+        return cls(
+            schema_version=_need(data, "schema_version", _ENVELOPE),
+            command=_need(data, "command", _ENVELOPE),
+            exit_code=_need(data, "exit_code", _ENVELOPE),
+            kind=_need(error, "kind", _ENVELOPE),
+            message=_need(error, "message", _ENVELOPE),
+            detail=error.get("detail"),
+            remediation=error.get("remediation"),
+            context=_table(_need(error, "context", _ENVELOPE)),
+        )
+
+
+def error_envelope(error: OcxProcessError) -> ErrorEnvelope | None:
+    """Return the structured failure a non-zero exit carried, else `None`.
+
+    The dual of `partial_report`: where that recovers the *report* a
+    report-then-fail command wrote, this recovers the *envelope* a hard
+    failure wrote instead. A failure never carries both, so for any one
+    error at most one of the two answers.
+
+    ```python
+    try:
+        ocx.package.claim("acme/widget", repository="oci://ghcr.io/acme/widget")
+    except DataError as exc:
+        envelope = error_envelope(exc)
+        if envelope is None or "already claimed" not in envelope.message:
+            raise
+    ```
+
+    Args:
+        error: The caught process failure.
+
+    Returns:
+        `None` when stdout is empty, is not JSON, or is a report rather than
+        an envelope. Otherwise the parsed envelope.
+
+    Raises:
+        ValueError: stdout is an envelope missing one of its frozen keys —
+            a binary outside the tested window, not a recoverable state.
+    """
+    try:
+        payload = json.loads(error.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not _is_envelope(payload):
+        return None
+    return ErrorEnvelope.from_dict(payload)
+
+
 def partial_report(error: OcxProcessError) -> str | None:
     """Return the report a non-zero-exit stdout carried, else `None` (D10).
 
@@ -340,12 +448,7 @@ def partial_report(error: OcxProcessError) -> str | None:
         payload = json.loads(error.stdout)
     except json.JSONDecodeError:
         return None
-    if not _is_object(payload):
-        return None
-    # Tested before the report shapes, never after: an error envelope is a
-    # JSON object too, and reading it as one would hand the failure's own
-    # message back as if a command had reported it.
-    if _ERROR in payload:
+    if not _is_object(payload) or _is_envelope(payload):
         return None
     return error.stdout
 
@@ -389,6 +492,52 @@ class CommandResult:
             f"CommandResult(argv={self.argv!r}, exit_code={self.exit_code}, "
             f"stdout=<{len(self.stdout)} chars>, stderr=<{len(self.stderr)} chars>)"
         )
+
+
+def tolerated_report(result: CommandResult) -> str:
+    """Return the report a report-then-fail command wrote, or raise its failure.
+
+    `package test`, `cascade check` and `cascade repair` exit non-zero *with*
+    their report on stdout when the outcome is a finding rather than a fault —
+    the client tolerates that code (`ok_codes`) so the report comes back as a
+    result. The same code with an error envelope, or with no JSON at all, is a
+    fault the tolerance must not swallow: this raises it as the exception the
+    exit code maps to, stdout preserved for `error_envelope(err)`.
+
+    Args:
+        result: The finished call, exit code and both streams.
+
+    Returns:
+        `result.stdout`, for the matching `from_json`.
+
+    Raises:
+        OcxProcessError: The exit was non-zero and stdout carried no report —
+            the subclass `_errors` maps the code to, or the base class for a
+            code ocx never assigns.
+    """
+    if result.exit_code == 0:
+        return result.stdout
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise _exit_error(result) from None
+    if _is_envelope(payload):
+        raise _exit_error(result)
+    return result.stdout
+
+
+def _exit_error(result: CommandResult) -> OcxProcessError:
+    """Map a tolerated-but-reportless exit to the error class it means.
+
+    `argv` and `stderr` arrive already redacted by `_process`; `stdout` is
+    carried verbatim, per D10.
+    """
+    try:
+        cls = _EXIT_CODE_ERRORS.get(ExitCode(result.exit_code), OcxProcessError)
+    except ValueError:
+        # A signal-killed ocx exits with a status ocx never assigns (137).
+        cls = OcxProcessError
+    return cls(result.exit_code, result.argv, result.stderr, stdout=result.stdout)
 
 
 @dataclass(frozen=True, slots=True)

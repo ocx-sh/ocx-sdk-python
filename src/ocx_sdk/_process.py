@@ -48,8 +48,9 @@ from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from typing import IO, TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
-# _EXIT_CODE_ERRORS is package-internal, and this module is its one consumer:
-# v0.1 C-010 pins the exit-code map as the seam between _errors and every spawn.
+# _EXIT_CODE_ERRORS is package-internal; this module and
+# `_results.tolerated_report` are its two consumers. v0.1 C-010 pins the
+# exit-code map as the seam between _errors and every spawn.
 from ._errors import (
     _EXIT_CODE_ERRORS,  # pyright: ignore[reportPrivateUsage]
     ExitCode,

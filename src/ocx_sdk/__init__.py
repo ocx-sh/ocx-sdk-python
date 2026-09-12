@@ -91,6 +91,7 @@ from ._results import (
     EnvEntry,
     EnvEntryType,
     EnvReport,
+    ErrorEnvelope,
     GroupStatus,
     InfoResult,
     InspectedPackage,
@@ -125,7 +126,9 @@ from ._results import (
     VerificationReport,
     VersionInfo,
     WhichResult,
+    error_envelope,
     partial_report,
+    tolerated_report,
 )
 from ._types import (
     MANAGED_CONFIG_DISABLED,
@@ -201,6 +204,7 @@ __all__ = [
     "EnvEntryType",
     "EnvReport",
     "EnvValue",
+    "ErrorEnvelope",
     "ExitCode",
     "ForgeCapabilityUnavailableError",
     "GroupStatus",
@@ -275,5 +279,7 @@ __all__ = [
     "__version__",
     "bootstrap",
     "ensure",
+    "error_envelope",
     "partial_report",
+    "tolerated_report",
 ]
