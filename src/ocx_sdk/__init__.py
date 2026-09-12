@@ -32,6 +32,7 @@ from . import bootstrap
 from ._client import (
     UNSET,
     ConfigCommands,
+    Forge,
     LazyMode,
     MaybeRetry,
     MaybeTimeout,
@@ -40,6 +41,7 @@ from ._client import (
     PatchCommands,
     Project,
     Resolve,
+    Transport,
 )
 from ._config import ConfigOverrides, OcxConfig
 from ._envmodel import ComposedEnv
@@ -228,6 +230,7 @@ __all__ = [
     "EnvValue",
     "ErrorEnvelope",
     "ExitCode",
+    "Forge",
     "ForgeCapabilityUnavailableError",
     "GroupStatus",
     "HostEnv",
@@ -294,6 +297,7 @@ __all__ = [
     "ToolBinding",
     "ToolRow",
     "TransparencyLogUnavailableError",
+    "Transport",
     "UnavailableError",
     "UnsupportedKeyBackendError",
     "UnsupportedPlatformError",

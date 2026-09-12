@@ -85,6 +85,9 @@ class ConfigOverrides(TypedDict, total=False):
     no_update_check: bool
     no_config_refresh: bool | None
     consent: bool
+    forge_token: str | None
+    forge_git_token: str | None
+    forge_git_username: str | None
     retry: RetryPolicy | None
     timeout: float | None
 
@@ -156,6 +159,15 @@ class OcxConfig:
             `OCX_NO_CONSENT`, written either way so an ambient value cannot
             decide it. This is the per-project stamp, not the shell-activation
             consent `ocx shell allow` records — that command is not wrapped.
+        forge_token: The forge API credential `package.announce` and
+            `package.claim` open their request with — `OCX_ANNOUNCE_TOKEN`.
+            `None` leaves an ambient one alone; explicit wins over ambient,
+            as `auth` does. Redacted from every log and error surface.
+        forge_git_token: The push secret for `transport="git"` —
+            `OCX_ANNOUNCE_GIT_TOKEN`. Falls back to `forge_token` upstream
+            when unset. Redacted likewise.
+        forge_git_username: The username the `git` transport pushes as —
+            `OCX_ANNOUNCE_GIT_USERNAME`. Not a secret.
         retry: Retry policy for failures ocx marked transient; `None` disables
             retrying.
         timeout: Per-attempt budget in seconds; `None` waits indefinitely.
@@ -184,6 +196,9 @@ class OcxConfig:
     no_update_check: bool = True
     no_config_refresh: bool | None = None
     consent: bool = False
+    forge_token: str | None = field(default=None, repr=False)
+    forge_git_token: str | None = field(default=None, repr=False)
+    forge_git_username: str | None = None
     retry: RetryPolicy | None = None
     timeout: float | None = None
 

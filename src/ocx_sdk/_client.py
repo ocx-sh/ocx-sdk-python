@@ -53,9 +53,11 @@ from ._errors import VersionCompatError
 from ._process import compose_argv, run_command, run_command_async, spawn, spawn_async
 from ._results import (
     AboutInfo,
+    AnnounceReport,
     AttestationReport,
     CascadeCheckReport,
     CascadeRepairReport,
+    ClaimReport,
     CommandResult,
     ConfigSetupReport,
     ConfigUpdateReport,
@@ -151,6 +153,12 @@ reaches for.
 
 type LazyMode = Literal["never", "always"]
 """When a tool's content downloads: eagerly, or on first use."""
+
+type Forge = Literal["github", "gitlab"]
+"""ocx `--forge` values — which forge hosts an index repository. Argv-only, so a `Literal`."""
+
+type Transport = Literal["api", "git"]
+"""ocx `--transport` values — how a forge write is made. `git` is GitLab-only."""
 
 _CASCADE_OK: Final = (0, 65)
 """The exits `cascade check`/`repair` write their report under: 65 is a finding, not a fault."""
@@ -2930,6 +2938,157 @@ class PackageCommands:
         result = self._call(command, (str(source),), timeout=timeout, retry=retry, mutating=not dry_run)
         return CopyReport.from_json(result.stdout)
 
+    def announce(
+        self,
+        package: str,
+        *,
+        tags: Iterable[str] = (),
+        tags_file: str | Path | None = None,
+        tags_from_registry: bool = False,
+        refresh: bool = False,
+        index_repo: str | None = None,
+        forge: Forge | None = None,
+        transport: Transport | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> AnnounceReport:
+        """Publish a package's curated tag set into the index (C-061).
+
+        Re-observes the named tags on the registry, rebuilds the index entry
+        and opens — or updates — a pull or merge request against the index
+        repository. `mutating=True` (D5): retries are off by default. A run
+        that changes nothing reports `status="unchanged"` and commits nothing.
+
+        Needs a forge credential: `OcxConfig.forge_token` (or an ambient
+        `OCX_ANNOUNCE_TOKEN`), or the job token under `transport="git"`
+        inside a GitLab job. Without one ocx exits 80 before touching the
+        network. `HostEnv.minimal()` drops the whole CI identity ladder, so a
+        hermetic handle has to name the token in its config.
+
+        Exactly one tag source is required and ocx enforces it (exit 64):
+        `tags` replaces the curated set, the other three add to it, and they
+        are mutually exclusive. Nothing is checked here — clap's usage error
+        is the category, and it names the rule.
+
+        ocx's `--yank`/`--unyank`/`--fork`/`--out` are not wrapped; reach them
+        through `invoke`.
+
+        Args:
+            package: The package to announce, as `<namespace>/<package>`.
+            tags: **Replace** the curated tag set with these. A committed tag
+                not named here is dropped; a reserved `__ocx` or legacy
+                `sha256.<hex>` tag named here is dropped and reported.
+            tags_file: **Add** the tags listed in this file — the one
+                `cascade_repair(announce_tags=...)` wrote, typically.
+            tags_from_registry: **Add** every tag the registry repository
+                currently holds.
+            refresh: Re-observe every committed tag, picking up a digest that
+                moved, without changing which tags are curated.
+            index_repo: The index repository, as `[HOST/]NAMESPACE/PROJECT`.
+                `None` takes ocx's default, `ocx-sh/index`.
+            forge: Which forge hosts it. Inferred for github.com and
+                gitlab.com; required for a self-hosted host.
+            transport: `"api"` (ocx's default) or `"git"`, the only way a
+                GitLab job token can open a merge request.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. Defaults to no retries.
+
+        Returns:
+            What reached the index: status, request URL, capability checks.
+
+        Raises:
+            AuthError: No forge credential resolved (exit 80).
+            UsageError: No tag source, more than one, or a self-hosted
+                `index_repo` without `forge` (exit 64).
+            ForgeCapabilityUnavailableError: The forge refused a job-token
+                push (exit 86).
+        """
+        command = [
+            "package",
+            "announce",
+            *_repeated("--tags", tags),
+            *_flag("--tags-file", tags_file),
+            *_switch("--tags-from-registry", tags_from_registry),
+            *_switch("--refresh", refresh),
+            *_forge_flags(index_repo, forge, transport),
+        ]
+        result = self._call(command, (package,), timeout=timeout, retry=retry, mutating=True)
+        return AnnounceReport.from_json(result.stdout)
+
+    def claim(
+        self,
+        package: str,
+        *,
+        repository: str,
+        owners: Iterable[str] = (),
+        upstream_org: str | None = None,
+        upstream_repository_url: str | None = None,
+        upstream_disclaimer: str | None = None,
+        index_repo: str | None = None,
+        forge: Forge | None = None,
+        transport: Transport | None = None,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> ClaimReport:
+        """Claim a package in the index so its tags can be announced (C-060).
+
+        Renders the package's index entry and opens a pull or merge request.
+        `mutating=True` (D5): retries are off by default. Needs the same forge
+        credential `announce` does.
+
+        **A package that is already claimed is refused** with exit 65 and an
+        error envelope — not a report, and not a distinguishable subclass:
+        the envelope carries no `detail` for it, and the SDK never classifies
+        by message text. An idempotent CI step therefore reads as
+        `except DataError`, with `error_envelope(err)` as the machine handle
+        on what ocx said.
+
+        ocx's `--fork`/`--out` are not wrapped; reach them through `invoke`.
+
+        Args:
+            package: The package to claim, as `<namespace>/<package>`.
+            repository: The physical OCI repository the bytes live in, as
+                `oci://HOST/PATH` — what every later `announce` resolves
+                tags against.
+            owners: Owners as `LOGIN` or `LOGIN:ID`, in the order to record.
+                Giving any **replaces** the detected list; the invoking
+                identity is not added. A bare `LOGIN` is resolved against
+                the forge's users API.
+            upstream_org: The upstream organization a third-party package
+                mirrors. Anchors the other two `upstream_*` arguments —
+                ocx refuses either without it.
+            upstream_repository_url: The upstream repository, as an absolute
+                `http`/`https` URL with no embedded credentials.
+            upstream_disclaimer: A disclaimer recorded on the index entry.
+            index_repo: The index repository, as `[HOST/]NAMESPACE/PROJECT`.
+            forge: Which forge hosts it; required for a self-hosted host.
+            transport: `"api"` (ocx's default) or `"git"`.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. Defaults to no retries.
+
+        Returns:
+            The rendered entry: status, owners, request URL, capability checks.
+
+        Raises:
+            AuthError: No forge credential resolved (exit 80).
+            DataError: The package is already claimed (exit 65).
+            UsageError: A self-hosted `index_repo` without `forge`, or an
+                `upstream_*` argument without `upstream_org` (exit 64).
+        """
+        command = [
+            "package",
+            "claim",
+            "--repository",
+            repository,
+            *_repeated("--owner", owners),
+            *_flag("--upstream-org", upstream_org),
+            *_flag("--upstream-repository-url", upstream_repository_url),
+            *_flag("--upstream-disclaimer", upstream_disclaimer),
+            *_forge_flags(index_repo, forge, transport),
+        ]
+        result = self._call(command, (package,), timeout=timeout, retry=retry, mutating=True)
+        return ClaimReport.from_json(result.stdout)
+
     def cascade_check(
         self,
         *refs: PackageLike,
@@ -3211,6 +3370,11 @@ def _repeated(name: str, values: Iterable[str]) -> list[str]:
 def _resolve_flag(resolve: Resolve | None) -> list[str]:
     """Render `--candidate`/`--current`, or nothing when ocx should decide."""
     return [] if resolve is None else [f"--{resolve}"]
+
+
+def _forge_flags(index_repo: str | None, forge: Forge | None, transport: Transport | None) -> list[str]:
+    """Render the three forge-targeting flags `announce` and `claim` share."""
+    return [*_flag("--index-repo", index_repo), *_flag("--forge", forge), *_flag("--transport", transport)]
 
 
 def _env_flags(env: Mapping[str, EnvValue] | None) -> list[str]:

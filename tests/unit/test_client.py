@@ -99,6 +99,24 @@ _CASCADE_CHECK = '{"reports":[]}'
 _CASCADE_REPAIR = '{"entries":[],"dry_run":false,"announce_tags_path":null}'
 """A `package cascade repair` document with nothing repaired."""
 
+_FORGE_HEAD = (
+    '"forge":"github","transport":"api","credential_kind":"token","push_credential_kind":null,'
+    '"pull_request_url":null,"pull_request_number":null,"fork":null,"written_paths":[],"capability_checks":[]'
+)
+"""The nine keys `announce` and `claim` reports share, every one always on the wire."""
+
+_ANNOUNCED = (
+    '{"package":"acme/widget","status":"updated","desc_status":"unchanged","branch":"b",'
+    f'"reserved_tags_dropped":[],{_FORGE_HEAD}}}'
+)
+"""A `package announce` document, `null` where nothing happened."""
+
+_CLAIMED = (
+    '{"package":"acme/widget","name":"acme/widget","status":"updated","author":null,"author_identity_source":null,'
+    f'"owners":[],"owner_identity_source":"resolved","branch":"b",{_FORGE_HEAD}}}'
+)
+"""A `package claim` document, the `--out`-less request shape."""
+
 _ENVELOPE_65 = (
     '{"schema_version":1,"command":"package cascade check","exit_code":65,'
     '"error":{"kind":"data_error","message":"boom","context":{}}}'
@@ -902,6 +920,84 @@ _MACHINE_CASES = [
         id="package-push-sbom-admits-a-modifier",
     ),
     pytest.param(
+        lambda o: o.package.announce("acme/widget", tags=["1.0", "1"]),
+        _ANNOUNCED,
+        ["package", "announce", "--tags", "1.0", "--tags", "1", "acme/widget"],
+        id="package-announce",
+    ),
+    pytest.param(
+        lambda o: o.package.announce(
+            "acme/widget",
+            tags_file="/tmp/tags",
+            tags_from_registry=True,
+            refresh=True,
+            index_repo="git.corp.example/acme/index",
+            forge="gitlab",
+            transport="git",
+        ),
+        _ANNOUNCED,
+        [
+            "package",
+            "announce",
+            "--tags-file",
+            "/tmp/tags",
+            "--tags-from-registry",
+            "--refresh",
+            "--index-repo",
+            "git.corp.example/acme/index",
+            "--forge",
+            "gitlab",
+            "--transport",
+            "git",
+            "acme/widget",
+        ],
+        id="package-announce-flags",
+    ),
+    pytest.param(
+        lambda o: o.package.claim("acme/widget", repository="oci://ghcr.io/acme/widget"),
+        _CLAIMED,
+        ["package", "claim", "--repository", "oci://ghcr.io/acme/widget", "acme/widget"],
+        id="package-claim",
+    ),
+    pytest.param(
+        lambda o: o.package.claim(
+            "acme/widget",
+            repository="oci://ghcr.io/acme/widget",
+            owners=["carol:5", "dave"],
+            upstream_org="upstream",
+            upstream_repository_url="https://example.test/upstream/widget",
+            upstream_disclaimer="not operated by upstream",
+            index_repo="ocx-sh/index",
+            forge="github",
+            transport="api",
+        ),
+        _CLAIMED,
+        [
+            "package",
+            "claim",
+            "--repository",
+            "oci://ghcr.io/acme/widget",
+            "--owner",
+            "carol:5",
+            "--owner",
+            "dave",
+            "--upstream-org",
+            "upstream",
+            "--upstream-repository-url",
+            "https://example.test/upstream/widget",
+            "--upstream-disclaimer",
+            "not operated by upstream",
+            "--index-repo",
+            "ocx-sh/index",
+            "--forge",
+            "github",
+            "--transport",
+            "api",
+            "acme/widget",
+        ],
+        id="package-claim-flags",
+    ),
+    pytest.param(
         lambda o: o.package.cascade_check("a", "b"),
         _CASCADE_CHECK,
         ["package", "cascade", "check", "a", "b"],
@@ -1206,6 +1302,12 @@ def test_an_explicit_none_opts_out_of_retries(exe: Path, process: _Process) -> N
             lambda o: o.package.push("a.tar.gz", identifier="repo:1"),
             _pushed("repo:1"),
             id="package-push",
+        ),
+        pytest.param(lambda o: o.package.announce("acme/widget", refresh=True), _ANNOUNCED, id="package-announce"),
+        pytest.param(
+            lambda o: o.package.claim("acme/widget", repository="oci://ghcr.io/acme/widget"),
+            _CLAIMED,
+            id="package-claim",
         ),
     ],
 )
@@ -2386,6 +2488,15 @@ def test_the_key_conflict_names_every_flag_it_refused(ocx: Ocx) -> None:
         )
 
     assert "fulcio_url, identity_token_file, no_tty" in str(caught.value)
+
+
+def test_announce_leaves_the_tag_source_rule_to_ocx(ocx: Ocx, process: _Process) -> None:
+    """No SDK-side "exactly one tag source" guard: clap's exit 64 is the category, and it names the rule."""
+    process.stdout = _ANNOUNCED
+
+    ocx.package.announce("acme/widget")
+
+    assert process.last.command == [*_JSON, "package", "announce", "acme/widget"]
 
 
 def test_a_key_signature_in_headless_ci_is_refused_not_composed(ocx: Ocx, process: _Process) -> None:

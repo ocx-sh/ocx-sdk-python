@@ -50,6 +50,11 @@ _DEFAULTS = {
     # spawn-side halves (written either way, beats an ambient `=0`) are in
     # `tests/unit/test_env.py`.
     "consent": False,
+    # The forge identity ladder's explicit rung; the two tokens are
+    # `repr=False`, which `tests/unit/test_env.py` pins.
+    "forge_token": None,
+    "forge_git_token": None,
+    "forge_git_username": None,
     "retry": None,
     "timeout": None,
 }

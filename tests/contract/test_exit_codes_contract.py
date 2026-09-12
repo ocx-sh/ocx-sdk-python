@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from ocx_sdk import (
+    AuthError,
     ConfigError,
     DataError,
     ExitCode,
@@ -29,6 +30,7 @@ from ocx_sdk import (
     PolicyBlockedError,
     UnsupportedKeyBackendError,
     UsageError,
+    error_envelope,
 )
 
 from _helpers import SMOKE_PACKAGE, project_file  # isort: skip  — sys.path is this directory under pytest
@@ -50,6 +52,9 @@ task = "ocx.sh/go-task/task:3"
 
 _UNRESOLVABLE = "ocx.sh/ocx-sdk-python/no-such-package:0.0.0"
 """An identifier no store can hold, so `--offline` refuses before any lookup."""
+
+_UNREACHABLE_REPO = "oci://127.0.0.1:1/ocx-sdk-python/never"
+"""A registry repository on a port nothing listens on — never reached, since the credential check comes first."""
 
 _KMS_KEY = "awskms://alias/ocx-sdk-python-has-no-such-key"
 """A key backend ocx recognizes by name and refuses (exit 85).
@@ -111,6 +116,38 @@ def _stale_lock(project_factory: Callable[..., Project]) -> Project:
             UnsupportedKeyBackendError,
             lambda ocx, factory, tmp_path: ocx.package.sign(SMOKE_PACKAGE, key=_KMS_KEY),
             id="85-unsupported-key-backend",
+        ),
+        # The forge identity ladder resolves nothing under `HostEnv.minimal()`
+        # — no OCX_ANNOUNCE_TOKEN, no CI_JOB_TOKEN — and ocx refuses before it
+        # touches the network, which is what makes 80 reachable offline here
+        # and nowhere else in this file.
+        pytest.param(
+            ExitCode.AUTH,
+            AuthError,
+            lambda ocx, factory, tmp_path: ocx.package.announce("ocx-sdk-python/never", tags=["1.0"]),
+            id="80-auth-announce-without-a-forge-token",
+        ),
+        pytest.param(
+            ExitCode.AUTH,
+            AuthError,
+            lambda ocx, factory, tmp_path: ocx.package.claim("ocx-sdk-python/never", repository=_UNREACHABLE_REPO),
+            id="80-auth-claim-without-a-forge-token",
+        ),
+        # clap's own refusal — no tag source at all — proving the SDK leaves
+        # the "exactly one tag source" rule to ocx rather than guarding it.
+        pytest.param(
+            ExitCode.USAGE,
+            UsageError,
+            lambda ocx, factory, tmp_path: ocx.package.announce("ocx-sdk-python/never"),
+            id="64-usage-announce-without-a-tag-source",
+        ),
+        pytest.param(
+            ExitCode.USAGE,
+            UsageError,
+            lambda ocx, factory, tmp_path: ocx.package.claim(
+                "ocx-sdk-python/never", repository=_UNREACHABLE_REPO, index_repo="git.corp.example/acme/index"
+            ),
+            id="64-usage-claim-self-hosted-without-forge",
         ),
     ],
 )
@@ -174,6 +211,39 @@ def test_package_inspect_reports_a_missing_package_when_online(ocx: Ocx) -> None
         ocx.package.inspect(_UNRESOLVABLE)
 
     assert ocx.package.inspect(SMOKE_PACKAGE).packages
+
+
+@pytest.mark.parametrize(
+    ("command", "provoke"),
+    [
+        pytest.param(
+            "package announce",
+            lambda ocx: ocx.package.announce("ocx-sdk-python/never", tags=["1.0"]),
+            id="announce",
+        ),
+        pytest.param(
+            "package claim",
+            lambda ocx: ocx.package.claim("ocx-sdk-python/never", repository=_UNREACHABLE_REPO),
+            id="claim",
+        ),
+    ],
+)
+def test_a_forge_write_without_a_credential_carries_an_error_envelope(
+    ocx: Ocx, command: str, provoke: Callable[[Ocx], object]
+) -> None:
+    """`error_envelope` reads what the binary actually prints for a hard failure.
+
+    The 80 above is the code; this is the document beside it — `kind` in
+    ocx's own vocabulary, `command` naming the one that failed, so the
+    argv the SDK composed was parsed and dispatched before the refusal.
+    """
+    with pytest.raises(AuthError) as caught:
+        provoke(ocx)
+
+    envelope = error_envelope(caught.value)
+    assert envelope is not None
+    assert (envelope.command, envelope.exit_code, envelope.kind) == (command, 80, "auth_error")
+    assert "OCX_ANNOUNCE_TOKEN" in envelope.message
 
 
 def test_consent_stamp_is_refused_by_default(project_factory: Callable[..., Project], tmp_path: Path) -> None:

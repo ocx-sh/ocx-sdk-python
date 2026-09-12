@@ -203,6 +203,11 @@ def test_a_neutralized_verification_switch_is_dropped_even_alongside_a_full_conf
         # refusal, and the opt-in is what a caller has to spell.
         pytest.param(OcxConfig(), {"OCX_NO_CONSENT": "1"}, id="consent-refused-by-default"),
         pytest.param(OcxConfig(consent=True), {"OCX_NO_CONSENT": "0"}, id="consent-opt-in"),
+        pytest.param(OcxConfig(forge_token="glpat-x"), {"OCX_ANNOUNCE_TOKEN": "glpat-x"}, id="forge-token"),
+        pytest.param(OcxConfig(forge_git_token="glpat-y"), {"OCX_ANNOUNCE_GIT_TOKEN": "glpat-y"}, id="forge-git-token"),
+        pytest.param(
+            OcxConfig(forge_git_username="indexbot"), {"OCX_ANNOUNCE_GIT_USERNAME": "indexbot"}, id="forge-git-username"
+        ),
     ],
 )
 def test_config_fields_reach_the_child_as_wire_variables(config: OcxConfig, expected: dict[str, str]) -> None:
@@ -262,6 +267,8 @@ def test_a_false_flag_leaves_the_ambient_value_alone(config: OcxConfig, key: str
         pytest.param(OcxConfig(), "OCX_MANAGED_CONFIG", id="managed-config"),
         pytest.param(OcxConfig(), "OCX_NO_CONFIG_REFRESH", id="no-config-refresh"),
         pytest.param(OcxConfig(), "DOCKER_CONFIG", id="docker-config"),
+        pytest.param(OcxConfig(), "OCX_ANNOUNCE_TOKEN", id="forge-token"),
+        pytest.param(OcxConfig(), "OCX_ANNOUNCE_GIT_USERNAME", id="forge-git-username"),
     ],
 )
 def test_an_unset_optional_field_inherits_the_ambient_value(config: OcxConfig, key: str) -> None:
@@ -370,6 +377,7 @@ def test_no_config_refresh_false_clears_an_ambient_suppression() -> None:
         pytest.param(OcxConfig(no_config=True), "OCX_NO_CONFIG", "1", id="no-config"),
         pytest.param(OcxConfig(no_update_check=False), "OCX_NO_UPDATE_CHECK", "0", id="update-check-opt-in"),
         pytest.param(OcxConfig(consent=True), "OCX_NO_CONSENT", "0", id="consent-opt-in"),
+        pytest.param(OcxConfig(forge_token="glpat-x"), "OCX_ANNOUNCE_TOKEN", "glpat-x", id="forge-token"),
         pytest.param(OcxConfig(home=_HOME), "OCX_HOME", str(_HOME), id="home"),
         pytest.param(OcxConfig(config=_CONFIG_FILE), "OCX_CONFIG", str(_CONFIG_FILE), id="config"),
         pytest.param(OcxConfig(index=_INDEX), "OCX_INDEX", str(_INDEX), id="index"),
@@ -646,6 +654,20 @@ def test_secrets_absent_from_repr_logs_errors() -> None:
 
     # A username is not a secret; redacting it would mangle logs for nothing.
     assert "ci" in spawn_env.redact("user ci logged in")
+
+
+def test_configured_forge_tokens_never_repr_and_are_redacted() -> None:
+    """The `auth` rule for the two forge secrets: carried to the child, off every readable surface."""
+    config = OcxConfig(forge_token="glpat-api-secret", forge_git_token="glpat-push-secret", forge_git_username="bot")
+
+    spawn_env = build_spawn_env(HostEnv({}), config)
+
+    assert spawn_env.mapping["OCX_ANNOUNCE_TOKEN"] == "glpat-api-secret"
+    assert spawn_env.mapping["OCX_ANNOUNCE_GIT_TOKEN"] == "glpat-push-secret"
+    for surface in (repr(config), str(config), repr(spawn_env)):
+        assert "glpat-api-secret" not in surface
+        assert "glpat-push-secret" not in surface
+    assert spawn_env.redact("push as bot with glpat-push-secret via glpat-api-secret") == "push as bot with *** via ***"
 
 
 def test_spawn_env_repr_names_its_keys_without_showing_a_value() -> None:
