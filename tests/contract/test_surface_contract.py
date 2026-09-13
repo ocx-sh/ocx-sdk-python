@@ -27,6 +27,7 @@ import pytest
 from ocx_sdk import (
     MANAGED_CONFIG_DISABLED,
     TESTED_OCX_VERSION,
+    DataError,
     Ocx,
     OcxProcessError,
     PackageRef,
@@ -342,15 +343,24 @@ def test_clean_dry_run_reads_the_store_without_touching_it(ocx: Ocx) -> None:
 
 
 def test_receipt_round_trips_through_the_real_binary(ocx: Ocx, tmp_path: Path) -> None:
-    """The sidecar `package create` writes reads back as the flags it was given (#14)."""
+    """`package receipt` reads back the flags `package create` was given (#14).
+
+    The absent case is ocx's exit 79 tolerated into `None`, and the
+    unreadable case stays the `DataError` 65 names — three answers from one
+    command, all three driven here against the real binary.
+    """
     bundle, _ = _authored(ocx, tmp_path)
 
     receipt = ocx.package.receipt(bundle)
 
     assert receipt is not None
-    assert (receipt.version, receipt.platform, receipt.identifier) == (1, "linux/amd64", "wp10.local/hello:1.0.0")
+    assert (receipt.platform, receipt.identifier) == ("linux/amd64", "wp10.local/hello:1.0.0")
     assert str(receipt.ref) == "wp10.local/hello:1.0.0"
     assert ocx.package.receipt(tmp_path / "never-built.tar.xz") is None
+
+    _write(tmp_path / "broken-receipt.json", "not a receipt")
+    with pytest.raises(DataError):
+        ocx.package.receipt(tmp_path / "broken.tar.xz")
 
 
 def test_project_handle_accepts_a_directory(ocx: Ocx, tmp_path: Path) -> None:

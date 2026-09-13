@@ -44,7 +44,6 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, Literal
 
@@ -99,22 +98,15 @@ _CASCADE: Final = "package cascade check/repair"
 _CASCADE_CHECK: Final = "package cascade check"
 _CASCADE_REPAIR: Final = "package cascade repair"
 _CLEAN: Final = "clean"
-_RECEIPT: Final = "package create"
+_RECEIPT: Final = "package receipt"
 """The commands each parser names when a required field is missing.
 
 `_SWEEP` names both, because one `SweepReport` serves `sign --tags` and
 `attest --tags` alike (C-017) and the row itself carries nothing that says
 which — the caller's row parser is the only thing that knows. `_CASCADE`
 names both cascade commands for the same reason: one `CascadeReport` is the
-`check` document and the `report` inside every `repair` entry. `_RECEIPT`
-names the command that *wrote* the build receipt, since no command prints it.
+`check` document and the `report` inside every `repair` entry.
 """
-
-_RECEIPT_VERSION: Final = 1
-"""The one build-receipt format version this SDK reads (`build_receipt.rs`)."""
-
-_ARCHIVE_SUFFIXES: Final = (".tar", ".tar.gz", ".tgz", ".zip")
-"""What `conventions.rs` strips off a bundle's stem before naming its sidecars."""
 
 type EnvEntryType = Literal["constant", "path", "list"]
 """The `type` an `ocx env` entry declares. Mirrors ocx's `--env KEY:TYPE=VALUE`."""
@@ -2843,21 +2835,23 @@ class CleanEntry:
 class BuildReceipt:
     """The `<bundle-stem>-receipt.json` sidecar `ocx package create` writes.
 
-    A build artifact, not a report: ocx prints it through no command and
-    publishes no schema for it (`build_receipt.rs`). It records what `create`
-    was told — the platform it resolved against and the identifier the bundle
-    will publish under — so `push` and `test` need not restate either. Read
-    from disk by `from_bundle`; an absent sidecar is a supported state (a
-    bundle handed over from elsewhere), a malformed one is not.
+    `ocx package receipt <bundle>` prints what `create` was told — the
+    platform it resolved against and the identifier the bundle will publish
+    under — so `push` and `test` need not restate either. Both keys are
+    absent when the build recorded neither, never `null`, so both are read
+    with `.get`.
+
+    The receipt file itself (`<stem>-receipt.json`, `build_receipt.rs`) is
+    ocx's; this SDK never reads it directly. Its format version stays behind
+    the command, which answers exit 65 for a file it cannot read and exit 79
+    for a bundle with no receipt beside it.
 
     Attributes:
-        version: The receipt format version; only `1` is read.
         platform: The `--platform` recorded, canonical grammar, when given.
         identifier: The `--identifier` recorded, resolved against the
             default registry, when given.
     """
 
-    version: int
     platform: str | None = None
     identifier: str | None = None
 
@@ -2868,73 +2862,13 @@ class BuildReceipt:
 
     @classmethod
     def from_json(cls, raw: str) -> BuildReceipt:
-        """Parse a receipt's text.
-
-        Raises:
-            ValueError: `raw` is not a JSON object, lacks `version`, or
-                declares a version this SDK does not read — a receipt from a
-                newer ocx must fail loudly, never read as version 1.
-        """
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"the build receipt is not JSON: {_excerpt(raw)!r}.") from exc
-        if not _is_object(data):
-            raise ValueError(f"the build receipt is {_excerpt(raw)!r}, expected a JSON object.")
-        data = _table(data)
-        version = _need(data, "version", _RECEIPT)
-        if version != _RECEIPT_VERSION:
-            raise ValueError(
-                f"the build receipt declares format version {version!r}; this SDK reads version "
-                f"{_RECEIPT_VERSION}. Refusing rather than guessing — upgrade ocx-sdk if ocx moved the format."
-            )
-        return cls(version=version, platform=data.get("platform"), identifier=data.get("identifier"))
+        """Parse `ocx --format json package receipt` output."""
+        return cls.from_dict(_object(raw, _RECEIPT))
 
     @classmethod
-    def from_bundle(cls, bundle: str | Path) -> BuildReceipt | None:
-        """Read the receipt beside a bundle, or `None` when there is none.
-
-        Args:
-            bundle: The bundle archive `create` wrote (or would have).
-
-        Returns:
-            The receipt, or `None` when no sidecar exists — the ordinary
-            "handed a bundle from elsewhere" case.
-
-        Raises:
-            ValueError: The sidecar exists but is not a readable receipt; it
-                names the file. A receipt that exists but cannot be read must
-                never degrade into "there is no receipt".
-        """
-        path = receipt_path(bundle)
-        try:
-            raw = path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return None
-        try:
-            return cls.from_json(raw)
-        except ValueError as exc:
-            raise ValueError(f"{path}: {exc}") from exc
-
-
-def receipt_path(bundle: str | Path) -> Path:
-    """Return where `create` puts the receipt for `bundle` (`conventions.rs`).
-
-    The last suffix comes off first, then one trailing archive extension of
-    what remains: `pkg.tar.gz` and `pkg.tar.xz` both derive `pkg`, `pkg.tgz`
-    and `pkg.zip` do too, and a suffix-less name is its own stem.
-
-    Example:
-        >>> receipt_path("dist/hello-1.0.0-linux-amd64.tar.xz").name
-        'hello-1.0.0-linux-amd64-receipt.json'
-    """
-    path = Path(bundle)
-    stem = path.stem
-    for suffix in _ARCHIVE_SUFFIXES:
-        if stem.endswith(suffix):
-            stem = stem[: -len(suffix)]
-            break
-    return path.with_name(f"{stem}-receipt.json")
+    def from_dict(cls, data: Mapping[str, Any]) -> BuildReceipt:
+        """Build from the decoded report."""
+        return cls(platform=data.get("platform"), identifier=data.get("identifier"))
 
 
 @dataclass(frozen=True, slots=True)

@@ -99,6 +99,9 @@ _CASCADE_CHECK = '{"reports":[]}'
 _CASCADE_REPAIR = '{"entries":[],"dry_run":false,"announce_tags_path":null}'
 """A `package cascade repair` document with nothing repaired."""
 
+_RECEIPT = '{"platform":"linux/amd64","identifier":"acme/widget:1.0.0"}'
+"""A `package receipt` document — both halves of what `create` was told."""
+
 _FORGE_HEAD = (
     '"forge":"github","transport":"api","credential_kind":"token","push_credential_kind":null,'
     '"pull_request_url":null,"pull_request_number":null,"fork":null,"written_paths":[],"capability_checks":[]'
@@ -690,6 +693,12 @@ _MACHINE_CASES = [
     ),
     pytest.param(lambda o: o.logout(), '{"registry":"ocx.sh"}', ["logout"], id="logout-default-registry"),
     pytest.param(lambda o: o.clean(), "[]", ["clean"], id="clean"),
+    pytest.param(
+        lambda o: o.package.receipt("dist/pkg.tar.xz"),
+        _RECEIPT,
+        ["package", "receipt", "dist/pkg.tar.xz"],
+        id="package-receipt",
+    ),
     pytest.param(
         lambda o: o.clean(dry_run=True, force=True), "[]", ["clean", "--dry-run", "--force"], id="clean-flags"
     ),
@@ -1783,16 +1792,26 @@ async def test_package_exec_records_flags_reach_the_async_verbs(ocx: Ocx, proces
     assert process.last.command[-5:] == ["--records-dir", "/r", "a", "--", "ls"]
 
 
-def test_receipt_spawns_nothing(ocx: Ocx, process: _Process, tmp_path: Path) -> None:
-    """The receipt is a local file, not a command: no spawn, no probe, no gate."""
-    (tmp_path / "pkg-receipt.json").write_text('{"version": 1, "platform": "linux/amd64"}', encoding="utf-8")
+def test_receipt_answers_none_for_ocx_79(ocx: Ocx, process: _Process) -> None:
+    """No receipt beside the bundle is ocx's exit 79, and the ordinary answer here.
 
-    receipt = ocx.package.receipt(tmp_path / "pkg.tar.xz")
-    absent = ocx.package.receipt(tmp_path / "other.tar.xz")
+    The tolerance is scoped to that one code: a receipt ocx cannot read is 65
+    and stays the `DataError` it names.
+    """
+    process.exit_code = 79
+    process.stdout = ""
 
-    assert receipt is not None and receipt.platform == "linux/amd64"
-    assert absent is None
-    assert process.calls == []
+    assert ocx.package.receipt("dist/pkg.tar.xz") is None
+    assert process.last.kwargs["ok_codes"] == (0, 79)
+
+
+def test_receipt_reads_the_report_ocx_prints(ocx: Ocx, process: _Process) -> None:
+    process.stdout = _RECEIPT
+
+    receipt = ocx.package.receipt(Path("dist") / "pkg.tar.xz")
+
+    assert receipt is not None
+    assert (receipt.platform, receipt.identifier) == ("linux/amd64", "acme/widget:1.0.0")
 
 
 # --------------------------------------------------------------------------

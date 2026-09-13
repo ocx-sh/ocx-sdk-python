@@ -36,19 +36,22 @@ that `test` and `push` read back — `identifier` and `platform` given here
 don't need repeating on the later calls. There is nothing to return: ocx
 prints no payload for this command.
 
-The receipt itself is readable through
-[`receipt`](../reference/api.md#ocx_sdk.PackageCommands.receipt) — a local
-file read, no ocx process behind it — as a
-[`BuildReceipt`](../reference/api.md#ocx_sdk.BuildReceipt): `None` when
-`create` was given neither `identifier` nor `platform` and so wrote none,
-`ValueError` naming the file when the sidecar is malformed or of a version
-this SDK does not read. `receipt.ref` is the identifier as a
+What it recorded reads back through
+[`receipt`](../reference/api.md#ocx_sdk.PackageCommands.receipt), which
+wraps `ocx package receipt` and returns a
+[`BuildReceipt`](../reference/api.md#ocx_sdk.BuildReceipt). A bundle with no
+receipt beside it is ocx's exit 79 and answers `None` here — the ordinary
+state for a bundle handed over from elsewhere. A receipt ocx cannot read is
+exit 65 and stays a [`DataError`](../reference/api.md#ocx_sdk.DataError):
+"unreadable" must never degrade into "absent", because that turns a recorded
+value into a usage error about a flag the publisher never needed.
+`receipt.ref` is the identifier as a
 [`PackageRef`](../reference/api.md#ocx_sdk.PackageRef).
 
 ```python
 from ocx_sdk import BuildReceipt
 
-receipt = BuildReceipt.from_json('{"version": 1, "identifier": "ocx.sh/me/my-tool:1.0.0"}')
+receipt = BuildReceipt.from_json('{"identifier": "ocx.sh/me/my-tool:1.0.0"}')
 assert receipt.platform is None
 assert str(receipt.ref) == "ocx.sh/me/my-tool:1.0.0"
 ```

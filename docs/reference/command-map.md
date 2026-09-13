@@ -64,6 +64,7 @@ project path.
 | `ocx package deps` | [`package.deps`](api.md#ocx_sdk.PackageCommands.deps) | T1 |
 | `ocx package pull` | [`package.pull`](api.md#ocx_sdk.PackageCommands.pull) | T1 |
 | `ocx package create` | [`package.create`](api.md#ocx_sdk.PackageCommands.create) | T1, author flow |
+| `ocx package receipt` | [`package.receipt`](api.md#ocx_sdk.PackageCommands.receipt) | T1, author flow — 79 (no receipt) reads as `None` |
 | `ocx package test --script` | [`package.test`](api.md#ocx_sdk.PackageCommands.test) | T1, author flow — stable v1 JSON, report-then-fail ‡ |
 | `ocx package test -- CMD` | [`Ocx.invoke`](api.md#ocx_sdk.Ocx.invoke) | prints the child's raw stdout even under `--format json`; never parsed here |
 | `ocx package push` | [`package.push`](api.md#ocx_sdk.PackageCommands.push) | T1, author flow |
@@ -129,8 +130,3 @@ mutates the machine outside `$OCX_HOME` — see
 [`bootstrap.ensure`](api.md#ocx_sdk.ensure) is a Python-only layer
 above the CLI: it resolves, downloads, verifies, and caches an ocx binary,
 then returns its path. See [bootstrap](../guide/bootstrap.md).
-
-[`package.receipt`](api.md#ocx_sdk.PackageCommands.receipt) reads the
-`<stem>-receipt.json` sidecar `package create` writes beside a bundle —
-no spawn, no ocx command behind it. `None` when the sidecar is absent;
-`ValueError` when it is malformed or of a version this SDK does not read.
