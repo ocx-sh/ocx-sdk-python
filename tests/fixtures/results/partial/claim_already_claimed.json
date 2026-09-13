@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "command": "package claim",
+  "exit_code": 65,
+  "error": {
+    "kind": "data_error",
+    "detail": "package_already_claimed",
+    "message": "package already claimed: p/acme/widget.json exists on main for acme/widget — use `ocx package announce`",
+    "context": {}
+  }
+}

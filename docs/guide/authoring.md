@@ -142,8 +142,9 @@ the caller.
 A claim is not idempotent on the wire: claiming an already-claimed package
 exits 65 with no report, which the SDK surfaces as a plain
 [`DataError`](../reference/api.md#ocx_sdk.DataError). The idempotent-CI
-shape is to catch it and read the
-[error envelope](concepts/errors-and-security.md#the-error-envelope):
+shape is to catch it and read `detail` off the
+[error envelope](concepts/errors-and-security.md#the-error-envelope) —
+`"package_already_claimed"`, a frozen slug, never the message text:
 
 ```python-no-run
 # illustrative: needs a forge credential and network access.
@@ -153,9 +154,13 @@ try:
     Ocx().package.claim("me/my-tool", repository="oci://ghcr.io/me/my-tool")
 except DataError as exc:
     envelope = error_envelope(exc)
-    if envelope is None or "already claimed" not in envelope.message:
+    if envelope is None or envelope.detail != "package_already_claimed":
         raise
 ```
+
+ocx's command reference tables the rest of `claim`'s slugs
+(`malformed_repository`, `owner_unknown`, `bot_identity`, …), each pinned to
+its exit code.
 
 ## `cascade_check` / `cascade_repair` — audit the rolling tags
 
