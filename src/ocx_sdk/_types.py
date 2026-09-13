@@ -27,10 +27,10 @@ from typing import Final, Literal
 
 from ._errors import ExitCode
 
-TESTED_OCX_VERSION: Final = "0.6.1"
+TESTED_OCX_VERSION: Final = "0.6.2"
 """The ocx version this SDK's contract tests run against."""
 
-MIN_SUPPORTED: Final = "0.6.1"
+MIN_SUPPORTED: Final = "0.6.2"
 """Oldest ocx the SDK accepts; below it the compat gate raises `VersionCompatError`."""
 
 MANAGED_CONFIG_DISABLED: Final = ""

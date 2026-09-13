@@ -81,6 +81,9 @@
     "PackageInspect": {
       "$ref": "#/$defs/PackageInspect"
     },
+    "PackageReceipt": {
+      "$ref": "#/$defs/PackageReceipt"
+    },
     "PatchFreezeReport": {
       "$ref": "#/$defs/PatchFreezeReport"
     },
@@ -1531,7 +1534,7 @@
       ],
       "description": "OCX package metadata.\n\nDeclares a package's type, extraction options, environment variables, and\ndependencies. Currently only the `bundle` type is supported."
     },
-    "Version": {
+    "BundleMetadataVersion": {
       "type": "integer",
       "description": "Bundle metadata format version.",
       "enum": [
@@ -1771,7 +1774,7 @@
       "type": "object",
       "properties": {
         "version": {
-          "$ref": "#/$defs/Version",
+          "$ref": "#/$defs/BundleMetadataVersion",
           "description": "The version of the bundle metadata format.\nReserved for future schema evolution."
         },
         "strip_components": {
@@ -2014,7 +2017,9 @@
         "tag": {
           "$ref": "#/$defs/AliasTag"
         },
-        "platform": true,
+        "platform": {
+          "description": "OCI platform object: `{os, architecture, variant?}`."
+        },
         "status": {
           "$ref": "#/$defs/SlotStatus"
         },
@@ -2035,7 +2040,7 @@
         "source": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Version"
+              "$ref": "#/$defs/PackageVersion"
             },
             {
               "type": "null"
@@ -2046,7 +2051,7 @@
         "observed_source": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Version"
+              "$ref": "#/$defs/PackageVersion"
             },
             {
               "type": "null"
@@ -2099,6 +2104,9 @@
         }
       ],
       "description": "The verdict for one (alias, platform) slot."
+    },
+    "PackageVersion": {
+      "type": "string"
     },
     "IndexFinding": {
       "oneOf": [
@@ -3114,6 +3122,20 @@
         "digests"
       ],
       "description": "One repository resolved to two or more distinct digests on the interface\nprojection."
+    },
+    "PackageReceipt": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "description": "The `--platform` the bundle was built for, in canonical grammar."
+        },
+        "identifier": {
+          "type": "string",
+          "description": "The `--identifier` the bundle was built to be pushed as."
+        }
+      },
+      "description": "Report emitted by `ocx package receipt`: what `ocx package create` recorded\nbeside a bundle.\n\nPlain format: one `label: value` row per recorded field.\n\nJSON format: `{ \"platform\": \"linux/amd64\", \"identifier\": \"...\" }`, each key\nabsent when the build did not record it — the same contract as the file,\nwhere absence means \"not given\", never `null`."
     },
     "PatchFreezeReport": {
       "type": "object",
@@ -4222,20 +4244,33 @@
         "skipped_reason": {
           "description": "Why the update was skipped; present iff status = `skipped`. Carries the\nstructured [`SkippedReason`] enum so scripts can dispatch on `reason`\nwithout string parsing.",
           "$ref": "#/$defs/SkippedReason"
+        },
+        "handoff": {
+          "description": "How the hand-off to the new binary's own `ocx self setup` ended, when it\ndid not end cleanly. Present on `installed` (the swap landed, some setup\nsurface may not have been written) and on `pulled` (nothing was\nactivated); absent whenever the child completed.",
+          "$ref": "#/$defs/HandoffFailure"
         }
       },
       "required": [
         "status"
       ],
-      "description": "CLI wrapper around [`SelfUpdateResult`] for API reporting.\n\nJSON format (discriminated by `status`):\n- `{\"status\": \"up_to_date\"}` — no payload\n- `{\"status\": \"installed\", \"from\": \"0.0.1\", \"to\": \"0.0.2\"}` (`from` omitted\n  when subprocess version query failed — bootstrap mode)\n- `{\"status\": \"skipped\", \"skipped_reason\": {\"reason\": \"<variant>\"[, \"detail\": \"…\"]}}`\n\nPlain format: key/value table with conditional rows; `Status` always\npresent, `From`/`To`/`Skipped reason` appear only when applicable."
+      "description": "CLI wrapper around [`SelfUpdateResult`] for API reporting.\n\nJSON format (discriminated by `status`):\n- `{\"status\": \"up_to_date\"}` — no payload\n- `{\"status\": \"installed\", \"from\": \"0.0.1\", \"to\": \"0.0.2\"}` (`from` omitted\n  when subprocess version query failed — bootstrap mode)\n- `{\"status\": \"installed\", …, \"handoff\": {\"reason\": \"exited\", \"detail\": 82}}`\n  — the swap landed, but the new binary's own setup did not finish\n- `{\"status\": \"pulled\", \"to\": \"0.0.2\", \"handoff\": {…}}` — downloaded, but\n  `current` still names the old binary, so nothing was activated\n- `{\"status\": \"skipped\", \"skipped_reason\": {\"reason\": \"<variant>\"[, \"detail\": \"…\"]}}`\n\n`handoff` is absent whenever the hand-off completed cleanly, so a clean\n`installed` payload is byte-identical to the one this command has always\nemitted.\n\nPlain format: key/value table with conditional rows; `Status` always\npresent, `From`/`To`/`Handoff`/`Skipped reason` appear only when applicable."
     },
     "StatusKind2": {
-      "type": "string",
-      "enum": [
-        "up_to_date",
-        "skipped",
-        "update_available",
-        "installed"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "up_to_date",
+            "skipped",
+            "update_available",
+            "installed"
+          ]
+        },
+        {
+          "type": "string",
+          "const": "pulled",
+          "description": "The release was downloaded but nothing was activated — `current` still\nnames the previously installed binary."
+        }
       ],
       "description": "Typed status discriminant shared by [`UpdateCheckData`] and [`SelfUpdateData`].\n\nPrevents typos at compile time (a stringly-typed `&'static str` would accept\n`\"up_to-date\"` silently). Serde serializes each variant to its `snake_case`\nname, matching the JSON wire format pinned by the snapshot tests."
     },
@@ -4356,6 +4391,64 @@
       ],
       "description": "The reason an update check was skipped.\n\nUsed as the payload of [`UpdateCheckResult::Skipped`] and\n[`SelfUpdateResult::Skipped`] so programmatic consumers (JSON, scripts)\ncan distinguish skip causes without string parsing.\n\nJSON serialization produces a discriminated object:\n- Unit variants: `{\"reason\": \"bootstrap\"}`\n- Variants with detail: `{\"reason\": \"registry_probe_failed\", \"detail\": \"…\"}`"
     },
+    "HandoffFailure": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "const": "spawn_failed"
+            },
+            "detail": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reason",
+            "detail"
+          ],
+          "description": "The new binary could not be started at all — it could not be resolved\nout of the package just pulled, or the spawn itself failed. The inner\nstring carries the underlying error context."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "const": "exited"
+            },
+            "detail": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "required": [
+            "reason",
+            "detail"
+          ],
+          "description": "The child ran and exited non-zero, carrying its exit code. `82`\n(`DirtyRcBlock`) is the expected one: the setup completed the swap but\nleft a user-edited shell profile alone."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "const": "signalled"
+            },
+            "detail": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "required": [
+            "reason",
+            "detail"
+          ],
+          "description": "The child was killed by a signal (Unix only), carrying the signal\nnumber."
+        }
+      ],
+      "description": "Why the hand-off to the newly pulled binary's own `ocx self setup` did not\ncomplete cleanly.\n\nNever the verdict on its own: the child performs the select in its first\nphase and writes the remaining setup surfaces after it, so a child that\nfailed late has already swapped the binary. Which of\n[`SelfUpdateResult::Installed`] / [`SelfUpdateResult::Pulled`] carries this\nvalue is decided by the `current` symlink; the value itself only decides\nwhat the command advises.\n\nJSON serialization mirrors [`SkippedReason`]'s discriminated object:\n`{\"reason\": \"exited\", \"detail\": 82}`."
+    },
     "UpdateCheckData": {
       "type": "object",
       "properties": {
@@ -4393,7 +4486,7 @@
         },
         "toolchain_home": {
           "type": "string",
-          "description": "The **resolved toolchain home** — a machine-readable contract field\n(C-056, S-004).\n\nThe supported way for an IDE, a devcontainer feature or a CI step to\ndiscover where a project's tree lives when `config.toml` relocates it\nwith `toolchain-dir`; without it the only route is re-deriving a 16-hex\nproject key from a path the discoverer would also have to canonicalize\nthe same way ocx does.\n\n`<project>/.ocx/toolchain` or `<toolchain-dir>/<project-key>/toolchain`\nfor the project in effect, and `$OCX_HOME/toolchain` when no project\nresolves — the tier that is always in effect, so the field never has to\nsay \"none\".\n\n**Always present, never `null`** (RUL-51): a `toolchain-dir` that fails\nC-017–C-019 is refused at *config load*, so every command — this one\nincluded — has already exited 78 before the report is built, and\n`ToolchainRoot::resolve` performs no filesystem write and accepts a root\nthat does not exist yet (RUL-5). Once the configuration parses, the home\nis always spellable, whether or not it has ever been rendered."
+          "description": "The **resolved toolchain home** — a machine-readable contract field\n(C-056, S-004).\n\nThe supported way for an IDE, a devcontainer feature or a CI step to\ndiscover where a project's tree lives when `config.toml` relocates it\nwith `toolchain_dir`; without it the only route is re-deriving a 16-hex\nproject key from a path the discoverer would also have to canonicalize\nthe same way ocx does.\n\n`<project>/.ocx/toolchain` or `<toolchain_dir>/<project-key>/toolchain`\nfor the project in effect, and `$OCX_HOME/toolchain` when no project\nresolves — the tier that is always in effect, so the field never has to\nsay \"none\".\n\n**Always present, never `null`** (RUL-51): a `toolchain_dir` that fails\nC-017–C-019 is refused at *config load*, so every command — this one\nincluded — has already exited 78 before the report is built, and\n`ToolchainRoot::resolve` performs no filesystem write and accepts a root\nthat does not exist yet (RUL-5). Once the configuration parses, the home\nis always spellable, whether or not it has ever been rendered."
         },
         "toolchain_bin": {
           "type": "string",
@@ -5266,7 +5359,7 @@
         },
         "toolchain_home": {
           "type": "string",
-          "description": "The **resolved toolchain home** — a machine-readable contract field\n(C-056, S-004).\n\nThe supported way for an IDE, a devcontainer feature or a CI step to\ndiscover where a project's tree lives when `config.toml` relocates it\nwith `toolchain-dir`; without it the only route is re-deriving a 16-hex\nproject key from a path the discoverer would also have to canonicalize\nthe same way ocx does.\n\n`<project>/.ocx/toolchain` or `<toolchain-dir>/<project-key>/toolchain`\nfor the project in effect, and `$OCX_HOME/toolchain` when no project\nresolves — the tier that is always in effect, so the field never has to\nsay \"none\".\n\n**Always present, never `null`** (RUL-51): a `toolchain-dir` that fails\nC-017–C-019 is refused at *config load*, so every command — this one\nincluded — has already exited 78 before the report is built, and\n`ToolchainRoot::resolve` performs no filesystem write and accepts a root\nthat does not exist yet (RUL-5). Once the configuration parses, the home\nis always spellable, whether or not it has ever been rendered."
+          "description": "The **resolved toolchain home** — a machine-readable contract field\n(C-056, S-004).\n\nThe supported way for an IDE, a devcontainer feature or a CI step to\ndiscover where a project's tree lives when `config.toml` relocates it\nwith `toolchain_dir`; without it the only route is re-deriving a 16-hex\nproject key from a path the discoverer would also have to canonicalize\nthe same way ocx does.\n\n`<project>/.ocx/toolchain` or `<toolchain_dir>/<project-key>/toolchain`\nfor the project in effect, and `$OCX_HOME/toolchain` when no project\nresolves — the tier that is always in effect, so the field never has to\nsay \"none\".\n\n**Always present, never `null`** (RUL-51): a `toolchain_dir` that fails\nC-017–C-019 is refused at *config load*, so every command — this one\nincluded — has already exited 78 before the report is built, and\n`ToolchainRoot::resolve` performs no filesystem write and accepts a root\nthat does not exist yet (RUL-5). Once the configuration parses, the home\nis always spellable, whether or not it has ever been rendered."
         },
         "toolchain_bin": {
           "type": "string",

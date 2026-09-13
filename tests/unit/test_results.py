@@ -21,12 +21,16 @@ Provenance of `tests/fixtures/results/*.json`:
   `keep_tags_written` and changed the tag form, so the 0.5.8 recording
   specified a payload no supported binary emits.
 - `version`, `about`, and `status` were **recaptured against ocx 0.6.1** for
-  the 0.6.1 adoption (and against 0.6.0 for 0.2.0 before it): `MIN_SUPPORTED`
-  is 0.6.1, so a fixture recording a binary the SDK now refuses would specify
-  a version it can never meet. Same shape, new values — the recapture changed
-  no key. `status` came from a one-tool scratch project; the scratch
-  `OCX_HOME`/project paths were normalized to `/tmp/ocx-recapture-home` and
-  `/tmp/ocx-recapture-prj` after capture, the one hand edit these files carry.
+  the 0.6.1 adoption (and against 0.6.0 for 0.2.0 before it). They stay at
+  that capture under the 0.6.2 floor: 0.6.2 changed no key in these three
+  roots (`git diff v0.6.1..main -- crates/ocx_cli/src/api/data` names only
+  `package_receipt.rs`, `self_update.rs` and `shell_state.rs`), and only a
+  release build carries the `ci` block these fixtures pin — a local build of
+  the 0.6.2 tree bakes in no CI provenance at all, so recapturing would
+  delete evidence rather than refresh it. `status` came from a one-tool
+  scratch project; the scratch `OCX_HOME`/project paths were normalized to
+  `/tmp/ocx-recapture-home` and `/tmp/ocx-recapture-prj` after capture, the
+  one hand edit these files carry.
   The rest still record 0.5.8, which the D7 absent-vs-null contract they pin
   is unaffected by.
 - The 0.6 signing surface — `sign`, `verify`, `attest`, `sbom*`, `copy*`,

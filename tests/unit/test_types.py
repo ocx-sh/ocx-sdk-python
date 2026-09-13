@@ -388,14 +388,15 @@ def test_compat_window_is_semver_and_ordered() -> None:
     assert minimum <= tested
 
 
-def test_compat_window_pins_ocx_0_6_1() -> None:
+def test_compat_window_pins_ocx_0_6_2() -> None:
     # C-007: 0.2.0 adopted ocx 0.6 wholesale; the author-surface work raised the
-    # floor to 0.6.1, the first binary that parses `--pinned`, `--records-*`
-    # and `package claim`. A 0.6.0 binary must fail the gate with
-    # VersionCompatError naming 0.6.1, rather than composing argv it cannot
+    # floor to 0.6.1 for `--pinned`, `--records-*` and `package claim`, and
+    # 0.6.2 raises it again for `package receipt` — argv no earlier binary
+    # parses. A binary below the floor must fail the gate with
+    # VersionCompatError naming 0.6.2, rather than composing argv it cannot
     # parse and coming back as a bare exit 64.
-    assert MIN_SUPPORTED == "0.6.1"
-    assert TESTED_OCX_VERSION == "0.6.1"
+    assert MIN_SUPPORTED == "0.6.2"
+    assert TESTED_OCX_VERSION == "0.6.2"
 
 
 def test_managed_config_disabled_is_the_empty_wire_sentinel() -> None:

@@ -2553,9 +2553,9 @@ class SlotRow:
         observed: The digest the alias carries for this platform, if any.
         expected: The digest the fold expects, if any.
         source: The version the expectation was folded from, e.g.
-            `"1.0.1"`, or `None`. Typed from the recorded fixture: the
-            published schema names an integer `Version` here, a generator
-            artifact the wire does not bear out.
+            `"1.0.1"`, or `None`. Published as `PackageVersion` (a string)
+            since 0.6.2; 0.6.1's schema named an integer `Version` here, a
+            generator artifact the wire never bore out (ocx-sh/ocx#460).
         observed_source: The version the observed digest belongs to, or
             `None` when the alias points at content no observed leaf carries.
     """
