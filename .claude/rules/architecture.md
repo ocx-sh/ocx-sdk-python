@@ -23,12 +23,9 @@ Every change and every review is checked against these.
   byte-for-byte (tested).
 - **Never write ocx-owned files** (`ocx.toml`, `ocx.lock`, `config.toml`).
   Read via tomllib + published schemas. Write side waits on
-  [ocx#326](https://github.com/ocx-sh/ocx/issues/326). The build receipt
-  (`<stem>-receipt.json` beside a `package create` bundle) is the one
-  ocx-owned file read without a published schema: `package.receipt()` is
-  read-only, pins its shape by a contract test against a receipt the real
-  binary wrote, and treats malformed or unknown-version as an error, never
-  as absent.
+  [ocx#326](https://github.com/ocx-sh/ocx/issues/326). The build receipt beside a `package create`
+  bundle is read through `ocx package receipt` (0.6.2) like any other
+  report — never off disk, so its file format stays ocx's alone.
 - `OCX_ENV`, `OCX_PATCHES`, `OCX_BINARY_PIN`: opaque pass-through. Never
   parse, rewrite, or synthesize.
 

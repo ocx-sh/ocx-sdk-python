@@ -36,6 +36,7 @@ _DEFS: dict[str, tuple[str, ...]] = {
     "AboutInfo": ("About",),
     "Advisory": ("LazyAdvisoryReport",),
     "AnnounceReport": ("AnnounceReport",),
+    "BuildReceipt": ("PackageReceipt",),
     "Assertion": ("AssertionRecord",),
     "AttestationOutcome": ("AttestationOutcome",),
     "AttestationReport": ("AttestationReport",),
@@ -108,7 +109,6 @@ a new parser with no row here fails rather than going unchecked.
 
 _UNPUBLISHED: dict[str, str] = {
     "ErrorEnvelope": "C-S1-1 — frozen as its own contract in `error_envelope.rs`, not a `reports/v1.json` root",
-    "BuildReceipt": "a build artifact, no schema, no printing command (`build_receipt.rs`); the contract tier pins it",
 }
 """Parsing structs whose wire shape ocx publishes nowhere in `reports/v1.json`.
 

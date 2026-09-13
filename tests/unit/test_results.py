@@ -110,7 +110,6 @@ from ocx_sdk._results import (
     parse_tool_rows,
     parse_which,
     partial_report,
-    receipt_path,
     tolerated_report,
 )
 from ocx_sdk._types import HostEnv, PackageRef
@@ -957,7 +956,6 @@ _REPAIR_OUTCOME: dict = {"tag": "latest", "outcome": {"outcome": "written"}}
 _REPAIR_ENTRY: dict = {"report": _CASCADE_REPORT, "planned": [], "outcomes": [], "announce_tags": []}
 _CASCADE_REPAIR_HEAD: dict = {"entries": [], "dry_run": False, "announce_tags_path": None}
 _CLEAN_ENTRY: dict = {"kind": "object", "dry_run": True, "path": "/p", "held_by": []}
-_RECEIPT = {"version": 1}
 _ENVELOPE_HEAD: dict = {"schema_version": 1, "command": "package claim", "exit_code": 65, "error": _ENVELOPE_ERROR}
 """One minimal payload per struct, holding its **required** keys and nothing else.
 
@@ -1129,7 +1127,6 @@ _REQUIRED_FIELD_SOURCES = [
     ),
     ("CascadeRepairReport", CascadeRepairReport.from_json, _CASCADE_REPAIR_HEAD, _bare),
     ("CleanEntry", parse_clean, _CLEAN_ENTRY, lambda sub: json.dumps([sub])),
-    ("BuildReceipt", BuildReceipt.from_json, _RECEIPT, _bare),
 ]
 """Every struct in `_results`, with the payload whose keys become its missing-field rows.
 
@@ -1172,6 +1169,7 @@ PARSERS = {
     "package cascade check": CascadeCheckReport.from_json,
     "package cascade repair": CascadeRepairReport.from_json,
     "clean": parse_clean,
+    "package receipt": BuildReceipt.from_json,
 }
 
 
@@ -2416,16 +2414,20 @@ def test_partial_report_hands_back_a_copy_refused_on_a_sidecar_conflict():
     assert CopyReport.from_json(recovered).sidecar_conflicts == (conflict,)
 
 
-# --- the 0.6.1 author flow: announce, claim, cascade, clean, receipt ----------
+# --- the author flow: announce, claim, cascade, clean, receipt ---------------
 #
 # The four cascade fixtures and `clean_dry_run` are live ocx 0.6.1 captures —
 # cascade against this repo's own `registry:2` compose stack, clean against a
 # throwaway `OCX_HOME` holding one uninstalled package and one orphaned
 # consent stamp (scratch paths normalized to `/tmp/ocx-recapture-*` after
-# capture). `receipt` is what `package create --identifier --platform` wrote
-# beside its bundle. The announce and claim documents are doc-derived from
-# the serde tests in `api/data/announce.rs` and `claim.rs` at 0.6.1: neither
-# command runs without a forge.
+# capture). `receipt` and `receipt_platform_only` are live `ocx package
+# receipt` captures at 0.6.2, taken from bundles `package create` had just
+# written; `receipt_identifier_only` is doc-derived, because `create` refuses
+# `--metadata` without `--platform` and so never writes that half alone —
+# the key is `skip_serializing_if`, so the shape is still ocx's to emit. The
+# announce and claim documents are doc-derived from the serde tests in
+# `api/data/announce.rs` and `claim.rs` at 0.6.1: neither command runs
+# without a forge.
 
 FX_HELLO = "127.0.0.1:5010/fx/hello"
 FX_V1 = "sha256:cd983691a80ccaa3f5539272281f05ea160f1217f08464b38be6df70bd0ccfd1"
@@ -2660,10 +2662,9 @@ def test_clean_entry_carries_the_locks_that_hold_it():
 
 
 def test_build_receipt_from_a_recorded_create():
-    """The sidecar `package create --identifier --platform` wrote beside its bundle."""
+    """Live `ocx package receipt` on the bundle `create --identifier --platform` had just written."""
     receipt = BuildReceipt.from_json(load("receipt.json"))
 
-    assert receipt.version == 1
     assert receipt.platform == "linux/amd64"
     assert receipt.identifier == "127.0.0.1:5010/fx/hello:1.0.0"
     assert str(receipt.ref) == "127.0.0.1:5010/fx/hello:1.0.0"
@@ -2677,66 +2678,21 @@ def test_build_receipt_from_a_recorded_create():
     ],
 )
 def test_build_receipt_records_whichever_half_create_knew(fixture, platform, identifier):
-    """Doc-derived: both fields are `skip_serializing_if`, so a half-receipt omits the other key."""
+    """Both keys are `skip_serializing_if`, so a half-receipt omits the other rather than nulling it."""
     receipt = BuildReceipt.from_json(load(fixture))
 
     assert (receipt.platform, receipt.identifier) == (platform, identifier)
     assert (receipt.ref is None) is (identifier is None)
 
 
-@pytest.mark.parametrize(
-    ("bundle", "expected"),
-    [
-        pytest.param("pkg.tar.gz", "pkg-receipt.json", id="tar-gz"),
-        pytest.param("pkg.tar.xz", "pkg-receipt.json", id="tar-xz"),
-        pytest.param("pkg.tar", "pkg-receipt.json", id="tar"),
-        pytest.param("pkg.tgz", "pkg-receipt.json", id="tgz"),
-        pytest.param("pkg.zip", "pkg-receipt.json", id="zip"),
-        pytest.param("pkg", "pkg-receipt.json", id="bare"),
-        pytest.param("pkg.bin", "pkg-receipt.json", id="unknown-suffix"),
-        pytest.param("hello-1.0.0-linux-amd64.tar.xz", "hello-1.0.0-linux-amd64-receipt.json", id="real-bundle"),
-    ],
-)
-def test_receipt_path_follows_ocx_sidecar_convention(bundle, expected):
-    """`conventions.rs`: the last suffix goes, then one trailing archive extension of the stem."""
-    assert receipt_path(Path("dist") / bundle) == Path("dist") / expected
+def test_build_receipt_reads_an_empty_report():
+    """A receipt recording neither half is an object with no keys, not an error.
 
-
-def test_receipt_from_bundle_answers_none_when_no_sidecar_exists(tmp_path):
-    """Absent is a supported state: a bundle handed over from elsewhere has no receipt."""
-    assert BuildReceipt.from_bundle(tmp_path / "pkg.tar.xz") is None
-
-
-def test_receipt_from_bundle_reads_the_sidecar_beside_the_bundle(tmp_path):
-    (tmp_path / "pkg-receipt.json").write_text(load("receipt.json"), encoding="utf-8")
-
-    receipt = BuildReceipt.from_bundle(tmp_path / "pkg.tar.xz")
-
-    assert receipt is not None
-    assert receipt.identifier == "127.0.0.1:5010/fx/hello:1.0.0"
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        pytest.param("not json", "not JSON", id="malformed"),
-        pytest.param("[1]", "expected a JSON object", id="wrong-shape"),
-        pytest.param('{"platform": "linux/amd64"}', "no 'version' field", id="no-version"),
-        pytest.param('{"version": 2}', "format version 2", id="newer-version"),
-    ],
-)
-def test_receipt_from_bundle_refuses_a_broken_sidecar_naming_the_file(tmp_path, text, expected):
-    """A receipt that exists but cannot be read must never degrade into "there is no receipt".
-
-    ocx's own reader (`build_receipt.rs`) fails a corrupt or newer-version
-    receipt rather than falling back to "absent", because absent turns a
-    recorded value into a usage error about a flag the publisher never
-    needed. The SDK reads it the same way, and names the file.
+    ocx refuses `create --metadata` without `--platform` today, so the shape
+    is unreachable from that command — but both keys are optional on the
+    wire, and a parser that needed one would break on a build that recorded
+    the other only.
     """
-    sidecar = tmp_path / "pkg-receipt.json"
-    sidecar.write_text(text, encoding="utf-8")
+    receipt = BuildReceipt.from_json("{}")
 
-    with pytest.raises(ValueError, match=expected) as caught:
-        BuildReceipt.from_bundle(tmp_path / "pkg.tar.xz")
-
-    assert str(caught.value).startswith(str(sidecar))
+    assert (receipt.platform, receipt.identifier, receipt.ref) == (None, None, None)

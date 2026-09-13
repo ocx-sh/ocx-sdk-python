@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "platform": "linux/amd64",
   "identifier": "127.0.0.1:5010/fx/hello:1.0.0"
 }

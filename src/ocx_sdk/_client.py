@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal, Never, Unpack, overload
 from . import _bootstrap
 from ._config import ConfigOverrides, OcxConfig
 from ._env import build_spawn_env, serialize_env_value
-from ._errors import VersionCompatError
+from ._errors import ExitCode, VersionCompatError
 from ._process import compose_argv, run_command, run_command_async, spawn, spawn_async
 from ._results import (
     AboutInfo,
@@ -165,6 +165,9 @@ type Transport = Literal["api", "git"]
 
 _CASCADE_OK: Final = (0, 65)
 """The exits `cascade check`/`repair` write their report under: 65 is a finding, not a fault."""
+
+_RECEIPT_OK: Final = (0, ExitCode.NOT_FOUND)
+"""`package receipt`'s two answers: the report, or 79 for a bundle with no receipt beside it."""
 
 type Resolve = Literal["candidate", "current"]
 """Which `$OCX_HOME` symlink a package-tier call resolves through.
@@ -3206,26 +3209,36 @@ class PackageCommands:
         result = self._call(command, (package,), timeout=timeout, retry=retry, mutating=True)
         return ClaimReport.from_json(result.stdout)
 
-    def receipt(self, bundle: str | Path) -> BuildReceipt | None:
-        """Read the build receipt `create` wrote beside a bundle, if any.
+    def receipt(
+        self,
+        bundle: str | Path,
+        *,
+        timeout: MaybeTimeout = UNSET,
+        retry: MaybeRetry = UNSET,
+    ) -> BuildReceipt | None:
+        """Print the build receipt `create` wrote beside a bundle, if any.
 
-        Not an ocx command: the receipt is a local file with no printing
-        command and no schema, so this spawns nothing and skips the
-        compatibility gate. It answers what `push` and `test` would fall
-        back to for the flags a caller leaves out.
+        Answers what `push` and `test` would fall back to for the flags a
+        caller leaves out. Local and read-only — it touches no registry — so
+        it keeps the session retry policy.
 
         Args:
             bundle: The bundle archive `create` wrote.
+            timeout: Seconds per attempt. Omitted takes the config's.
+            retry: Retry policy. `None` opts out; omitted takes the config's.
 
         Returns:
-            The receipt, or `None` when no sidecar sits beside the bundle —
-            the ordinary state for a bundle handed over from elsewhere.
+            The receipt, or `None` when no receipt sits beside the bundle —
+            ocx's exit 79, the ordinary state for a bundle handed over from
+            elsewhere, rather than an error here.
 
         Raises:
-            ValueError: The sidecar exists but is not a readable receipt, or
-                declares a format version this SDK does not read.
+            DataError: A receipt file that ocx cannot read (exit 65).
         """
-        return BuildReceipt.from_bundle(bundle)
+        result = self._call(["package", "receipt"], [str(bundle)], timeout=timeout, retry=retry, ok_codes=_RECEIPT_OK)
+        if result.exit_code == ExitCode.NOT_FOUND:
+            return None
+        return BuildReceipt.from_json(result.stdout)
 
     def cascade_check(
         self,
