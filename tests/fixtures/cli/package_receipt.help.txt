@@ -1,0 +1,15 @@
+Print the build receipt `ocx package create` wrote beside a bundle
+
+The receipt records the `--platform` and `--identifier` a build was given; `ocx package push` and `ocx package test` fall back to it when the flag is omitted. JSON output is `{"platform": ..., "identifier": ...}`, each key present only when the build recorded it.
+
+Exits 79 when no receipt sits beside the bundle and 65 when the file exists but is not a receipt this ocx can read.
+
+Usage: ocx package receipt <BUNDLE>
+
+Arguments:
+  <BUNDLE>
+          Path to the bundle `ocx package create -o` wrote
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
