@@ -13,10 +13,12 @@ cargo run -p ocx_schema -- reports > .../tests/fixtures/contract/reports.v1.json
 
 or take it from the published copy at <https://ocx.sh/schemas/reports/v1.json>.
 
-The vendored copy was taken from the published URL on 2026-09-12, when ocx
-`main` sat 18 commits past `v0.6.1` — none of them touching a definition the
-SDK reads (`git diff v0.6.1..89108a3a -- crates/ocx_cli/src/api/data` names
-only `self_update.rs` and `shell_state.rs`). The nightly canary
+The vendored copy was generated on 2026-09-13 from ocx `main` at `c17b6058`
+— the 0.6.2 release content, which is not tagged yet, so the published URL
+still serves 0.6.1's. It carries the three things 0.6.2 adds for this SDK:
+the `PackageReceipt` root (ocx-sh/ocx#459), and `PackageVersion` /
+`BundleMetadataVersion` split apart so `SlotRow.source` publishes as the
+version string the wire actually carries (ocx-sh/ocx#460). The nightly canary
 (`tests/acceptance/test_schema_drift.py`) compares this file against the
 published URL, so upstream drift surfaces there rather than in a user's
 pipeline.
