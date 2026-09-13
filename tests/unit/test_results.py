@@ -2179,6 +2179,23 @@ def test_error_envelope_carries_a_remediation_when_ocx_starts_emitting_one():
     assert envelope.context["transport"] == "git"
 
 
+def test_claim_already_claimed_is_read_off_the_detail_slug():
+    """The idempotent-CI steady state, dispatched the way the guide documents.
+
+    Doc-derived from ocx's own envelope test at 0.6.2 (`error_envelope.rs`,
+    `envelope_detail_populated_for_package_already_claimed`) and the `detail`
+    table in its command reference: exit 65, `kind` the coarse category,
+    `detail` the frozen variant slug. Before 0.6.2 the slug was empty and the
+    only handle on this state was the message text (ocx-sh/ocx#458), which is
+    exactly the stderr-matching the error model rules out.
+    """
+    envelope = error_envelope(_failed(load("partial/claim_already_claimed.json")))
+
+    assert envelope is not None
+    assert (envelope.command, envelope.exit_code) == ("package claim", 65)
+    assert (envelope.kind, envelope.detail) == ("data_error", "package_already_claimed")
+
+
 def test_error_envelope_and_partial_report_are_duals():
     """For any one failure at most one of the two answers, and the envelope is never a report.
 

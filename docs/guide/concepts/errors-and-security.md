@@ -57,21 +57,22 @@ error = DataError(
     ["ocx", "package", "claim", "acme/widget"],
     stderr="",
     stdout='{"schema_version": 1, "command": "package claim", "exit_code": 65, '
-    '"error": {"kind": "data_error", "message": "package acme/widget is already claimed", "context": {}}}',
+    '"error": {"kind": "data_error", "detail": "package_already_claimed", '
+    '"message": "package already claimed: p/acme/widget.json exists on main for acme/widget", "context": {}}}',
 )
 envelope = error_envelope(error)
 assert envelope is not None
-assert (envelope.kind, envelope.detail) == ("data_error", None)
-assert "already claimed" in envelope.message
+assert (envelope.kind, envelope.detail) == ("data_error", "package_already_claimed")
 ```
 
 `None` when stdout is empty, not JSON, or a report — the dual of
 `partial_report`, which recovers the report a report-then-fail command
 wrote; a failure never carries both. `kind` is the exit-code category's
-serde name; `detail` is the fine-grained slug when ocx assigned one (many
-paths, `claim`'s already-claimed included, do not yet) — so matching on
-`message` text there is a deliberate, documented exception to the
-no-stderr-regex rule, kept at the call site rather than inside the SDK.
+serde name; `detail` is the fine-grained variant slug, frozen by ocx so a
+caller can branch on it — `"package_already_claimed"` is how an idempotent
+CI step recognizes the claim it already made. Not every failure path
+assigns one yet, so treat `detail` as optional; `message` is for humans and
+never a branch.
 
 Exit 86, [`ForgeCapabilityUnavailableError`](../../reference/api.md#ocx_sdk.ForgeCapabilityUnavailableError),
 joins the table with 0.6.1: a forge write whose credential is valid but

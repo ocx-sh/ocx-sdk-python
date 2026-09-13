@@ -23,10 +23,12 @@ window exists to catch before a user does.
 | Report-then-fail: `cascade check`/`repair` exit 65 *with* the report | `test_cascade_65_with_report_is_a_result` / `test_cascade_check_and_repair_round_trip` | unit / acceptance |
 | Error envelope on a hard forge failure (`{schema_version, command, exit_code, error}`) | `test_a_forge_write_without_a_credential_carries_an_error_envelope` | contract |
 | `package receipt` report — 0 with the record, 79 for none, 65 for unreadable | `test_receipt_round_trips_through_the_real_binary` | contract |
+| Error-envelope `detail` slugs (`package_already_claimed`, …) | `test_claim_already_claimed_is_read_off_the_detail_slug` | unit |
 | Reports schema `reports/v1.json` — every parser's `_need`/`.get` read | `test_no_parser_reads_a_key_ocx_never_publishes` (vendored copy) / `test_vendored_reports_schema_matches_the_published_one` (nightly canary) | unit / acceptance |
 
-Every row above was re-verified against ocx 0.6.1 on 2026-09-12, the bump
-that added the last five.
+Every row above was re-verified against ocx 0.6.2 on 2026-09-13. The 0.6.1
+bump added the consent, report-then-fail, envelope, receipt and schema rows;
+0.6.2 moved the receipt row onto a real command and added the `detail` row.
 
 The two `n/a` rows move to a real row, with a named test, the moment the
 consuming feature (file reads) lands — until then there is nothing to pin
