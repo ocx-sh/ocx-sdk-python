@@ -49,7 +49,7 @@ jobs:
           name: site
           path: dist
       - id: deploy
-        uses: ocx-sh/website/.github/actions/deploy@9543500a6c48d40df5c7a2bdf2379fea75d183c1  # feat/phase3-pilots
+        uses: ocx-sh/website/.github/actions/deploy@1b898a76d4c3bbe60d9619a931c74f21660f4eb4  # v0.1.1
         with:
           dist: dist
           storage-key: ${{ secrets.BUNNY_STORAGE_KEY }}
