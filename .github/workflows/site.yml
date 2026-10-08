@@ -1,0 +1,65 @@
+name: Site
+
+# Build check for the ocx.sh docs site. Deploying is deploy.yml's job, on main only.
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'site/**'
+      - 'src/**'
+      - 'CHANGELOG.md'
+      - 'ocx.toml'
+      - 'ocx.lock'
+      - 'taskfile.yml'
+      - '.github/workflows/site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.2"  # same pin as ci.yml
+      # Installs from the lockfile, builds, then runs `ocx-site check` on site/dist.
+      - name: Build and check the site
+        run: task docs:build
+
+  # Lighthouse 100 x4 plus budgets on every built page, mobile (site/lighthouse.budgets.mjs).
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.2"  # same pin as ci.yml
+      - name: Install Chromium system libraries
+        working-directory: site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright-core install --with-deps chromium
+      - name: Lighthouse
+        env:
+          LH_HTML: '1'
+        run: task site:lighthouse
+      - name: Upload failure reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: lighthouse-reports
+          path: site/.lighthouseci/
+          if-no-files-found: ignore
+          retention-days: 14
