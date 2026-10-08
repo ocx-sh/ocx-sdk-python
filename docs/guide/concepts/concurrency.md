@@ -1,3 +1,5 @@
+<!-- doc_type: explanation -->
+
 # Concurrency & timeouts
 
 ## Handles are frozen and cache-free
@@ -41,9 +43,9 @@ resource. It is single-owner: a second, overlapping `activate()` call raises
 serializing callers would fake a safety property (queued, ordered access)
 the API doesn't actually provide. Concurrent code should read
 `ComposedEnv.mapping` instead and pass it explicitly wherever an environment
-mapping is accepted — see [Projects & toolchains](../projects.md#env-composition-envreport-composedenv).
+mapping is accepted — see [Projects & toolchains](../projects.md#env-composition-envreport--composedenv).
 
-## Retries {: #retries }
+## Retries
 
 [`RetryPolicy`](../../reference/api.md#ocx_sdk.RetryPolicy) only ever
 retries what ocx itself classified as transient — exit code `75` by
@@ -91,15 +93,16 @@ leftover from older `asyncio`-plus-`select`-based libraries) makes that call
 raise `NotImplementedError` instead of spawning anything; there is no SDK
 workaround, because subprocess creation on Windows is Proactor-only.
 
-!!! warning "Windows: a documented degraded path"
-    `capture=False` passthrough deliberately does **not** set
-    `CREATE_NEW_PROCESS_GROUP` on Windows, so `Ctrl-C` reaches the child
-    naturally — `CTRL_C_EVENT` cannot be scoped to a process group; it
-    broadcasts. The tradeoff: timeout enforcement on Windows falls back to
-    `TerminateProcess` only, with no graceful phase. `capture=False`
-    together with a `timeout` on Windows is a documented degraded
-    combination, not an oversight — the two goals (SIGINT forwarding, a
-    graceful kill ladder) genuinely conflict there.
+:::warning[Windows: a documented degraded path]
+`capture=False` passthrough deliberately does **not** set
+`CREATE_NEW_PROCESS_GROUP` on Windows, so `Ctrl-C` reaches the child
+naturally — `CTRL_C_EVENT` cannot be scoped to a process group; it
+broadcasts. The tradeoff: timeout enforcement on Windows falls back to
+`TerminateProcess` only, with no graceful phase. `capture=False`
+together with a `timeout` on Windows is a documented degraded
+combination, not an oversight — the two goals (SIGINT forwarding, a
+graceful kill ladder) genuinely conflict there.
+:::
 
 ## Output encoding
 

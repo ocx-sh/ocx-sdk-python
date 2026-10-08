@@ -1,91 +1,72 @@
-# Quickstart
+<!-- doc_type: tutorial -->
+<!-- doc_tier: first-steps -->
 
-## Install
+# Run your first pinned tool
+
+In this tutorial you install the SDK, get an `ocx` binary, pin one tool in a
+throwaway project and run it from Python. It takes about five minutes. You
+need Python 3.12+ and network access.
+
+## Install the SDK
 
 ```bash
 uv add ocx-sdk
 ```
 
-or, with `pip`:
+The wheel has no runtime dependencies.
 
-```bash
-pip install ocx-sdk
-```
+## Get an ocx binary
 
-Requires Python 3.12+. Zero runtime dependencies — the wheel pulls in
-nothing but itself.
+`bootstrap.ensure()` downloads a verified `ocx` binary into its own cache and
+returns the path. A cache hit needs no network. Hand that path to `Ocx`:
 
-## The canonical CI journey
-
-Bootstrap a pinned ocx binary, resolve a project, pull its declared
-toolchain, run inside it. This is the shape almost every consumer of this
-SDK ends up writing:
-
-```python-no-run
-# illustrative: /srv/build stands in for a real project directory (one
-# holding ocx.toml), and bootstrap.ensure() needs network access — swap in
-# your own path to run this for real.
+```python-contract
 from ocx_sdk import Ocx, bootstrap
 
 ocx = Ocx(exe=bootstrap.ensure())
-project = ocx.project("/srv/build")
-project.pull()
-result = project.exec(["task", "verify"])
-print(result.exit_code, result.stdout)
-```
-
-- [`bootstrap.ensure()`](../reference/api.md#ocx_sdk.ensure)
-  downloads, verifies, and caches a pinned ocx binary, then returns its path.
-  It is idempotent — a cache hit that still hashes correctly needs no network
-  at all. See [Bootstrap](bootstrap.md) for pinning and mirrors.
-- [`Ocx(exe=...)`](../reference/api.md#ocx_sdk.Ocx) resolves the binary once
-  and pins it to the handle for its lifetime; the handle is frozen and
-  thread-safe.
-- [`ocx.project(path)`](../reference/api.md#ocx_sdk.Ocx.project) returns a
-  [`Project`](../reference/api.md#ocx_sdk.Project) whose every call carries
-  `--project <path>` explicitly, so nothing depends on the working
-  directory. See [Projects & toolchains](projects.md).
-- [`project.pull()`](../reference/api.md#ocx_sdk.Project.pull) materializes
-  everything `ocx.lock` declares — the "install" step of the journey.
-- [`project.exec([...])`](../reference/api.md#ocx_sdk.Project.exec) runs a
-  command inside the project's composed environment and hands back its exit
-  code and output.
-
-If a pinned binary is already on `PATH` or named by `OCX_SDK_EXE` — the
-shape a CI image typically arranges — the simplest possible live check
-needs no project at all:
-
-```python-contract
-from ocx_sdk import Ocx
-
-ocx = Ocx()
 print(ocx.version())
 ```
 
-## Two things to unlearn from the CLI
+The last line prints the version of the binary, for example `0.6.5`. That
+proves the SDK can talk to ocx.
 
-!!! note "There is no `ocx.exec`"
-    Raw argv — anything the SDK doesn't type — goes through
-    [`ocx.invoke(argv)`](../reference/api.md#ocx_sdk.Ocx.invoke) (or
-    `invoke_async`/`spawn`/`spawn_async`). The toolchain runner that mirrors
-    `ocx exec` on the CLI is project-tier: `ocx.project(path).exec(argv)`.
-    Reaching for `ocx.exec` — or `ocx.run`, the name that verb carried before
-    ocx 0.6 — raises `AttributeError` with a pointer to the right method; the
-    SDK reserves both names on purpose.
+## Pin a tool in a project
 
-!!! note "Package-tier commands are machine tier"
-    [`ocx.package`](../reference/api.md#ocx_sdk.Ocx.package) — install,
-    select, exec, and the author flow (`create`/`test`/`push`) — operates on
-    `$OCX_HOME` directly and takes no project path. It is a sibling of
-    `ocx.project(...)`, not something reached through it.
+A project is a directory with an `ocx.toml` that lists tools. Create one in a
+temporary directory with a single tool, the task runner:
 
-## Where to go next
+```python-contract
+import tempfile
+from pathlib import Path
 
-- [Bootstrap](bootstrap.md) — pinning, corporate mirrors, `HostEnv` tiers.
-- [Projects & toolchains](projects.md) — `Project` in full: env composition,
-  `exec` vs `spawn`.
-- [Hermetic CI](hermetic-ci.md) — the threat-model levers for a build that
-  doesn't trust its ambient environment.
-- [Authoring packages](authoring.md) — `create` → `test` → `push`.
-- [Command ↔ method map](../reference/command-map.md) — every ocx command and
-  its SDK method, if any.
+root = Path(tempfile.mkdtemp())
+(root / "ocx.toml").write_text('[tools]\ntask = "ocx.sh/go-task/task:3"\n')
+
+project = ocx.project(root)
+project.lock()
+```
+
+`lock()` resolves the tag `task:3` to a digest for every platform and writes
+`ocx.lock` beside `ocx.toml`. The project runs exactly that build from here on.
+
+## Pull and run the tool
+
+```python-contract
+project.pull()
+result = project.exec(["task", "--version"])
+print(result.exit_code, result.stdout)
+```
+
+`pull()` downloads what `ocx.lock` pins. `exec()` runs the command inside the
+project's environment, so `task` resolves to the pinned build and not to
+anything on your `PATH`. The output is an exit code of `0` and the task
+version, for example `3.54.0`.
+
+You have a pinned toolchain driven from Python.
+
+## Next steps
+
+- [Run pinned tools from a script](run-pinned-tools.md): the same flow for a project you already have.
+- [Test against a pinned tool in pytest](pytest-fixture.md): one locked project per test.
+- [Reproduce a toolchain in CI](reproducible-ci.md): pin ocx itself and fail on drift.
+- [Why a wrapper](concepts/why-a-wrapper.md): what the SDK leaves to the binary.

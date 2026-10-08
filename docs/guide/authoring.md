@@ -1,3 +1,6 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: everyday -->
+
 # Authoring packages
 
 The author flow lives on

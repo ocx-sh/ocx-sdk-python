@@ -1,3 +1,5 @@
+<!-- doc_type: reference -->
+
 # Environment & exit codes
 
 Every variable this SDK reads or writes, and how an ocx exit code becomes a

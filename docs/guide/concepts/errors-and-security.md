@@ -1,3 +1,5 @@
+<!-- doc_type: explanation -->
+
 # Errors & credentials
 
 ## The error model: exit code *is* the category
@@ -154,7 +156,7 @@ assert repr(BearerAuth("ghp_secret")) == "BearerAuth(token=***)"
 Beyond the repr mask, every secret value the SDK composed into a spawn
 environment is exact-string-redacted from captured stderr, `on_log` lines,
 logged argv, and exception text — the choke point is
-[`_env.build_spawn_env()`](../../reference/environment.md#auth-ocx_auth_slug_), which
+[`_env.build_spawn_env()`](../../reference/environment.md#auth--ocx_auth_slug_), which
 returns the finished environment paired with a `redact` callable that
 `_process` applies to every outbound surface before it leaves the SDK. A
 caller who puts a token into `invoke`'s raw argv gets it scrubbed the same

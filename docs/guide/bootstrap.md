@@ -1,3 +1,6 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: everyday -->
+
 # Bootstrap
 
 [`bootstrap.ensure()`](../reference/api.md#ocx_sdk.ensure)
@@ -33,7 +36,20 @@ the shell installer needs no code change:
 `OCX_INSTALL_REPO` and `OCX_INSTALL_QUIET` are accepted and do nothing —
 artifact URLs come from the manifest rather than a repository guess, and this
 module prints nothing to quiet. Every variable is in
-[Environment](../reference/environment.md#bootstrap-only-ocx_install_).
+[Environment](../reference/environment.md#bootstrap-only--ocx_install_).
+
+## Binary discovery order
+
+`Ocx()` with no `exe=` looks for a binary in this order and pins the first
+hit to the handle:
+
+1. the explicit `exe=` argument
+2. the `OCX_SDK_EXE` variable
+3. `PATH`
+4. ocx's own install symlink under `$OCX_HOME`
+
+If none exists, `Ocx()` raises `OcxNotFoundError`. Call `bootstrap.ensure()`
+and pass the result as `exe=` to provision one.
 
 ## Pinning
 

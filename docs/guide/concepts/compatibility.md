@@ -1,3 +1,5 @@
+<!-- doc_type: explanation -->
+
 # Compatibility
 
 Two independent compatibility questions, both pre-1.0: which ocx binaries

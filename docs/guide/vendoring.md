@@ -1,3 +1,6 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: integration -->
+
 # Vendoring a `dist.json` snapshot
 
 Every network-dependent `bootstrap.ensure()` starts by fetching a dist
@@ -58,5 +61,5 @@ release to install* — `DistSource` only ever supplies the manifest. The
 artifact download and its own checksum verification still happen over the
 network (or from ocx's own cache) when `ensure()` runs; vendoring the
 manifest does not vendor the binary. Combine it with `mirror_url=` (see
-[Bootstrap](bootstrap.md#corporate-mirror-auth)) to relocate the artifact
+[Bootstrap](bootstrap.md#corporate-mirror--auth)) to relocate the artifact
 fetch too.

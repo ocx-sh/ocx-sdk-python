@@ -1,3 +1,5 @@
+<!-- doc_type: reference -->
+
 # Compatibility checklist
 
 The durable-anchor checklist from the design record's compatibility policy

@@ -1,3 +1,6 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: everyday -->
+
 # Projects & toolchains
 
 [`Project`](../reference/api.md#ocx_sdk.Project) is the project-tier handle,
@@ -20,17 +23,11 @@ environment = report.compose().mapping
 
 ## The toolchain lifecycle
 
-| Method | ocx command | What it does |
-|---|---|---|
-| [`init`](../reference/api.md#ocx_sdk.Project.init) | `init` | Create a minimal `ocx.toml`. |
-| [`add`](../reference/api.md#ocx_sdk.Project.add) | `add` | Add tool bindings; returns the lock rows written. |
-| [`remove`](../reference/api.md#ocx_sdk.Project.remove) | `remove` | Remove bindings. |
-| [`lock`](../reference/api.md#ocx_sdk.Project.lock) | `lock` | Resolve declared tags to digests, write `ocx.lock`. `check_only=True` verifies without writing. |
-| [`update`](../reference/api.md#ocx_sdk.Project.update) | `update` | Re-resolve declared tags against the registry. |
-| [`pull`](../reference/api.md#ocx_sdk.Project.pull) | `pull` | Pre-warm the object store from `ocx.lock`. |
-| [`status`](../reference/api.md#ocx_sdk.Project.status) | `status` | What's declared and locked — exits `0` even when the lock is broken. |
-| [`inspect`](../reference/api.md#ocx_sdk.Project.inspect) | `inspect` | Bindings and, optionally, their full resolution and dependency closure. |
-| [`env`](../reference/api.md#ocx_sdk.Project.env) | `env` | The composed environment — see below. |
+The lifecycle methods are `init`, `add`, `remove`, `lock`, `update`,
+`pull`, `status`, `inspect` and `env`. The
+[command map](../reference/command-map.md) lists each with its ocx command.
+`status` exits `0` even when the lock is broken, so read the report. `env`
+returns the composed environment, described below.
 
 `lock`, `update`, and `pull` all accept `platform=` to resolve against a
 target other than the host, and `pull`/`add`/`lock`/`update` share a

@@ -1,7 +1,9 @@
+<!-- doc_type: reference -->
+
 # API reference
 
-Auto-generated from docstrings via
-[mkdocstrings](https://mkdocstrings.github.io/python/).
+Generated from docstrings by
+[starlight-pydocs](https://github.com/ewels/starlight-pydocs) when the site builds.
 
 ## Conventions
 
@@ -18,4 +20,4 @@ Auto-generated from docstrings via
   [environment & exit codes](environment.md) for the wire-level detail
   behind the typed surface.
 
-::: ocx_sdk
+<Autodoc name="ocx_sdk" />

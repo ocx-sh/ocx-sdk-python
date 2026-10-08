@@ -1,3 +1,5 @@
+<!-- doc_type: reference -->
+
 # Command ↔ method map
 
 Every typed method mirrors one ocx command. **T1** commands are typed and
@@ -8,6 +10,19 @@ stay `invoke`-only by design; **✗** commands are never wrapped.
 
 Full flag fidelity is scoped to stable, resolution-affecting flags —
 experimental surfaces (`--ci=gitlab` and similar) are excluded on purpose.
+
+## Two naming traps
+
+There is no `Ocx.exec`. The toolchain runner that mirrors `ocx exec` is
+project-tier: `ocx.project(path).exec(argv)`. Raw argv goes through
+[`Ocx.invoke`](api.md#ocx_sdk.Ocx.invoke). Reaching for `Ocx.exec`, or for
+`Ocx.run`, the name that verb carried before ocx 0.6, raises
+`AttributeError` with a pointer to the right method.
+
+[`Ocx.package`](api.md#ocx_sdk.Ocx.package) is a sibling of `Ocx.project(...)`,
+not something reached through it. It covers install, select, exec and the
+author flow (`create`, `test`, `push`), operates on `$OCX_HOME` directly and
+takes no project path.
 
 ## Machine tier — `Ocx`
 
