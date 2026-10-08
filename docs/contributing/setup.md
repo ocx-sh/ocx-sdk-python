@@ -1,3 +1,6 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: everyday -->
+
 # Setup
 
 This repo dogfoods OCX. Install OCX once, then everything runs through
@@ -63,5 +66,5 @@ task verify
 | `task test` | pytest under coverage |
 | `task lint` / `task types` | ruff / pyright alone |
 | `task format` | apply the ruff formatter |
-| `task docs:serve` / `task docs:build` | docs preview / strict build |
+| `task docs:serve` / `task docs:build` | docs preview / build and layout check |
 | `task changelog` | regenerate `CHANGELOG.md` from git history |

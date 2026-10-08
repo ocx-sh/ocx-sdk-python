@@ -1,8 +1,19 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: everyday -->
+
 # Writing docs
 
-The docs site is [MkDocs](https://www.mkdocs.org/) with
-[Material](https://squidfunk.github.io/mkdocs-material/) and
-[`mkdocstrings`](https://mkdocstrings.github.io/python/).
+The docs site is [Astro Starlight](https://starlight.astro.build/) with the
+shared `@ocx-sh/theme`, built from `site/`. The pages come from `docs/`, and
+the API reference comes from the docstrings.
+
+Every page starts with a `doc_type` and `doc_tier` comment that the
+`docs-quality` rule reads. Run its checks before you commit:
+
+```bash
+python3 .claude/rules/docs-quality/checks/doc_declaration.py --root docs
+python3 .claude/rules/docs-quality/checks/page_type.py --root docs
+```
 
 ## Preview locally
 
@@ -10,16 +21,18 @@ The docs site is [MkDocs](https://www.mkdocs.org/) with
 ocx exec -- task docs:serve
 ```
 
-Browse to <http://127.0.0.1:8000>. Pages live-reload on file changes.
+Browse to <http://localhost:4321/integrations/python/>. Edits to `docs/` need
+a restart of the task, because the pages are generated when it starts.
 
-## Strict build (CI parity)
+## Build and check (CI parity)
 
 ```bash
 ocx exec -- task docs:build
 ```
 
-`--strict` flips any broken cross-reference, missing nav entry, or
-undefined symbol into a build failure. CI runs the same command.
+The task installs from the lockfile, builds the site, and runs `ocx-site
+check` on `site/dist`. A broken internal link, a wrong layout or a Pagefind
+version mismatch fails it. CI runs the same task.
 
 ## Runnable code fences
 
@@ -43,17 +56,20 @@ an unrecognized one.
 
 ## Adding a page
 
-1. Create the Markdown file under `docs/`.
-2. Wire it into `nav:` in `mkdocs.yml`.
-3. `task docs:build` to confirm `--strict` is happy.
+1. Create the Markdown file under `docs/`, with the two declaration comments
+   and one `#` heading. The heading becomes the page title.
+2. Add its slug to `sidebar` in `site/astro.config.mjs`.
+3. Run `task docs:build` to confirm the build and the link check pass.
 
-## Auto-API pages (`mkdocstrings`)
+Use `:::note[Title]` blocks for callouts, and relative `.md` links between
+pages. The generator rewrites those links to the site URLs.
 
-To render a class or function:
+## Auto-API pages
 
-```markdown
-::: ocx_sdk.module.Symbol
-```
-
-`mkdocstrings` reads the live docstring. Update the docstring in
-`src/`, rebuild — done.
+`docs/reference/api.md` holds one `<Autodoc name="ocx_sdk" />` tag. The site
+renders the reference from the docstrings with `starlight-pydocs`, but one page
+for every symbol is far over the page budgets, so the generator replaces the tag
+with a list of group pages (`site/reference-groups.mjs`). To change the
+reference, update the docstring in `src/` and rebuild. A new public symbol or
+method must also be added to a group there: `task docs:build` fails and names
+what is missing, and `task site:lighthouse` names a page that grew over budget.

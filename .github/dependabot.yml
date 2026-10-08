@@ -14,3 +14,12 @@ updates:
     groups:
       dev-dependencies:
         patterns: ["*"]
+  # Bump @ocx-sh/theme and the deploy action's SHA in deploy.yml together:
+  # the action aborts on a Pagefind version mismatch.
+  - package-ecosystem: "npm"
+    directory: "/site"
+    schedule:
+      interval: "weekly"
+    groups:
+      ocx-theme:
+        patterns: ["@ocx-sh/theme"]

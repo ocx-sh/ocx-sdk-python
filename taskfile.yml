@@ -68,25 +68,39 @@ tasks:
       - uv run --extra dev coverage html
 
   docs:serve:
-    desc: Live-reload MkDocs server at http://127.0.0.1:8000
+    desc: Live-reload Starlight server at http://localhost:4321/integrations/python/
+    dir: site
     cmds:
-      - uv run --extra docs mkdocs serve -a 127.0.0.1:8000
+      - pnpm install --frozen-lockfile
+      - pnpm dev
 
   docs:build:
-    desc: Build the static site into site/ (strict mode)
+    desc: Build the Starlight site into site/dist and run the ocx.sh layout check
+    dir: site
     cmds:
-      - uv run --extra docs mkdocs build --strict
-    sources:
-      - 'docs/**/*'
-      - 'src/ocx_sdk/**/*.py'
-      - 'mkdocs.yml'
-    generates:
-      - 'site/**/*'
+      - pnpm install --frozen-lockfile
+      - pnpm build
+      - pnpm check
+
+  site:lighthouse:
+    desc: Build the site, serve it under its base path and audit every page with Lighthouse (mobile, 100 x4 plus budgets)
+    dir: site
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm exec playwright-core install chromium
+      - pnpm lighthouse {{.CLI_ARGS}}
+
+  site:test:
+    desc: Offline unit test of the Lighthouse budgets and page discovery
+    dir: site
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm test
 
   docs:clean:
-    desc: Remove the generated site/ directory
+    desc: Remove the generated docs content and the build output
     cmds:
-      - rm -rf site
+      - rm -rf site/dist site/.astro site/.lighthouseci site/src/content/docs
 
   lint:actions:
     desc: Lint GitHub Actions workflows

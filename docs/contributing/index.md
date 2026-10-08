@@ -1,3 +1,6 @@
+<!-- doc_type: how-to -->
+<!-- doc_tier: everyday -->
+
 # Contributing
 
 - **[Setup](setup.md)** — bootstrap OCX, `uv`, `task`.

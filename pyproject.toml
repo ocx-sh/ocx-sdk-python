@@ -25,7 +25,7 @@ dependencies = []
 Homepage = "https://github.com/ocx-sh/ocx-sdk-python"
 Repository = "https://github.com/ocx-sh/ocx-sdk-python"
 Issues = "https://github.com/ocx-sh/ocx-sdk-python/issues"
-Documentation = "https://ocx-sh.github.io/ocx-sdk-python/"
+Documentation = "https://ocx.sh/integrations/python/"
 Changelog = "https://github.com/ocx-sh/ocx-sdk-python/blob/main/CHANGELOG.md"
 "OCX Project" = "https://github.com/ocx-sh/ocx"
 
@@ -37,14 +37,6 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.9",
     "sybil>=9",
-]
-docs = [
-    "mkdocs-material>=9.5,<10",
-    "mkdocstrings[python]>=0.27,<1.1",
-    "griffe>=1.5",
-    "mkdocs-include-markdown-plugin>=7",
-    "mkdocs-git-revision-date-localized-plugin>=1.2",
-    "pymdown-extensions>=10.7",
 ]
 
 [build-system]

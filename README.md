@@ -1,9 +1,11 @@
+<!-- doc_type: readme -->
+
 # ocx-sdk
 
 [![PyPI](https://img.shields.io/pypi/v/ocx-sdk.svg)](https://pypi.org/project/ocx-sdk/)
 [![Python versions](https://img.shields.io/pypi/pyversions/ocx-sdk.svg)](https://pypi.org/project/ocx-sdk/)
 [![CI](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/ci.yml/badge.svg)](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/ci.yml)
-[![Docs](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/docs.yml/badge.svg)](https://ocx-sh.github.io/ocx-sdk-python/)
+[![Docs](https://github.com/ocx-sh/ocx-sdk-python/actions/workflows/deploy.yml/badge.svg)](https://ocx.sh/integrations/python/)
 [![codecov](https://codecov.io/gh/ocx-sh/ocx-sdk-python/branch/main/graph/badge.svg)](https://codecov.io/gh/ocx-sh/ocx-sdk-python)
 [![License](https://img.shields.io/github/license/ocx-sh/ocx-sdk-python.svg)](LICENSE)
 
@@ -16,7 +18,7 @@ reimplementing it.
 ```python-no-run
 # illustrative: /srv/build stands in for a real project directory, and
 # bootstrap.ensure() needs network access — swap in your own path to run
-# this for real, or see the quickstart below for the full explanation.
+# this for real, or follow the tutorial linked below.
 from ocx_sdk import Ocx, bootstrap
 
 ocx = Ocx(exe=bootstrap.ensure())    # download, verify, cache a pinned binary
@@ -25,8 +27,8 @@ project.pull()                       # materialize the declared toolchain
 result = project.exec(["task", "verify"])
 ```
 
-📖 **Docs: <https://ocx-sh.github.io/ocx-sdk-python/>** — start at the
-[quickstart](https://ocx-sh.github.io/ocx-sdk-python/guide/quickstart/).
+📖 **Docs: <https://ocx.sh/integrations/python/>** — start with
+[Run your first pinned tool](https://ocx.sh/integrations/python/guide/quickstart/).
 
 ## Install
 
@@ -34,10 +36,6 @@ Requires Python 3.12+.
 
 ```bash
 uv add ocx-sdk
-```
-
-```bash
-pip install ocx-sdk
 ```
 
 ## Why
@@ -54,13 +52,16 @@ pip install ocx-sdk
 
 ## Where to go next
 
-- [Quickstart](https://ocx-sh.github.io/ocx-sdk-python/guide/quickstart/) —
-  the canonical CI journey in one worked example.
-- [Bootstrap](https://ocx-sh.github.io/ocx-sdk-python/guide/bootstrap/) —
+- [Run your first pinned tool](https://ocx.sh/integrations/python/guide/quickstart/) —
+  a five-minute tutorial.
+- [Reproduce a toolchain in CI](https://ocx.sh/integrations/python/guide/reproducible-ci/) —
+  pin ocx, pull the lock, fail on drift.
+- [Test against a pinned tool in pytest](https://ocx.sh/integrations/python/guide/pytest-fixture/).
+- [Bootstrap](https://ocx.sh/integrations/python/guide/bootstrap/) —
   pinning, corporate mirrors, hardened environments.
-- [API reference](https://ocx-sh.github.io/ocx-sdk-python/reference/api/) —
+- [API reference](https://ocx.sh/integrations/python/reference/api/) —
   every public symbol.
-- [Changelog](https://ocx-sh.github.io/ocx-sdk-python/changelog/).
+- [Changelog](https://ocx.sh/integrations/python/changelog/).
 
 ## Development
 
@@ -69,12 +70,12 @@ This repo dogfoods OCX. Install OCX once, then run everything through it:
 ```bash
 curl -sSL https://setup.ocx.sh | sh
 ocx exec -- task verify      # format check + lint + types + tests + coverage
-ocx exec -- task docs:serve  # live-preview the docs site at localhost:8000
+ocx exec -- task docs:serve  # live-preview the docs site at localhost:4321
 ```
 
-OCX bootstraps `task`, `uv`, and `git-cliff`; `uv` pulls `ruff` + `pyright`
-from `[project.optional-dependencies] dev` and the MkDocs stack from `docs`.
-See [Contributing](https://ocx-sh.github.io/ocx-sdk-python/contributing/)
+OCX bootstraps `task`, `uv`, `node`, `pnpm` and `git-cliff`; `uv` pulls
+`ruff` + `pyright` from `[project.optional-dependencies] dev`, and `pnpm` builds the docs site.
+See [Contributing](https://ocx.sh/integrations/python/contributing/)
 for the full guide, including how the doc examples on this page are tested.
 
 ## Stability

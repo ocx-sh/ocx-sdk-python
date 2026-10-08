@@ -1,0 +1,55 @@
+name: Deploy
+
+# Uploads the docs site to its Bunny storage zone for ocx.sh/integrations/python/.
+# Exactly these three triggers: no tags, no pull_request. The `ocx.sh`
+# environment only admits `main`.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * *'  # daily; an off-peak minute avoids the top-of-hour queue
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e  # v1
+        with:
+          version: "0.6.2"  # same pin as ci.yml
+      # Installs from the lockfile, builds, then runs `ocx-site check` on site/dist.
+      - name: Build and check the site
+        run: task docs:build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: site
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ocx.sh
+      url: ${{ steps.deploy.outputs.url }}
+    concurrency:
+      group: ocx-sh-deploy
+      cancel-in-progress: false
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: site
+          path: dist
+      - id: deploy
+        uses: ocx-sh/website/.github/actions/deploy@9543500a6c48d40df5c7a2bdf2379fea75d183c1  # feat/phase3-pilots
+        with:
+          dist: dist
+          storage-key: ${{ secrets.BUNNY_STORAGE_KEY }}

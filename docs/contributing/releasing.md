@@ -1,3 +1,5 @@
+<!-- doc_type: runbook -->
+
 # Releasing
 
 Releases are cut from `main` by tag. `.github/workflows/release.yml` builds,

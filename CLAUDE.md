@@ -76,8 +76,10 @@ then `task verify` works bare. CI reaches the same state through
 | `task types` | pyright |
 | `task format` | apply ruff formatter |
 | `task format:check` | check formatting (used by verify) |
-| `task docs:serve` | live-reload docs at localhost:8000 |
-| `task docs:build` | strict MkDocs build into `site/` |
+| `task docs:serve` | live-reload docs at localhost:4321 |
+| `task docs:build` | Starlight build into `site/dist/` plus `ocx-site check` |
+| `task site:lighthouse` | Build `site/`, audit every page with Lighthouse (mobile, 100 x4 plus budgets in `site/lighthouse.budgets.mjs`) |
+| `task site:test` | Offline unit test of those budgets and page discovery |
 | `task changelog` | Regenerate `CHANGELOG.md` from git history (git-cliff) |
 | `task release:prepare` | Next version via git-cliff + bump + changelog + verify |
 
@@ -98,13 +100,17 @@ regenerates `CHANGELOG.md`, and runs `task verify`. Review, commit `chore(releas
 `git push --atomic origin main vX.Y.Z`.
 
 `CHANGELOG.md` is git-cliff-generated (`cliff.toml`) — never edit it by hand.
-`docs/changelog.md` embeds it into the docs site via `include-markdown`.
+`site/scripts/gen-content.mjs` embeds it into the docs site changelog page.
 
 ## Docs
 
-MkDocs Material, deployed to GitHub Pages at
-<https://ocx-sh.github.io/ocx-sdk-python/> by `.github/workflows/docs.yml` on
-every push to `main`. No custom domain.
+Astro Starlight with the shared `@ocx-sh/theme`, in `site/`, served at
+<https://ocx.sh/integrations/python/>. `.github/workflows/deploy.yml` uploads
+it to Bunny on every push to `main`. `docs/` stays the source of truth (Sybil
+runs its code fences); `site/scripts/gen-content.mjs` generates the Starlight
+pages from it, and `starlight-pydocs` renders the API reference from the
+docstrings. Never edit `site/src/content/docs/`: it is generated and ignored.
+Docs rules live in `.claude/rules/docs-quality.md`, installed by grim.
 
 ## Stability
 

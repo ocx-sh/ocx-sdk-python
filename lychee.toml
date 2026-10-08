@@ -1,8 +1,10 @@
-# The project's own docs site is excluded from remote checks: `docs.yml`
+# The project's own docs site is excluded from remote checks: `deploy.yml`
 # redeploys it on every push to main, so a deep link a docs PR just added
-# 404s here until that PR lands — a deployment-timing gap, not a broken
-# link. `task docs:build` (`mkdocs build --strict`) validates every such
-# link and heading anchor against the site this same PR builds, which is
-# the meaningful check for pages that don't exist on the live site yet.
-exclude = ["^https?://localhost", "^https?://127\\.0\\.0\\.1", "^https?://ocx-sh\\.github\\.io/ocx-sdk-python"]
+# 404s here until that PR lands. That is a deployment-timing gap, not a broken
+# link. `task docs:build` (`ocx-site check` on the built site) validates every
+# internal link of the site this same PR builds.
+# Links into this repo on `main` (blob/tree pages, workflow badges) have the same
+# gap: a PR that adds the file links to it before it exists on main. The files
+# themselves are in the checkout, so nothing outside the repo goes unchecked.
+exclude = ["^https?://localhost", "^https?://127\\.0\\.0\\.1", "^https?://ocx\\.sh/integrations/python", "^https?://ocx-sh\\.github\\.io/ocx-sdk-python", "^https://github\\.com/ocx-sh/ocx-sdk-python/(blob|tree)/main/", "^https://github\\.com/ocx-sh/ocx-sdk-python/actions/workflows/"]
 accept = [200, 429]
