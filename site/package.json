@@ -19,7 +19,7 @@
   "devDependencies": {
     "@lhci/cli": "0.15.1",
     "chrome-launcher": "1.2.1",
-    "lighthouse": "12.6.1",
+    "lighthouse": "13.5.0",
     "playwright-core": "^1.63.0"
   }
 }
