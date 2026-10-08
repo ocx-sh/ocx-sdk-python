@@ -1,0 +1,10 @@
+#:schema https://grimoire.rs/schemas/grimoire-config.schema.json
+[options]
+clients = ["claude", "codex"]
+
+[bundles]
+docs-essentials = "ghcr.io/ocx-sh/lore/docs-essentials:latest"
+
+[skills]
+
+[rules]
