@@ -1,0 +1,148 @@
+// The API reference is one starlight-pydocs entry per group of symbols, because a single generated
+// page (31k DOM nodes, 175 KB of HTML) blows every page budget. Each entry documents the same
+// package through a `members.include` slice, so cross-references still resolve across groups.
+// Edit by hand: move a symbol, or one `Class.member` pattern, between `include` lists. A class spread over
+// several pages lists its members on each (`cont` names the classes whose signature and docstring stay on
+// their first page only). `task site:lighthouse` names a page over budget; `check-reference.mjs` (in
+// `task docs:build`) fails when a public symbol is on no page.
+export const API_BASE = 'reference/api';
+export const PACKAGE = 'ocx_sdk';
+
+export const GROUPS = [
+  { slug: 'overview', label: 'Overview', include: ['__version__', 'bootstrap'], names: ['__version__', 'bootstrap'], intro: true },
+  { slug: 'ocx-1', label: 'Ocx (1 of 4)', include: ['Ocx', 'Ocx.config', 'Ocx.exe', 'Ocx.package', 'Ocx.spawn'], names: ['Ocx'] },
+  { slug: 'ocx-2', label: 'Ocx (2 of 4)', include: ['Ocx', 'Ocx.spawn_async', 'Ocx.with_config', 'Ocx.patch', 'Ocx.session_config', 'Ocx.about', 'Ocx.login'], names: ['Ocx'], cont: ['Ocx'] },
+  { slug: 'ocx-3', label: 'Ocx (3 of 4)', include: ['Ocx', 'Ocx.logout', 'Ocx.clean', 'Ocx.invoke', 'Ocx.invoke_async'], names: ['Ocx'], cont: ['Ocx'] },
+  { slug: 'ocx-4', label: 'Ocx, Project', include: ['Ocx', 'Ocx.project', 'Ocx.version', 'Project'], names: ['Ocx', 'Project'], cont: ['Ocx'] },
+  { slug: 'project-1', label: 'Project (1 of 6)', include: ['Project', 'Project.remove', 'Project.spawn_async'], names: ['Project'], cont: ['Project'] },
+  { slug: 'project-2', label: 'Project (2 of 6)', include: ['Project', 'Project.exec', 'Project.with_config'], names: ['Project'], cont: ['Project'] },
+  { slug: 'project-3', label: 'Project (3 of 6)', include: ['Project', 'Project.inspect', 'Project.status', 'Project.path', 'Project.session_config', 'Project.add'], names: ['Project'], cont: ['Project'] },
+  { slug: 'project-4', label: 'Project (4 of 6)', include: ['Project', 'Project.lock', 'Project.init', 'Project.pull'], names: ['Project'], cont: ['Project'] },
+  { slug: 'project-5', label: 'Project (5 of 6)', include: ['Project', 'Project.spawn', 'Project.exec_async'], names: ['Project'], cont: ['Project'] },
+  { slug: 'project-6', label: 'Project, PackageCommands', include: ['Project', 'Project.update', 'Project.env', 'PackageCommands'], names: ['Project', 'PackageCommands'], cont: ['Project'] },
+  { slug: 'package-commands-1', label: 'PackageCommands (1 of 16)', include: ['PackageCommands', 'PackageCommands.install', 'PackageCommands.which', 'PackageCommands.cascade_check'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-2', label: 'PackageCommands (2 of 16)', include: ['PackageCommands', 'PackageCommands.cascade_repair', 'PackageCommands.pull'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-3', label: 'PackageCommands (3 of 16)', include: ['PackageCommands', 'PackageCommands.push'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-4', label: 'PackageCommands (4 of 16)', include: ['PackageCommands', 'PackageCommands.verify', 'PackageCommands.deps'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-5', label: 'PackageCommands (5 of 16)', include: ['PackageCommands', 'PackageCommands.exec', 'PackageCommands.description_push'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-6', label: 'PackageCommands (6 of 16)', include: ['PackageCommands', 'PackageCommands.receipt', 'PackageCommands.select'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-7', label: 'PackageCommands (7 of 16)', include: ['PackageCommands', 'PackageCommands.sign'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-8', label: 'PackageCommands (8 of 16)', include: ['PackageCommands', 'PackageCommands.create', 'PackageCommands.env'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-9', label: 'PackageCommands (9 of 16)', include: ['PackageCommands', 'PackageCommands.description_pull', 'PackageCommands.deselect', 'PackageCommands.claim'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-10', label: 'PackageCommands (10 of 16)', include: ['PackageCommands', 'PackageCommands.exec_async'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-11', label: 'PackageCommands (11 of 16)', include: ['PackageCommands', 'PackageCommands.copy', 'PackageCommands.inspect'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-12', label: 'PackageCommands (12 of 16)', include: ['PackageCommands', 'PackageCommands.spawn_async', 'PackageCommands.uninstall'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-13', label: 'PackageCommands (13 of 16)', include: ['PackageCommands', 'PackageCommands.attest'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-14', label: 'PackageCommands (14 of 16)', include: ['PackageCommands', 'PackageCommands.announce'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-15', label: 'PackageCommands (15 of 16)', include: ['PackageCommands', 'PackageCommands.sbom', 'PackageCommands.spawn'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'package-commands-16', label: 'PackageCommands (16 of 16)', include: ['PackageCommands', 'PackageCommands.test'], names: ['PackageCommands'], cont: ['PackageCommands'] },
+  { slug: 'config-commands', label: 'ConfigCommands, PatchCommands', include: ['ConfigCommands', 'ConfigCommands.*', 'PatchCommands', 'PatchCommands.*'], names: ['ConfigCommands', 'PatchCommands'] },
+  { slug: 'auth', label: 'Auth to Channel', include: ['Auth', 'BasicAuth', 'BasicAuth.*', 'BearerAuth', 'BearerAuth.*', 'Channel', 'Channel.*'], names: ['Auth', 'BasicAuth', 'BearerAuth', 'Channel'] },
+  { slug: 'composed-env', label: 'ComposedEnv, ConfigOverrides', include: ['ComposedEnv', 'ComposedEnv.*', 'ConfigOverrides'], names: ['ComposedEnv', 'ConfigOverrides'] },
+  { slug: 'config-overrides-1', label: 'ConfigOverrides (1 of 2)', include: ['ConfigOverrides', 'ConfigOverrides.index', 'ConfigOverrides.insecure_registries', 'ConfigOverrides.jobs', 'ConfigOverrides.log_level', 'ConfigOverrides.auth', 'ConfigOverrides.config', 'ConfigOverrides.consent', 'ConfigOverrides.no_update_check', 'ConfigOverrides.offline', 'ConfigOverrides.records_dir', 'ConfigOverrides.records_name', 'ConfigOverrides.retry', 'ConfigOverrides.sigstore_trusted_root'], names: ['ConfigOverrides'], cont: ['ConfigOverrides'] },
+  { slug: 'config-overrides-2', label: 'ConfigOverrides (2 of 2)', include: ['ConfigOverrides', 'ConfigOverrides.timeout', 'ConfigOverrides.docker_config', 'ConfigOverrides.forge_git_token', 'ConfigOverrides.forge_git_username', 'ConfigOverrides.forge_token', 'ConfigOverrides.frozen', 'ConfigOverrides.home', 'ConfigOverrides.managed_config', 'ConfigOverrides.mirrors', 'ConfigOverrides.no_config', 'ConfigOverrides.no_config_refresh', 'ConfigOverrides.toolchain_dir'], names: ['ConfigOverrides'], cont: ['ConfigOverrides'] },
+  { slug: 'const-var', label: 'ConstVar, DistSource', include: ['ConstVar', 'ConstVar.*', 'DistSource', 'DistSource.manifest_data', 'DistSource.manifest_path', 'DistSource.manifest_url', 'DistSource.sha256'], names: ['ConstVar', 'DistSource'] },
+  { slug: 'dist-source-1', label: 'DistSource (1 of 2)', include: ['DistSource', 'DistSource.credentials', 'DistSource.auth', 'DistSource.headers', 'DistSource.data', 'DistSource.path', 'DistSource.resolve_url'], names: ['DistSource'], cont: ['DistSource'] },
+  { slug: 'dist-source-2', label: 'DistSource to Forge', include: ['DistSource', 'DistSource.url', 'EnvEntryType', 'EnvValue', 'Forge'], names: ['DistSource', 'EnvEntryType', 'EnvValue', 'Forge'], cont: ['DistSource'] },
+  { slug: 'host-env', label: 'HostEnv', include: ['HostEnv', 'HostEnv.*'], names: ['HostEnv'] },
+  { slug: 'install-env', label: 'InstallEnv, LazyMode', include: ['InstallEnv', 'InstallEnv.*', 'LazyMode'], names: ['InstallEnv', 'LazyMode'] },
+  { slug: 'list-var', label: 'ListVar to MaybeTimeout', include: ['ListVar', 'ListVar.*', 'LogLevel', 'MANAGED_CONFIG_DISABLED', 'MIN_SUPPORTED', 'MaybeRetry', 'MaybeTimeout'], names: ['ListVar', 'LogLevel', 'MANAGED_CONFIG_DISABLED', 'MIN_SUPPORTED', 'MaybeRetry', 'MaybeTimeout'] },
+  { slug: 'ocx-config-1', label: 'OcxConfig (1 of 3)', include: ['OcxConfig'], names: ['OcxConfig'] },
+  { slug: 'ocx-config-2', label: 'OcxConfig (2 of 3)', include: ['OcxConfig', 'OcxConfig.auth', 'OcxConfig.config', 'OcxConfig.consent', 'OcxConfig.forge_git_token', 'OcxConfig.forge_git_username', 'OcxConfig.forge_token', 'OcxConfig.index', 'OcxConfig.insecure_registries', 'OcxConfig.jobs', 'OcxConfig.managed_config', 'OcxConfig.no_config', 'OcxConfig.docker_config', 'OcxConfig.frozen'], names: ['OcxConfig'], cont: ['OcxConfig'] },
+  { slug: 'ocx-config-3', label: 'OcxConfig, PackageLike', include: ['OcxConfig', 'OcxConfig.home', 'OcxConfig.log_level', 'OcxConfig.mirrors', 'OcxConfig.no_config_refresh', 'OcxConfig.no_update_check', 'OcxConfig.offline', 'OcxConfig.records_dir', 'OcxConfig.sigstore_trusted_root', 'OcxConfig.timeout', 'OcxConfig.records_name', 'OcxConfig.retry', 'OcxConfig.toolchain_dir', 'PackageLike'], names: ['OcxConfig', 'PackageLike'], cont: ['OcxConfig'] },
+  { slug: 'package-ref', label: 'PackageRef, PathVar, Resolve', include: ['PackageRef', 'PackageRef.*', 'PathVar', 'PathVar.*', 'Resolve'], names: ['PackageRef', 'PathVar', 'Resolve'] },
+  { slug: 'retry-policy', label: 'RetryPolicy', include: ['RetryPolicy', 'RetryPolicy.*'], names: ['RetryPolicy'] },
+  { slug: 'signature-format', label: 'SignatureFormat to ensure', include: ['SignatureFormat', 'TESTED_OCX_VERSION', 'Transport', 'UNSET', 'ensure'], names: ['SignatureFormat', 'TESTED_OCX_VERSION', 'Transport', 'UNSET', 'ensure'] },
+  { slug: 'about-info-1', label: 'AboutInfo (1 of 2)', include: ['AboutInfo', 'AboutInfo.build', 'AboutInfo.channel', 'AboutInfo.ci', 'AboutInfo.commit', 'AboutInfo.home', 'AboutInfo.libc', 'AboutInfo.platforms', 'AboutInfo.registry', 'AboutInfo.shell', 'AboutInfo.version'], names: ['AboutInfo'] },
+  { slug: 'about-info-2', label: 'AboutInfo, Advisory', include: ['AboutInfo', 'AboutInfo.from_json', 'Advisory', 'Advisory.*'], names: ['AboutInfo', 'Advisory'], cont: ['AboutInfo'] },
+  { slug: 'announce-report-1', label: 'AnnounceReport (1 of 2)', include: ['AnnounceReport', 'AnnounceReport.branch', 'AnnounceReport.capability_checks', 'AnnounceReport.credential_kind', 'AnnounceReport.desc_status', 'AnnounceReport.package', 'AnnounceReport.pull_request_number', 'AnnounceReport.pull_request_url'], names: ['AnnounceReport'] },
+  { slug: 'announce-report-2', label: 'AnnounceReport (2 of 2)', include: ['AnnounceReport', 'AnnounceReport.push_credential_kind', 'AnnounceReport.reserved_tags_dropped', 'AnnounceReport.status', 'AnnounceReport.transport', 'AnnounceReport.forge', 'AnnounceReport.fork', 'AnnounceReport.written_paths', 'AnnounceReport.from_json'], names: ['AnnounceReport'], cont: ['AnnounceReport'] },
+  { slug: 'assertion', label: 'Assertion', include: ['Assertion', 'Assertion.*'], names: ['Assertion'] },
+  { slug: 'attestation-outcome', label: 'AttestationOutcome', include: ['AttestationOutcome', 'AttestationOutcome.*'], names: ['AttestationOutcome'] },
+  { slug: 'attestation-report-1', label: 'AttestationReport (1 of 2)', include: ['AttestationReport', 'AttestationReport.platform', 'AttestationReport.predicate_type', 'AttestationReport.public_key_hint', 'AttestationReport.referrer_digest', 'AttestationReport.sidecar_digest', 'AttestationReport.transparency_log_index', 'AttestationReport.bundle_digest'], names: ['AttestationReport'] },
+  { slug: 'attestation-report-2', label: 'AttestationReport (2 of 2)', include: ['AttestationReport', 'AttestationReport.certificate_identity', 'AttestationReport.certificate_oidc_issuer', 'AttestationReport.identifier', 'AttestationReport.key_backend', 'AttestationReport.signed', 'AttestationReport.subject_digest', 'AttestationReport.from_dict', 'AttestationReport.from_json'], names: ['AttestationReport'], cont: ['AttestationReport'] },
+  { slug: 'blob-summary', label: 'BlobSummary', include: ['BlobSummary', 'BlobSummary.*'], names: ['BlobSummary'] },
+  { slug: 'build-receipt', label: 'BuildReceipt', include: ['BuildReceipt', 'BuildReceipt.*'], names: ['BuildReceipt'] },
+  { slug: 'candidate', label: 'Candidate', include: ['Candidate', 'Candidate.*'], names: ['Candidate'] },
+  { slug: 'capability-check', label: 'CapabilityCheck', include: ['CapabilityCheck', 'CapabilityCheck.*'], names: ['CapabilityCheck'] },
+  { slug: 'cascade-check-report', label: 'CascadeCheckReport', include: ['CascadeCheckReport', 'CascadeCheckReport.*'], names: ['CascadeCheckReport'] },
+  { slug: 'cascade-repair-report', label: 'CascadeRepairReport', include: ['CascadeRepairReport', 'CascadeRepairReport.*'], names: ['CascadeRepairReport'] },
+  { slug: 'cascade-report-1', label: 'CascadeReport (1 of 2)', include: ['CascadeReport', 'CascadeReport.aliases', 'CascadeReport.identifier', 'CascadeReport.ignored_tags', 'CascadeReport.index_findings', 'CascadeReport.logical', 'CascadeReport.rows', 'CascadeReport.unrepairable', 'CascadeReport.clean'], names: ['CascadeReport'] },
+  { slug: 'cascade-report-2', label: 'CascadeReport, ClaimOwner', include: ['CascadeReport', 'CascadeReport.ref', 'CascadeReport.from_dict', 'ClaimOwner', 'ClaimOwner.*'], names: ['CascadeReport', 'ClaimOwner'], cont: ['CascadeReport'] },
+  { slug: 'claim-report-1', label: 'ClaimReport (1 of 2)', include: ['ClaimReport', 'ClaimReport.branch', 'ClaimReport.capability_checks', 'ClaimReport.fork', 'ClaimReport.name', 'ClaimReport.pull_request_number', 'ClaimReport.written_paths'], names: ['ClaimReport'] },
+  { slug: 'claim-report-2', label: 'ClaimReport (2 of 2)', include: ['ClaimReport', 'ClaimReport.author', 'ClaimReport.author_identity_source', 'ClaimReport.credential_kind', 'ClaimReport.forge', 'ClaimReport.owner_identity_source', 'ClaimReport.owners', 'ClaimReport.package', 'ClaimReport.pull_request_url', 'ClaimReport.push_credential_kind', 'ClaimReport.status', 'ClaimReport.transport', 'ClaimReport.from_json'], names: ['ClaimReport'], cont: ['ClaimReport'] },
+  { slug: 'clean-entry', label: 'CleanEntry', include: ['CleanEntry', 'CleanEntry.*'], names: ['CleanEntry'] },
+  { slug: 'command-result', label: 'CommandResult, ConfigSetupReport', include: ['CommandResult', 'CommandResult.*', 'ConfigSetupReport', 'ConfigSetupReport.*'], names: ['CommandResult', 'ConfigSetupReport'] },
+  { slug: 'config-update-report-1', label: 'ConfigUpdateReport (1 of 2)', include: ['ConfigUpdateReport', 'ConfigUpdateReport.paused_until', 'ConfigUpdateReport.pinned', 'ConfigUpdateReport.policy', 'ConfigUpdateReport.source', 'ConfigUpdateReport.status', 'ConfigUpdateReport.tag', 'ConfigUpdateReport.from_json', 'ConfigUpdateReport.digest'], names: ['ConfigUpdateReport'] },
+  { slug: 'config-update-report-2', label: 'ConfigUpdateReport, CopiedPlatformRow', include: ['ConfigUpdateReport', 'ConfigUpdateReport.drift', 'ConfigUpdateReport.fetched_at', 'ConfigUpdateReport.kill_switches', 'CopiedPlatformRow', 'CopiedPlatformRow.*'], names: ['ConfigUpdateReport', 'CopiedPlatformRow'], cont: ['ConfigUpdateReport'] },
+  { slug: 'copy-report-1', label: 'CopyReport (1 of 2)', include: ['CopyReport', 'CopyReport.blobs', 'CopyReport.cascade_tags_written', 'CopyReport.description', 'CopyReport.keep_tags_written', 'CopyReport.platforms', 'CopyReport.referrers_copied'], names: ['CopyReport'] },
+  { slug: 'copy-report-2', label: 'CopyReport (2 of 2)', include: ['CopyReport', 'CopyReport.sidecar_conflicts', 'CopyReport.sidecars_copied', 'CopyReport.source', 'CopyReport.status', 'CopyReport.target', 'CopyReport.from_json'], names: ['CopyReport'], cont: ['CopyReport'] },
+  { slug: 'dep-node', label: 'DepNode', include: ['DepNode', 'DepNode.*'], names: ['DepNode'] },
+  { slug: 'deps-report', label: 'DepsReport', include: ['DepsReport', 'DepsReport.*'], names: ['DepsReport'] },
+  { slug: 'dry-run-entry', label: 'DryRunEntry', include: ['DryRunEntry', 'DryRunEntry.*'], names: ['DryRunEntry'] },
+  { slug: 'env-entry', label: 'EnvEntry', include: ['EnvEntry', 'EnvEntry.*'], names: ['EnvEntry'] },
+  { slug: 'env-report-1', label: 'EnvReport (1 of 2)', include: ['EnvReport', 'EnvReport.advisories', 'EnvReport.binaries', 'EnvReport.entries', 'EnvReport.entrypoints', 'EnvReport.integrations'], names: ['EnvReport'] },
+  { slug: 'env-report-2', label: 'EnvReport, ErrorEnvelope', include: ['EnvReport', 'EnvReport.compose', 'EnvReport.from_json', 'ErrorEnvelope', 'ErrorEnvelope.command', 'ErrorEnvelope.context'], names: ['EnvReport', 'ErrorEnvelope'], cont: ['EnvReport'] },
+  { slug: 'error-envelope', label: 'ErrorEnvelope', include: ['ErrorEnvelope', 'ErrorEnvelope.detail', 'ErrorEnvelope.exit_code', 'ErrorEnvelope.kind', 'ErrorEnvelope.message', 'ErrorEnvelope.remediation', 'ErrorEnvelope.schema_version', 'ErrorEnvelope.from_dict'], names: ['ErrorEnvelope'], cont: ['ErrorEnvelope'] },
+  { slug: 'group-status', label: 'GroupStatus', include: ['GroupStatus', 'GroupStatus.*'], names: ['GroupStatus'] },
+  { slug: 'index-finding', label: 'IndexFinding, InfoResult', include: ['IndexFinding', 'IndexFinding.*', 'InfoResult'], names: ['IndexFinding', 'InfoResult'] },
+  { slug: 'inspect-report', label: 'InspectReport', include: ['InspectReport', 'InspectReport.*'], names: ['InspectReport'] },
+  { slug: 'inspected-package-1', label: 'InspectedPackage (1 of 2)', include: ['InspectedPackage', 'InspectedPackage.candidates', 'InspectedPackage.closure', 'InspectedPackage.metadata', 'InspectedPackage.name', 'InspectedPackage.pinned_digest', 'InspectedPackage.pinned_identifier', 'InspectedPackage.platform', 'InspectedPackage.resolution'], names: ['InspectedPackage'] },
+  { slug: 'inspected-package-2', label: 'InspectedPackage, InstallReport', include: ['InspectedPackage', 'InspectedPackage.ref', 'InspectedPackage.from_dict', 'InspectedPackage.identifier', 'InspectedPackage.layers', 'InstallReport', 'InstallReport.*'], names: ['InspectedPackage', 'InstallReport'], cont: ['InspectedPackage'] },
+  { slug: 'installed-package', label: 'InstalledPackage', include: ['InstalledPackage', 'InstalledPackage.*'], names: ['InstalledPackage'] },
+  { slug: 'integration', label: 'Integration', include: ['Integration', 'Integration.*'], names: ['Integration'] },
+  { slug: 'listing-summary', label: 'ListingSummary', include: ['ListingSummary', 'ListingSummary.*'], names: ['ListingSummary'] },
+  { slug: 'lock-status', label: 'LockStatus', include: ['LockStatus', 'LockStatus.*'], names: ['LockStatus'] },
+  { slug: 'login-result', label: 'LoginResult, LogoutResult', include: ['LoginResult', 'LoginResult.*', 'LogoutResult', 'LogoutResult.*'], names: ['LoginResult', 'LogoutResult'] },
+  { slug: 'package-binding', label: 'PackageBinding', include: ['PackageBinding', 'PackageBinding.*'], names: ['PackageBinding'] },
+  { slug: 'package-description', label: 'PackageDescription', include: ['PackageDescription', 'PackageDescription.*'], names: ['PackageDescription'] },
+  { slug: 'pull-report', label: 'PullReport, PushResult', include: ['PullReport', 'PullReport.*', 'PushResult'], names: ['PullReport', 'PushResult'] },
+  { slug: 'push-result', label: 'PushResult', include: ['PushResult', 'PushResult.attestation', 'PushResult.cascade_tags_written', 'PushResult.identifier', 'PushResult.keep_tags_written', 'PushResult.layers', 'PushResult.manifest_digest', 'PushResult.platform_digests', 'PushResult.signatures', 'PushResult.status', 'PushResult.ref', 'PushResult.from_json'], names: ['PushResult'], cont: ['PushResult'] },
+  { slug: 'refused-entry', label: 'RefusedEntry', include: ['RefusedEntry', 'RefusedEntry.*'], names: ['RefusedEntry'] },
+  { slug: 'removal-result', label: 'RemovalResult', include: ['RemovalResult', 'RemovalResult.*'], names: ['RemovalResult'] },
+  { slug: 'repair-entry', label: 'RepairEntry', include: ['RepairEntry', 'RepairEntry.*'], names: ['RepairEntry'] },
+  { slug: 'repair-outcome', label: 'RepairOutcome', include: ['RepairOutcome', 'RepairOutcome.*'], names: ['RepairOutcome'] },
+  { slug: 'sbom-entry-1', label: 'SbomEntry (1 of 2)', include: ['SbomEntry', 'SbomEntry.certificate_identity', 'SbomEntry.certificate_oidc_issuer', 'SbomEntry.predicate_type', 'SbomEntry.from_dict', 'SbomEntry.referrer_digest', 'SbomEntry.shadowed', 'SbomEntry.signed_at'], names: ['SbomEntry'] },
+  { slug: 'sbom-entry-2', label: 'SbomEntry, SbomListingReport', include: ['SbomEntry', 'SbomEntry.subject_digest', 'SbomEntry.summary', 'SbomEntry.verified', 'SbomListingReport', 'SbomListingReport.*'], names: ['SbomEntry', 'SbomListingReport'], cont: ['SbomEntry'] },
+  { slug: 'sbom-summary-out', label: 'SbomSummaryOut', include: ['SbomSummaryOut', 'SbomSummaryOut.*'], names: ['SbomSummaryOut'] },
+  { slug: 'signature-entry-1', label: 'SignatureEntry (1 of 2)', include: ['SignatureEntry', 'SignatureEntry.certificate_identity', 'SignatureEntry.signed_at', 'SignatureEntry.from_dict', 'SignatureEntry.certificate_oidc_issuer', 'SignatureEntry.discovery_method', 'SignatureEntry.key_backend', 'SignatureEntry.referrer_digest', 'SignatureEntry.rekor_log_index'], names: ['SignatureEntry'] },
+  { slug: 'signature-entry-2', label: 'SignatureEntry, SignatureLegReport', include: ['SignatureEntry', 'SignatureEntry.signature_format', 'SignatureLegReport', 'SignatureLegReport.*'], names: ['SignatureEntry', 'SignatureLegReport'], cont: ['SignatureEntry'] },
+  { slug: 'signature-report-1', label: 'SignatureReport (1 of 2)', include: ['SignatureReport', 'SignatureReport.certificate_identity', 'SignatureReport.certificate_oidc_issuer', 'SignatureReport.identifier', 'SignatureReport.key_backend', 'SignatureReport.legs', 'SignatureReport.platform'], names: ['SignatureReport'] },
+  { slug: 'signature-report-2', label: 'SignatureReport (2 of 2)', include: ['SignatureReport', 'SignatureReport.transparency_log_index', 'SignatureReport.from_dict', 'SignatureReport.from_json', 'SignatureReport.public_key_hint', 'SignatureReport.signer', 'SignatureReport.subject_digest'], names: ['SignatureReport'], cont: ['SignatureReport'] },
+  { slug: 'signed-platform-report', label: 'SignedPlatformReport', include: ['SignedPlatformReport', 'SignedPlatformReport.*'], names: ['SignedPlatformReport'] },
+  { slug: 'slot-row', label: 'SlotRow', include: ['SlotRow', 'SlotRow.*'], names: ['SlotRow'] },
+  { slug: 'status-report', label: 'StatusReport', include: ['StatusReport', 'StatusReport.*'], names: ['StatusReport'] },
+  { slug: 'sweep-report', label: 'SweepReport', include: ['SweepReport', 'SweepReport.*'], names: ['SweepReport'] },
+  { slug: 'swept-tag-report', label: 'SweptTagReport', include: ['SweptTagReport', 'SweptTagReport.*'], names: ['SweptTagReport'] },
+  { slug: 'test-result', label: 'TestResult', include: ['TestResult', 'TestResult.*'], names: ['TestResult'] },
+  { slug: 'test-run', label: 'TestRun', include: ['TestRun', 'TestRun.*'], names: ['TestRun'] },
+  { slug: 'tool-binding', label: 'ToolBinding', include: ['ToolBinding', 'ToolBinding.*'], names: ['ToolBinding'] },
+  { slug: 'tool-row', label: 'ToolRow', include: ['ToolRow', 'ToolRow.*'], names: ['ToolRow'] },
+  { slug: 'verification-report', label: 'VerificationReport', include: ['VerificationReport', 'VerificationReport.*'], names: ['VerificationReport'] },
+  { slug: 'version-info', label: 'VersionInfo', include: ['VersionInfo', 'VersionInfo.*'], names: ['VersionInfo'] },
+  { slug: 'which-result', label: 'WhichResult, error_envelope', include: ['WhichResult', 'WhichResult.*', 'error_envelope'], names: ['WhichResult', 'error_envelope'] },
+  { slug: 'partial-report', label: 'partial_report, tolerated_report', include: ['partial_report', 'tolerated_report'], names: ['partial_report', 'tolerated_report'] },
+  { slug: 'auth-error', label: 'AuthError to ExitCode', include: ['AuthError', 'BootstrapError', 'ChecksumMismatchError', 'ConfigError', 'DataError', 'DirtyRcBlockError', 'DistManifestError', 'DownloadError', 'ExitCode', 'ExitCode.AUTH'], names: ['AuthError', 'BootstrapError', 'ChecksumMismatchError', 'ConfigError', 'DataError', 'DirtyRcBlockError', 'DistManifestError', 'DownloadError', 'ExitCode'] },
+  { slug: 'exit-code-1', label: 'ExitCode (1 of 2)', include: ['ExitCode', 'ExitCode.CONFIG', 'ExitCode.DATA_ERR', 'ExitCode.IO_ERR', 'ExitCode.NOT_FOUND', 'ExitCode.NO_PERM', 'ExitCode.OK', 'ExitCode.POLICY_BLOCKED', 'ExitCode.REFERRERS_UNSUPPORTED', 'ExitCode.TEMP_FAIL', 'ExitCode.TRANSPARENCY_LOG_UNAVAILABLE', 'ExitCode.DIRTY_RC_BLOCK', 'ExitCode.FAILURE', 'ExitCode.FORGE_CAPABILITY_UNAVAILABLE'], names: ['ExitCode'], cont: ['ExitCode'] },
+  { slug: 'exit-code-2', label: 'ExitCode to OcxError', include: ['ExitCode', 'ExitCode.UNAVAILABLE', 'ExitCode.UNSUPPORTED_KEY_BACKEND', 'ExitCode.USAGE', 'ForgeCapabilityUnavailableError', 'IoError', 'NotFoundError', 'OcxError'], names: ['ExitCode', 'ForgeCapabilityUnavailableError', 'IoError', 'NotFoundError', 'OcxError'], cont: ['ExitCode'] },
+  { slug: 'ocx-execution-error', label: 'OcxExecutionError, OcxNotFoundError', include: ['OcxExecutionError', 'OcxExecutionError.*', 'OcxNotFoundError'], names: ['OcxExecutionError', 'OcxNotFoundError'] },
+  { slug: 'ocx-process-error', label: 'OcxProcessError, OcxTimeoutError', include: ['OcxProcessError', 'OcxProcessError.*', 'OcxTimeoutError', 'OcxTimeoutError.*'], names: ['OcxProcessError', 'OcxTimeoutError'] },
+  { slug: 'permission-denied-error', label: 'PermissionDeniedError to UsageError', include: ['PermissionDeniedError', 'PolicyBlockedError', 'ReferrersUnsupportedError', 'TempFailError', 'TransparencyLogUnavailableError', 'UnavailableError', 'UnsupportedKeyBackendError', 'UnsupportedPlatformError', 'UsageError'], names: ['PermissionDeniedError', 'PolicyBlockedError', 'ReferrersUnsupportedError', 'TempFailError', 'TransparencyLogUnavailableError', 'UnavailableError', 'UnsupportedKeyBackendError', 'UnsupportedPlatformError', 'UsageError'] },
+  { slug: 'version-compat-error', label: 'VersionCompatError', include: ['VersionCompatError', 'VersionCompatError.*'], names: ['VersionCompatError'] },
+];
+
+const glob = (pattern, path) =>
+  pattern === path || (pattern.endsWith('.*') && path.startsWith(pattern.slice(0, -1)) && !path.slice(pattern.length - 1).includes('.'));
+
+/**
+ * Where a documented path lives: its group and the anchor id on that page.
+ * `path` is dotted from the package root (`ocx_sdk.Ocx.invoke`).
+ */
+export function locate(path) {
+  const find = (p) => {
+    const own = GROUPS.find((g) => g.include.some((pat) => glob(pat, p)));
+    return own ?? (p.includes('.') ? find(p.slice(0, p.lastIndexOf('.'))) : undefined);
+  };
+  const group = find(path.slice(PACKAGE.length + 1));
+  return group && { group, id: path };
+}

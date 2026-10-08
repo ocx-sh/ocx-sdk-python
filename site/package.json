@@ -1,0 +1,25 @@
+{
+  "name": "ocx-sdk-python-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "node scripts/gen-content.mjs",
+    "dev": "pnpm gen && astro dev",
+    "build": "pnpm gen && astro build",
+    "check": "ocx-site check --dist dist && node scripts/check-reference.mjs",
+    "lighthouse": "node scripts/lighthouse.mjs",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.4",
+    "@ocx-sh/theme": "github:ocx-sh/website#9543500a6c48d40df5c7a2bdf2379fea75d183c1&path:packages/theme",
+    "astro": "7.3.5",
+    "starlight-pydocs": "0.3.0"
+  },
+  "devDependencies": {
+    "@lhci/cli": "0.15.1",
+    "chrome-launcher": "1.2.1",
+    "lighthouse": "12.6.1",
+    "playwright-core": "^1.63.0"
+  }
+}

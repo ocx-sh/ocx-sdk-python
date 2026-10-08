@@ -32,7 +32,12 @@ docker/certs/*.srl
 .DS_Store
 .idea/
 .vscode/
-site/
+site/node_modules/
+site/dist/
+site/.astro/
+site/.lighthouseci/
+# Generated from docs/ by site/scripts/gen-content.mjs
+site/src/content/docs/
 
 # Local agent telemetry (model-routing hook)
 .claude/state/

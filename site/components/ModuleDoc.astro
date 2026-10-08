@@ -1,0 +1,11 @@
+---
+// A group page documents a slice of one module: its members, nothing else. The default ModuleDoc
+// repeats the module docstring and a summary of every member on each page; the API index
+// (reference/api/) carries the docstring and the grouping instead.
+import { DocstringSections, ObjectDoc } from 'starlight-pydocs/components';
+
+const { doc, scope, headingLevel = 2, labels } = Astro.props;
+const members = doc.groups.filter((group) => group.id !== 'modules').flatMap((group) => group.members);
+---
+
+{doc.path !== 'ocx_sdk' || scope.pkg.base.endsWith('/overview') ? <DocstringSections doc={doc} scope={scope} labels={labels} /> : null}{members.map((member) => <ObjectDoc doc={member} scope={scope} headingLevel={headingLevel} labels={labels} />)}

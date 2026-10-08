@@ -1,0 +1,10 @@
+---
+// Signatures render as plain text with links. The default colours every token in its own <span>
+// (about 100 DOM nodes for one constructor) and the stock Shiki colours miss 4.5:1 contrast on the
+// signature background; both go once the highlight sidecar is empty.
+import { Signature } from 'starlight-pydocs/components';
+
+const { scope, ...props } = Astro.props;
+---
+
+<Signature {...props} scope={{ ...scope, highlights: { texts: {} } }} />

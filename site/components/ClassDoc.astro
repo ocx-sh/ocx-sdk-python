@@ -1,0 +1,12 @@
+---
+// A class spread over several group pages keeps its signature and docstring on the first page only;
+// the later pages show the heading and their slice of members (see `cont` in reference-groups.mjs).
+import { ClassDoc } from 'starlight-pydocs/components';
+import { API_BASE, GROUPS } from '../reference-groups.mjs';
+
+const { doc, scope } = Astro.props;
+const group = GROUPS.find((g) => scope.pkg.base === `${API_BASE}/${g.slug}`);
+const continued = group?.cont?.some((name) => doc.path === `ocx_sdk.${name}`);
+---
+
+{continued ? null : <ClassDoc {...Astro.props} />}

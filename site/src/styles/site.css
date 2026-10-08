@@ -1,0 +1,16 @@
+/*
+ * The theme ships Plex Sans italic faces (400 and 600). The first <em> on a page downloads one
+ * (about 25 KB), which pushes the page past the 147 KiB total-transfer budget. Emphasis renders as
+ * semibold instead; drop this once the theme budgets for, or stops shipping, the italic faces.
+ */
+em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* starlight-pydocs italicizes its placeholders ("required", "undocumented"), which loads the same face. */
+.pyd-required,
+.pyd-undocumented,
+.pyd-no-members {
+  font-style: normal;
+}
