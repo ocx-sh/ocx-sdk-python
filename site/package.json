@@ -11,7 +11,7 @@
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "0.42.4",
+    "@astrojs/starlight": "0.42.5",
     "@ocx-sh/theme": "0.1.1",
     "astro": "7.3.5",
     "starlight-pydocs": "0.3.0"
