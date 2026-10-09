@@ -13,7 +13,7 @@
   "dependencies": {
     "@astrojs/starlight": "0.42.4",
     "@ocx-sh/theme": "0.1.1",
-    "astro": "7.3.5",
+    "astro": "7.3.6",
     "starlight-pydocs": "0.3.0"
   },
   "devDependencies": {
