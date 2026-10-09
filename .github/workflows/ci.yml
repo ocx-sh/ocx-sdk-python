@@ -35,7 +35,7 @@ jobs:
         run: task cov:xml
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -74,7 +74,7 @@ jobs:
       # enough, and fork PRs get a read-only token so this stays same-repo only.
       - name: Publish test report
         if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' && matrix.python == '3.13' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: mikepenz/action-junit-report@a9170d5795813c01ab4901ffb045b52bab4ab09d  # v6.5.0
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3  # v6.6.0
         with:
           report_paths: test-results.xml
 
