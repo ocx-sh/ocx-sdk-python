@@ -1,7 +1,4 @@
 allowBuilds:
   esbuild: true
-  # Git-hosted theme: pnpm runs its prepack (typescript is a theme devDependency).
-  # Key contains the SHA; drop with the switch to npm 0.2.0.
-  '@ocx-sh/theme@https://codeload.github.com/ocx-sh/website/tar.gz/1b898a76d4c3bbe60d9619a931c74f21660f4eb4#path:packages/theme': true
-  '@ocx-sh/theme@https://codeload.github.com/ocx-sh/website/tar.gz/38d1b3164d6ae227efd6d84fbc0b47615c9ec00d#path:packages/theme': set this to true or false
-  '@ocx-sh/theme@https://codeload.github.com/ocx-sh/website/tar.gz/9543500a6c48d40df5c7a2bdf2379fea75d183c1#path:packages/theme': set this to true or false
+minimumReleaseAgeExclude:
+  - '@ocx-sh/theme@0.1.1'
