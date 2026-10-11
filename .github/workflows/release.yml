@@ -15,9 +15,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # required for softprops/action-gh-release
+      contents: write  # required for gh release create/upload
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Verify tag matches pyproject.toml version
         if: github.ref_type == 'tag'
@@ -40,12 +42,14 @@ jobs:
 
       - name: Upload artifacts to release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
-        with:
-          files: |
-            dist/*.whl
-            dist/*.tar.gz
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.whl dist/*.tar.gz --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.whl dist/*.tar.gz --verify-tag --generate-notes
+          fi
 
       - name: Share dist with publish job (doubles as dry-run inspection)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
