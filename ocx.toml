@@ -1,11 +1,19 @@
 #:schema https://ocx.sh/schemas/project/v1.json
 
 [tools]
-task = "ocx.sh/go-task/task:3"
-uv = "ocx.sh/astral-sh/uv:0"
-git-cliff = "ocx.sh/git-cliff/git-cliff:2"
-actionlint = "ocx.sh/actionlint/actionlint:1"
-lychee = "ocx.sh/lychee/lychee:0"
-gitleaks = "ocx.sh/gitleaks/gitleaks:8"
-node = "ocx.sh/nodejs/node:24"
-pnpm = "ocx.sh/pnpm/pnpm:11"
+task = "ocx.sh/go-task/task:3.53.1"
+
+[group.lint.tools]
+prek = "ocx.sh/prek/prek:0.5.5"
+uv = "ocx.sh/astral-sh/uv:0.13.0"
+actionlint = "ocx.sh/actionlint/actionlint:1.7.12"
+lychee = "ocx.sh/lychee/lychee:0.24.2"
+gitleaks = "ocx.sh/gitleaks/gitleaks:8.30.1"
+grim = "ocx.sh/grimoire/cli:0.14.3"
+
+[group.release.tools]
+git-cliff = "ocx.sh/git-cliff/git-cliff:2.14.2"
+
+[group.docs.tools]
+node = "ocx.sh/nodejs/node:24.21.0"
+pnpm = "ocx.sh/pnpm/pnpm:11.28.5"

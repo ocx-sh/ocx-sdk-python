@@ -59,8 +59,14 @@ in calibration.
 | ID | Rule | Rationale | Verification | Severity |
 |---|---|---|---|---|
 | DOC-NAV-07 | Give every heading that another file links to an explicit `{#kebab-id}` anchor. | A heading reworded without its anchor breaks every inbound link and nothing reports it. | `python3 checks/links_raw.py --root .` reports each cross-file `#target` whose destination heading carries no explicit id. This is the authoring half only. DOC-OBS-02 owns the resolver that decides a link is dead. Changed files gate first. | MUST |
-| DOC-NAV-09 | Name nav entries and page titles after the reader's task, never after an audience or an internal codename. | A label the reader does not recognise is a link the reader does not click. | `grep -rniE -e '^# .*developer' -e '^# .*admin' -e '^# .*beginner' -e '^# .*advanced' -e '^# .*professional' -e '^# .*workforce' docs/`, and the same six patterns over the nav config. The project jargon denylist arm ships at CONSIDER and is unverified: reading heuristic. Look for a branded or internal term in a nav label. | SHOULD |
+| DOC-NAV-09 | Name nav entries and page titles after the reader's task, never after an audience or an internal codename. | A label the reader does not recognise is a link the reader does not click. | see block DOC-NAV-09, and the same six patterns over the nav config. The project jargon denylist arm ships at CONSIDER and is unverified: reading heuristic. Look for a branded or internal term in a nav label. | SHOULD |
 | DOC-NAV-17 | Give every authored page under 150 prose words at least one outbound link. | A short page with no way onward is a dead end the reader reaches and leaves. | Count the words `python3 checks/strip_prose.py PATH` prints. Under 150 words (the stub floor from the corpus distribution), `grep -cE '\]\([^)]' PATH` returning 0 fails. Skip a page whose declaration says `landing`, read through `checks/doc_declaration.py`. Changed files gate first, whole tree warns until the backfill lands. | SHOULD |
+
+```sh
+# DOC-NAV-09
+git ls-files -z --cached --others --exclude-standard -- ':(glob)docs/**' \
+  | xargs -0 -r grep -H -n -i -E -e '^# .*developer' -e '^# .*admin' -e '^# .*beginner' -e '^# .*advanced' -e '^# .*professional' -e '^# .*workforce' --
+```
 
 DOC-NAV-17 sets a floor and no ceiling. No source supports an upper link budget on a
 short page. Deleting a second useful link to satisfy this rule is the rule being
@@ -75,13 +81,25 @@ under a rule here.
 
 | ID | Rule | Rationale | Verification | Severity |
 |---|---|---|---|---|
-| DOC-NAV-10 | Fire one named event when the site's own search returns zero results, and send it to a named sink from the same file. | A beacon with nothing listening is a no-op that still passes a grep for the event name. | `grep -rl 'docs:zero-result-search'` over the site source finds a file, and `grep -n -e 'fetch(' -e 'sendBeacon(' <that file>` names an endpoint the repo declares. The string must survive into the built bundle. Enabling GA4 Enhanced Measurement never satisfies this. | SHOULD, pinned |
-| DOC-NAV-11 | Fix a zero-result query by rewording the page, never by adding a synonym or query-relaxation key. | None of lunr, minisearch or elasticlunr reads those keys, so the config edit does nothing and raises no error. | `grep -rn -e synonyms -e removeWordsIfNoResults -e optionalWords -e ignorePlurals -e removeStopWords mkdocs.yml .vitepress/config.* book.toml` must find nothing. The accepted fix puts the query's literal phrase in a heading or an "also called" line on the page that already covers it. | MUST |
+| DOC-NAV-10 | Fire one named event when the site's own search returns zero results, and send it to a named sink from the same file. | A beacon with nothing listening is a no-op that still passes a grep for the event name. | see block DOC-NAV-10 over the site source finds a file, and `grep -n -e 'fetch(' -e 'sendBeacon(' -- "$FILE"`, with `$FILE` set to that file, names an endpoint the repo declares. The string must survive into the built bundle. Enabling GA4 Enhanced Measurement never satisfies this. | SHOULD, pinned |
+| DOC-NAV-11 | Fix a zero-result query by rewording the page, never by adding a synonym or query-relaxation key. | None of lunr, minisearch or elasticlunr reads those keys, so the config edit does nothing and raises no error. | see block DOC-NAV-11 must find nothing. The accepted fix puts the query's literal phrase in a heading or an "also called" line on the page that already covers it. | MUST |
 | DOC-NAV-12 | Write the rendered zero-result state and the 404 template as a title, one or two sentences, and at least one link. | A bare "no results" line is a dead end for a reader who will probably not search again. | unverified: reading heuristic. Look for a heading, at most two sentences of body copy, and at least one link. Read the template that renders when search comes up empty. Applies to the rendered template only, never to an authored page. | CONSIDER |
 | DOC-NAV-13 | Never flatten a search engine's title and body boosts to equal weight. | The mean query is two words long, which matches a title and not a paragraph. | `grep -c 'output.html.search' book.toml` returning 0 passes, because mdBook's defaults are already 2 against 1. If the section exists, assert `boost-title` above `boost-paragraph`. For VitePress, assert `searchOptions.boost` is absent or keeps title above text. | CONSIDER |
 | DOC-NAV-14 | Give every zero-result query seen twice one of two dispositions, reword or gap. | An unclassified log becomes noise, and then every query reads as a missing page. | unverified: reading heuristic. Look for a log entry older than 30 days (asserted) carrying neither disposition. Look for a `gap` entry with no linked issue quoting the query. Gated behind DOC-NAV-10, so it has nothing to read until the signal lands. | CONSIDER |
-| DOC-NAV-15 | State a review trigger as a count or a release boundary, never as a bare cadence word. | A rule that says "review regularly" never fires on a site with little traffic. | `grep -rniE -e 'review[^.]{0,60}regularly' -e 'review[^.]{0,60}frequently' -e 'review[^.]{0,60}periodically' -e 'review[^.]{0,60}often'` over the rule and runbook text, plus the same four patterns with the halves swapped. Default trigger 20 new entries or the next tagged release, whichever comes first (asserted). | CONSIDER |
+| DOC-NAV-15 | State a review trigger as a count or a release boundary, never as a bare cadence word. | A rule that says "review regularly" never fires on a site with little traffic. | see block DOC-NAV-15 over the rule and runbook text, plus the same four patterns with the halves swapped. Default trigger 20 new entries or the next tagged release, whichever comes first (asserted). | CONSIDER |
 | DOC-NAV-16 | Bind the zero-result beacon to rendered output or a documented public API, never to a generator's internal file. | A patched search worker breaks silently on the next generator upgrade, and its maintainer supports none of it. | unverified: reading heuristic. Look for an import in the beacon file that reaches into the generator's build output or its vendored search worker. Watching the rendered no-results node passes. Calling `pagefind.search()` passes. | SHOULD |
+
+```sh
+# DOC-NAV-10
+git ls-files -z --cached --others --exclude-standard \
+  | xargs -0 -r grep -l -e 'docs:zero-result-search' --
+# DOC-NAV-11
+git ls-files -z --cached --others --exclude-standard -- 'mkdocs.yml' ':(glob).vitepress/config.*' 'book.toml' \
+  | xargs -0 -r grep -H -n -e synonyms -e removeWordsIfNoResults -e optionalWords -e ignorePlurals -e removeStopWords --
+# DOC-NAV-15
+git ls-files -z --cached --others --exclude-standard -- ':(glob)**/*.md' \
+  | xargs -0 -r grep -H -n -i -E -e 'review[^.]{0,60}regularly' -e 'review[^.]{0,60}frequently' -e 'review[^.]{0,60}periodically' -e 'review[^.]{0,60}often' --
+```
 
 DOC-NAV-15 owns the cadence-word ban for the whole set. Any other rule that
 needs a review trigger states a count or a release boundary instead.

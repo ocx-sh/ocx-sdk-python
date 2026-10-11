@@ -1,0 +1,93 @@
+# ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update
+name: verify-basic
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: verify-basic-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          groups: default,lint
+      - run: task ci:lint
+      - run: task lock:check
+      - run: task baseline:check
+      - run: task secrets
+      - run: |
+          # actionlint + zizmor, both pinned in taskfiles/baseline.taskfile.yml
+          task workflows:lint
+
+  test:
+    runs-on: ubuntu-latest
+    # Reads OTEL_AUTH, so it runs in an environment.
+    environment: ci
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          groups: default,test
+          otel-auth: ${{ secrets.OTEL_AUTH }}
+      - run: task ci:test
+      - name: Push JUnit telemetry
+        if: always()
+        uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          report: target/reports/junit/*.xml
+          otel-auth: ${{ secrets.OTEL_AUTH }}
+      - name: Publish JUnit report
+        if: always()
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        with:
+          report_paths: target/reports/junit/*.xml
+          require_tests: false
+          # Fork PR tokens cannot write checks: annotate only.
+          annotate_only: ${{ github.event.pull_request.head.repo.fork == true }}
+
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          groups: default,docs
+      - run: task ci:docs
+
+  # The single required check: every job succeeded (or was skipped).
+  basic-gate:
+    if: always()
+    needs: [lint, test, docs]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require success or skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" > /dev/null

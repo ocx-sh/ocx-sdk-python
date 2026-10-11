@@ -1,0 +1,43 @@
+name: Deploy to ocx.sh
+
+# Publishes the site on push to main that touches the site, plus a manual dispatch. No pull_request trigger: PR
+# previews stay as they are, and the `ocx.sh` environment admits main only.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: ocx.sh
+      url: ${{ steps.deploy.outputs.url }}
+    concurrency:
+      group: deploy-site
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup
+        uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          groups: default,docs
+      - name: Build the site
+        run: task ci:docs
+      - name: Deploy
+        id: deploy
+        uses: ocx-sh/website/.github/actions/deploy@1b898a76d4c3bbe60d9619a931c74f21660f4eb4 # v0.1.1
+        with:
+          dist: "site/dist"
+          path: "/integrations/python"
+          storage-key: ${{ secrets.BUNNY_STORAGE_KEY }}

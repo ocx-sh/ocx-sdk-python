@@ -18,7 +18,7 @@ Every check reads the same list. Build it once, in the runner.
 
 ```sh
 docs_files() {
-  git ls-files "$DOCS_ROOT" README.md CHANGELOG.md 2>/dev/null
+  git ls-files "$DOCS_ROOT" README.md CHANGELOG.md
 }
 ```
 

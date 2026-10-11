@@ -29,14 +29,30 @@ setting for every row that says so.
 |---|---|---|---|---|
 | DOC-EX-01 | Back every runnable documented example with one automated test in the same required gate as the unit tests. | A documented command drifts away from the tool it demonstrates and nothing reports it. Set-diff has no false positives by construction, because it only reads fences the author marked runnable. | `python3 checks/doc_examples.py --root . --changed-only` for the merge gate, whole-tree as a warning until the backfill lands. It set-diffs runnable-tagged fences against fences carrying a DOC-EX-02 binding key. | MUST |
 | DOC-EX-02 | Bind a page to an out-of-page test with a declared key in the test header, never with a mirrored file path. | A mirrored path makes every move of the test tree break every page that cites it. Measured at 66 live `# doc:` bindings with 0 orphans on the one public worked example. | `python3 checks/doc_examples.py --root . --bindings` lists declared keys and cited keys and diffs both directions. Both lists must come back empty. | MUST |
-| DOC-EX-03 | Test an example with the language's own doctest runner unless it needs a real external system. | A bespoke harness gets built for work an installed tool already does. For TypeScript an agent reaches for a Markdown parser without knowing Twoslash and `deno test --doc` exist. | `grep -rni -e sybil -e 'cargo test --doc' -e 'mdbook test' -e twoslash -e deno <dependency manifests> <generator config> <ci config>` before adding any doc-example module. A new harness with no external system in scope is the finding. | SHOULD |
+| DOC-EX-03 | Test an example with the language's own doctest runner unless it needs a real external system. | A bespoke harness gets built for work an installed tool already does. For TypeScript an agent reaches for a Markdown parser without knowing Twoslash and `deno test --doc` exist. | see block DOC-EX-03 before adding any doc-example module. A new harness with no external system in scope is the finding. | SHOULD |
 | DOC-EX-04 | Start a doc-example harness as one file that globs the example tree and runs each file as a subprocess. | A small project copies the scale of a large worked example and never starts. The floor is 55 lines with no dependency (measured, the shipped harness mode). | `python3 checks/doc_examples.py --harness checks/fixtures/doc_examples/` runs the bound example files. `--self-test` runs the passing and the deliberately broken fixture, and must exit 0 then 1. | SHOULD |
 | DOC-EX-06 | Wrap a snippet that must not run in a paired marker that states why. | A bare skip flag reads later as an oversight rather than a decision. Measured at 1 hit in 249 pages across nine real doc sites, 2026-09. | `python3 checks/doc_examples.py --root .` requires a `: <reason>` suffix on the open marker and a matching close marker before the next open marker or end of file. | MUST |
 | DOC-EX-07 | Make a failing example test name the doc page, not only the test file and line. | Without the page name every CI failure costs a manual reverse map back to the reader's view. | Force one bound example to fail and read the CI output for the declared binding key and the human title. A one-off probe cannot carry a MUST. | SHOULD |
-| DOC-EX-08 | Do not claim a shown example is identical to what ran when the harness substitutes any value. | The claim is falsified the first time a reader checks a parallel-safe test run. Measured at 709 fleet-wide hits with 662 off-target, a 93.4 percent false-positive rate at page-type scope (calibration, 2026-09). | `grep -rni -e exactly -e identical -e verbatim -e byte-for-byte <the harness mechanism's own doc tree>`. Default scope where no such tree exists: the pages that carry a DOC-EX-02 binding key, because only those can make the claim. Each hit needs a stated canonicalization step. | SHOULD |
+| DOC-EX-08 | Do not claim a shown example is identical to what ran when the harness substitutes any value. | The claim is falsified the first time a reader checks a parallel-safe test run. Measured at 709 fleet-wide hits with 662 off-target, a 93.4 percent false-positive rate at page-type scope (calibration, 2026-09). | see block DOC-EX-08. Default scope where no such tree exists: the pages that carry a DOC-EX-02 binding key, because only those can make the claim. Each hit needs a stated canonicalization step. | SHOULD |
 | DOC-EX-09 | Confirm a doc-collection glob reaches a page nested two levels deep before trusting it. | A tool whose docs promise `fnmatch` may call `pathlib.Path.match`, whose `**` matches one level only (Python `pathlib.PurePath.match`). | Add one fixture page two directories below the collector root, run the collector, and confirm the page is collected. | SHOULD |
-| DOC-EX-10 | Ship a scan for documented commands with no backing test as a lead list, never as a merge gate. | The scan flagged 20 mentions on one real page and 11 were legitimate annotated history, roughly 55 percent false positives (measured, 2026-09). | `grep -rni -e unbacked -e orphan-command <ci config>`. Any hit must sit in a non-blocking job. Run the scan against the DOC-EX-06 markers first to strip known exemptions. | SHOULD |
+| DOC-EX-10 | Ship a scan for documented commands with no backing test as a lead list, never as a merge gate. | The scan flagged 20 mentions on one real page and 11 were legitimate annotated history, roughly 55 percent false positives (measured, 2026-09). | see block DOC-EX-10. Any hit must sit in a non-blocking job. Run the scan against the DOC-EX-06 markers first to strip known exemptions. | SHOULD |
 | DOC-EX-23 | Never let one tool both rewrite a page's fenced output and serve as that example's only correctness check. | A rewrite-in-place runner captures whatever a flaky or newly broken command printed as the new expected output. | For any fence carrying a rewrite-in-place directive, `grep` for a second independent check. It is either a committed last-known-good output diffed in CI, or a bind-and-assert test on the same command. | CONSIDER |
+
+```sh
+# DOC-EX-03
+git ls-files -z --cached --others --exclude-standard -- ':(glob)**/Cargo.toml' ':(glob)**/package.json' ':(glob)**/pyproject.toml' ':(glob)**/requirements*.txt' ':(glob)**/mkdocs.yml' ':(glob)**/book.toml' ':(glob)**/docusaurus.config.*' ':(glob).github/workflows/**' \
+  | xargs -0 -r grep -H -n -i -e sybil -e 'cargo test --doc' -e 'mdbook test' -e twoslash -e deno --
+# DOC-EX-08
+# DOCS is the harness mechanism's own doc tree
+DOCS=docs
+find "$DOCS" -type f -print0 \
+  | xargs -0 -r grep -H -n -i -e exactly -e identical -e verbatim -e byte-for-byte --
+# DOC-EX-10
+# CI is the CI config directory
+CI=.github
+git ls-files -z --cached --others --exclude-standard -- "$CI" \
+  | xargs -0 -r grep -H -n -i -e unbacked -e orphan-command --
+```
 
 ## Fence marking
 
@@ -51,13 +67,21 @@ setting for every row that says so.
 | ID | Rule | Rationale | Verification | Severity |
 |---|---|---|---|---|
 | DOC-EX-11 | Keep the recorder out of the gate so the example suite passes or fails without it. | A recorder wired into the gate lets a rendering step fail a correctness check. | Disable the recording step and re-run the required gate. The result must not change. | MUST |
-| DOC-EX-12 | Produce every terminal recording by running a real command, never by typing a transcript. Delete an unused non-executing mockup mode rather than leave it available. | A fabricated transcript is the exact artifact the tested-example system exists to prevent. An unused way to fabricate one is a standing invitation. Measured at 0 uses of the mockup component across 36 live embeds, 2026-09. | `grep -rn` the component library for any mode that builds player input from static text and timestamp pairs. Any use on a page with no backing test fails. A mode with zero uses beside a live mode is deleted. | MUST pinned |
+| DOC-EX-12 | Produce every terminal recording by running a real command, never by typing a transcript. Delete an unused non-executing mockup mode rather than leave it available. | A fabricated transcript is the exact artifact the tested-example system exists to prevent. An unused way to fabricate one is a standing invitation. Measured at 0 uses of the mockup component across 36 live embeds, 2026-09. | Search the component library for any mode that builds player input from static text and timestamp pairs. Any use on a page with no backing test fails. A mode with zero uses beside a live mode is deleted. | MUST pinned |
 | DOC-EX-13 | Commit a recording only when no build step regenerates it. | Committing a regenerated file invites drift between the file and the test that made it. Measured at 0 tracked casts on a regenerating repo and 1 on a repo with no pipeline, 2026-09. | `git ls-files <recordings dir>` read against the build task graph. Tracked and regenerated at once is the contradiction to catch. | MUST pinned |
 | DOC-EX-14 | State the cast version you write and the player version you pin, and check the player parses it. | Asciicast is three formats, and v3 changed the header schema and the timestamp base (asciicast v3 spec). | `head -c 40 <a generated cast>` for `"version": N`, then `grep` the pinned player's parser for a matching `parseAsciicastVN` branch. | SHOULD |
 | DOC-EX-15 | Default a recording-bound player to no autoplay. | Auto-starting motion triggers WCAG 2.2.2 Pause Stop Hide, Level A. Not creating it is cheaper than answering it. | `grep` the component's `autoPlay` default. It must evaluate false whenever a recording source is set. Then `grep` pages for explicit overrides. | MUST |
 | DOC-EX-16 | Leave the embedded player's own accessible controls enabled. | A custom skin is far likelier to drop the pause button's label than the upstream library is (WCAG 2.2.2, Level A). | `grep` the player init for a `controls:` option. Absent, `"auto"` or `true` passes. `controls: false` or a CSS-hidden bar with no keyboard replacement fails. | MUST |
-| DOC-EX-17 | Check `prefers-reduced-motion` before starting playback. | A viewer who asked the operating system for less motion still gets a full replay without it. Measured at 0 hits across both recording sites, 2026-09. WCAG 2.3.3 places this at AAA, which caps the severity. | `grep -rn "matchMedia('(prefers-reduced-motion" <player init path>`. Absence is the finding. | SHOULD |
+| DOC-EX-17 | Check `prefers-reduced-motion` before starting playback. | A viewer who asked the operating system for less motion still gets a full replay without it. Measured at 0 hits across both recording sites, 2026-09. WCAG 2.3.3 places this at AAA, which caps the severity. | see block DOC-EX-17. Absence is the finding. | SHOULD |
 | DOC-EX-18 | Add a declarative recorder such as VHS only when no page-bound acceptance-script tree exists. | Two script formats mean two discovery paths and two classes of sanitization. Measured at 0 `.tape` files fleet-wide, 2026-09. | `find . -iname '*.tape'`. A hit beside a page-bound acceptance-script tree fails. | SHOULD |
+
+```sh
+# DOC-EX-17
+# PLAYER is the player init path
+PLAYER=src
+git ls-files -z --cached --others --exclude-standard -- "$PLAYER" \
+  | xargs -0 -r grep -H -n -e "matchMedia('(prefers-reduced-motion" --
+```
 
 ## The interactive layer
 
@@ -68,10 +92,23 @@ setting for every row that says so.
 | DOC-EX-26 | Present parallel install or usage paths as tabs only when the reader's own context decides which path they need. | Tabbing a step that has one right answer manufactures a decision the reader does not have to make. | unverified: reading heuristic. Look for a tabbed block whose one-sentence answer to "what varies between these tabs" names nothing about the reader. | SHOULD |
 | DOC-EX-27 | Never make a live sandbox the reader's only way to see a documented example. | Full WebContainers support needs SharedArrayBuffer under cross-origin isolation, which is Chromium-only at full strength (webcontainers.io browser support). | For any page embedding a live sandbox, `grep` the page source for a fenced block carrying the same code. It must not sit only inside the sandbox's initial-file payload. | MUST |
 | DOC-EX-29 | State mdBook's `runnable` and `editable` playground keys explicitly whenever the book contains a Rust example. | An unstated default reads later as nobody deciding, and a book wanting no Run button silently keeps one. | `grep -A3 '\[output.html.playground\]' book.toml`. Its absence on a book with fenced Rust blocks is the finding. | SHOULD |
-| DOC-EX-30 | Set `#![doc(html_playground_url = "https://play.rust-lang.org/")]` on a published crate whose doc comments carry runnable examples. | The rustdoc book states that without the attribute there are no Run buttons. Measured at 0 of 3 real crates setting it, 2026-09. | `grep -rn html_playground_url <crate root>`. Its absence beside doctested public examples is the finding. | SHOULD |
+| DOC-EX-30 | Set `#![doc(html_playground_url = "https://play.rust-lang.org/")]` on a published crate whose doc comments carry runnable examples. | The rustdoc book states that without the attribute there are no Run buttons. Measured at 0 of 3 real crates setting it, 2026-09. | see block DOC-EX-30. Its absence beside doctested public examples is the finding. | SHOULD |
 | DOC-EX-32 | Do not add Twoslash, a live sandbox or a try-it console to a project with no TypeScript reference and no OpenAPI surface. | Naming a mechanism for a surface that does not exist yet is speculative scaffolding. Measured at 0 of 23 real docs surfaces carrying either, 2026-09. | `find . -name 'openapi*.yaml' -o -name 'openapi*.json'` and a search for `.d.ts`-backed reference pages. Zero hits on both means no action is required. | CONSIDER |
 | DOC-EX-33 | Reserve a tooltip or an abbreviation for a term that would otherwise force a definitional clause into the sentence. Never hide content the reader must read to follow the page. | A load-bearing definition hidden behind hover is invisible to a plain-text reader and to anyone not using a mouse. No project anywhere measures whether a tooltip is opened, so there is no engagement threshold to cite. | unverified: reading heuristic. Look for a sentence that becomes false or unreadable once the tooltip's definition text is removed. | CONSIDER |
-| DOC-EX-34 | Make a hover or focus tooltip keyboard reachable, pointer hoverable, and dismissible with Escape. | A trigger passed through as a bare span loses focus behaviour silently. That is a WCAG 2.1 SC 1.4.13 failure at Level AA, not a matter of taste. | `grep -rni -e tabindex -e keydown -e escape -e aria-describedby <the tooltip component source>`. No keyboard path is the finding. Then tab to a trigger with no mouse, move a pointer onto the popup, and press Escape. | MUST |
+| DOC-EX-34 | Make a hover or focus tooltip keyboard reachable, pointer hoverable, and dismissible with Escape. | A trigger passed through as a bare span loses focus behaviour silently. That is a WCAG 2.1 SC 1.4.13 failure at Level AA, not a matter of taste. | see block DOC-EX-34. No keyboard path is the finding. Then tab to a trigger with no mouse, move a pointer onto the popup, and press Escape. | MUST |
+
+```sh
+# DOC-EX-30
+# CRATE is the crate root
+CRATE=.
+git ls-files -z --cached --others --exclude-standard -- "$CRATE" \
+  | xargs -0 -r grep -H -n -e html_playground_url --
+# DOC-EX-34
+# TOOLTIP is the tooltip component source
+TOOLTIP=src
+git ls-files -z --cached --others --exclude-standard -- "$TOOLTIP" \
+  | xargs -0 -r grep -H -n -i -e tabindex -e keydown -e escape -e aria-describedby --
+```
 
 DOC-EX-33 and DOC-EX-34 were misfiled in the research corpus under two DOC-TYPE
 numbers already held by the declaration-carrier rules. They are renumbered here
