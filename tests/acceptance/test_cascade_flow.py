@@ -74,8 +74,9 @@ def test_cascade_check_and_repair_round_trip(
     """Push with cascade → clean; push without → stale rows at 65; repair → clean again.
 
     The dry run is asserted to plan every stale tag and write none, and the
-    real repair to write every one — `announce_tags` on the dry run is the
-    hand-off `announce(tags_file=...)` would consume.
+    real repair to write every one — `announce_tags` on the real repair is the
+    hand-off `announce(tags_file=...)` would consume. A dry run moves nothing,
+    so it leaves the file without the stale tags (ocx 0.6.2).
     """
     repository = f"{registry}/wp16/hello"
     first = ocx.package.push(author(f"{repository}:1.0.0", "first"), cascade=True)
@@ -103,14 +104,15 @@ def test_cascade_check_and_repair_round_trip(
     assert planned.announce_tags_path == str(tags_file)
     assert {plan["tag"] for plan in planned.entries[0].planned} == {"1", "1.0", "latest"}
     assert planned.entries[0].outcomes == ()
-    assert set(tags_file.read_text(encoding="utf-8").split()) == {"1", "1.0", "latest"}
+    assert tags_file.read_text(encoding="utf-8") == ""
 
-    repaired = ocx.package.cascade_repair(repository)
+    repaired = ocx.package.cascade_repair(repository, announce_tags=tags_file)
     assert repaired.clean is True
     assert {(outcome.tag, outcome.outcome) for outcome in repaired.entries[0].outcomes} == {
         ("1", "written"),
         ("1.0", "written"),
         ("latest", "written"),
     }
+    assert set(tags_file.read_text(encoding="utf-8").split()) == {"1", "1.0", "latest"}
 
     assert ocx.package.cascade_check(repository).clean is True

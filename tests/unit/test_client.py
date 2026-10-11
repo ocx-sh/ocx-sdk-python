@@ -96,7 +96,7 @@ _STATUS = (
 _CASCADE_CHECK = '{"reports":[]}'
 """A `package cascade check` document with nothing audited."""
 
-_CASCADE_REPAIR = '{"entries":[],"dry_run":false,"announce_tags_path":null}'
+_CASCADE_REPAIR = '{"entries":[],"dry_run":false,"tags_file":null}'
 """A `package cascade repair` document with nothing repaired."""
 
 _RECEIPT = '{"platform":"linux/amd64","identifier":"acme/widget:1.0.0"}'
@@ -1025,7 +1025,7 @@ _MACHINE_CASES = [
     pytest.param(
         lambda o: o.package.cascade_repair("a", dry_run=True, announce_tags="/tmp/tags"),
         _CASCADE_REPAIR,
-        ["package", "cascade", "repair", "--dry-run", "--announce-tags", "/tmp/tags", "a"],
+        ["package", "cascade", "repair", "--dry-run", "--tags-file", "/tmp/tags", "a"],
         id="package-cascade-repair-flags",
     ),
     pytest.param(

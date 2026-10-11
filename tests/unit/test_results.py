@@ -953,8 +953,8 @@ _CASCADE_REPORT: dict = {
 }
 _CASCADE_CHECK_HEAD: dict = {"reports": []}
 _REPAIR_OUTCOME: dict = {"tag": "latest", "outcome": {"outcome": "written"}}
-_REPAIR_ENTRY: dict = {"report": _CASCADE_REPORT, "planned": [], "outcomes": [], "announce_tags": []}
-_CASCADE_REPAIR_HEAD: dict = {"entries": [], "dry_run": False, "announce_tags_path": None}
+_REPAIR_ENTRY: dict = {"report": _CASCADE_REPORT, "planned": [], "outcomes": [], "tags": []}
+_CASCADE_REPAIR_HEAD: dict = {"entries": [], "dry_run": False, "tags_file": None}
 _CLEAN_ENTRY: dict = {"kind": "object", "dry_run": True, "path": "/p", "held_by": []}
 _ENVELOPE_HEAD: dict = {"schema_version": 1, "command": "package claim", "exit_code": 65, "error": _ENVELOPE_ERROR}
 """One minimal payload per struct, holding its **required** keys and nothing else.
@@ -2597,7 +2597,7 @@ def test_cascade_report_carries_index_findings_and_unrepairable_entries():
 
 
 def test_cascade_repair_dry_run_plans_without_outcomes_and_names_the_tags_file():
-    """Live 0.6.1: `--dry-run --announce-tags`, exit 65 because the plan is non-empty."""
+    """Captured at 0.6.1 (flag since renamed `--tags-file`): `--dry-run`, exit 65 because the plan is non-empty."""
     report = CascadeRepairReport.from_json(load("cascade_repair_dry_run.json"), exit_code=65)
 
     assert report.dry_run is True

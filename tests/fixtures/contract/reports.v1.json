@@ -2232,20 +2232,20 @@
           "type": "boolean",
           "description": "True when nothing was written because the run was a preview."
         },
-        "announce_tags_path": {
+        "tags_file": {
           "type": [
             "string",
             "null"
           ],
-          "description": "Where `--announce-tags` was written, when the flag was passed. The\nfollow-up hint can only name the file the user actually asked for."
+          "description": "Where `--tags-file` was written, when the flag was passed. The\nfollow-up hint can only name the file the user actually asked for."
         }
       },
       "required": [
         "entries",
         "dry_run",
-        "announce_tags_path"
+        "tags_file"
       ],
-      "description": "What `cascade repair` did, one entry per package in input order.\n\nPlain format: one row per attempted alias write (or, for a preview, per\nplanned write), plus the follow-up announce command when this run moved\ntags or index staleness remains.\n\nJSON format: `{ \"entries\": [...], \"dry_run\", \"announce_tags_path\" }` — one\nper-package entry carrying the finding report, the planned writes and\ntheir outcomes, alongside the run-wide preview flag and the\n`--announce-tags` destination (`null` when the flag was not passed)."
+      "description": "What `cascade repair` did, one entry per package in input order.\n\nPlain format: one row per attempted alias write (or, for a preview, per\nplanned write), plus the follow-up announce command when this run moved\ntags or index staleness remains.\n\nJSON format: `{ \"entries\": [...], \"dry_run\", \"announce_tags_path\" }` — one\nper-package entry carrying the finding report, the planned writes and\ntheir outcomes, alongside the run-wide preview flag and the\n`--tags-file` destination (`null` when the flag was not passed)."
     },
     "RepairEntry": {
       "type": "object",
@@ -2266,19 +2266,19 @@
           },
           "description": "Empty for a preview run: nothing was attempted."
         },
-        "announce_tags": {
+        "tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The alias tags this package's run moved or created - the same lines\nwritten to `--announce-tags`, echoed here so a JSON consumer gets them\nwithout reading the file back."
+          "description": "The alias tags this package's run moved or created - the same lines\nwritten to `--tags-file`, echoed here so a JSON consumer gets them\nwithout reading the file back."
         }
       },
       "required": [
         "report",
         "planned",
         "outcomes",
-        "announce_tags"
+        "tags"
       ],
       "description": "One package's repair run: what was wrong, what the run planned, and what\nthe registry accepted.\n\n`planned` and `outcomes` are separate because a preview has the first and\nnot the second, and a real run's outcomes can disagree with its plan (an\nalias refused at preflight, a write the registry rejected). Collapsing them\ninto one list would make a refusal indistinguishable from a plan that never\ncovered the alias."
     },

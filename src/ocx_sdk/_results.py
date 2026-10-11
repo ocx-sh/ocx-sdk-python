@@ -2737,7 +2737,7 @@ class RepairEntry:
             carried untyped: the `index` is a whole OCI image index.
         outcomes: What happened per tag. Empty on a dry run.
         announce_tags: The rolling tags this run moved or created — the
-            lines `--announce-tags` writes, echoed for a JSON consumer.
+            lines `--tags-file` writes, echoed for a JSON consumer.
     """
 
     report: CascadeReport
@@ -2752,7 +2752,7 @@ class RepairEntry:
             report=CascadeReport.from_dict(_table(_need(data, "report", _CASCADE_REPAIR))),
             planned=_rows(_need(data, "planned", _CASCADE_REPAIR)),
             outcomes=tuple(RepairOutcome.from_dict(row) for row in _rows(_need(data, "outcomes", _CASCADE_REPAIR))),
-            announce_tags=_texts(_need(data, "announce_tags", _CASCADE_REPAIR)),
+            announce_tags=_texts(_need(data, "tags", _CASCADE_REPAIR)),
         )
 
 
@@ -2768,7 +2768,7 @@ class CascadeRepairReport:
     Attributes:
         entries: One entry per package, in input order.
         dry_run: `True` when nothing was written because the run was a preview.
-        announce_tags_path: Where `--announce-tags` was written, when given.
+        announce_tags_path: Where `--tags-file` was written, when given.
         exit_code: `0` when every attempted write succeeded and nothing
             remains, `65` otherwise.
     """
@@ -2795,7 +2795,7 @@ class CascadeRepairReport:
         return cls(
             entries=tuple(RepairEntry.from_dict(row) for row in _rows(_need(data, "entries", _CASCADE_REPAIR))),
             dry_run=_need(data, "dry_run", _CASCADE_REPAIR),
-            announce_tags_path=_need(data, "announce_tags_path", _CASCADE_REPAIR),
+            announce_tags_path=_need(data, "tags_file", _CASCADE_REPAIR),
             exit_code=exit_code,
         )
 
