@@ -10,16 +10,16 @@ repos:
         stages: [pre-commit]
         pass_filenames: false
         always_run: true
+      # Shell-free entries (prek splits `entry` itself): the logic lives in baseline.taskfile.yml so
+      # the hooks run the same on Windows (Q9). prek appends the commit message file to commit-msg entries.
       - id: conventional-commit
         name: conventional commit subject
-        entry: |-
-          sh -c 'msg=$(head -n1 "$1"); case "$msg" in Merge\ *|Revert\ \"*) exit 0;; esac; printf "%s\n" "$msg" | grep -Eq "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+" && exit 0; printf "commit subject must be \047<type>[(scope)][!]: <subject>\047 with type one of: feat fix docs style refactor perf test build ci chore revert\n" >&2; exit 1' --
+        entry: ocx exec -- task -x hooks:commit-msg --
         language: system
         stages: [commit-msg]
       - id: repo-pre-commit
         name: repo pre-commit hooks (optional task hooks:pre-commit)
-        entry: |-
-          sh -c 'if ocx exec -- task --list-all 2>/dev/null | grep -Fq "* hooks:pre-commit:"; then ocx exec -- task hooks:pre-commit; fi'
+        entry: ocx exec -- task hooks:repo-pre-commit
         language: system
         stages: [pre-commit]
         pass_filenames: false
