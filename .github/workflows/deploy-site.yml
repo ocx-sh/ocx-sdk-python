@@ -35,7 +35,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup
-        uses: ocx-sh/conventions/.github/actions/setup@f9951ed566b54c3f7d2e436739ee28ffa79d93dd # v0
+        uses: ocx-sh/conventions/.github/actions/setup@3130840d8af5f695c5e025df4b35ccfa1854e46f # v0.1.0
         with:
           groups: default,docs
       - name: Build the site
