@@ -16,7 +16,7 @@ triggers:
 
 Commit working tree during active dev on a feature branch. **Working phase** half of the two-phase branch workflow — rebasing-phase cleanup for `main` lives in `/finalize`.
 
-See [workflow-git.md](../../rules/workflow-git.md) for full model: branching rules, two-phase model, Checkpoint convention, land-ready definition. Skill assumes those, implements working-phase posture on top.
+See the `workflow-git` rule for full model: branching rules, two-phase model, Checkpoint convention, land-ready definition. Skill assumes those, implements working-phase posture on top.
 
 ## Working-Phase Posture
 
@@ -24,7 +24,7 @@ See [workflow-git.md](../../rules/workflow-git.md) for full model: branching rul
 - **One concern per commit relaxed.** Honest bundle message (`chore(claude): bundle skill + rule + agent tweaks`) beats fake one-concern narrative. `/finalize` split/reword later.
 - **Don't badger user about splitting.** Feature branches explicitly working-phase by default. Cleanup at finalize time.
 
-For land-ready branch contract, see "Land-Ready Definition" in [workflow-git.md](../../rules/workflow-git.md). That `/finalize` job, not `/commit`.
+For land-ready branch contract, see "Land-Ready Definition" in the `workflow-git` rule. That `/finalize` job, not `/commit`.
 
 ## Inputs
 
@@ -86,7 +86,7 @@ On `main`: stop. Tell user create feature branch first.
 
 ### 4. Draft the commit message
 
-Follow **Conventional Commits v1.0.0**. See [`commit_reference.md`](./commit_reference.md) for full cheat sheet and [workflow-git.md](../../rules/workflow-git.md) for quick rules. Key points for working phase:
+Follow **Conventional Commits v1.0.0**. See [`commit_reference.md`](./commit_reference.md) for full cheat sheet and the `workflow-git` rule for quick rules. Key points for working phase:
 
 - `chore:` for AI/tooling files (`.claude/`, `CLAUDE.md`, skills, rules, taskfiles) — keeps out of changelog
 - Imperative mood, lowercase description, no trailing period, subject ≤72 chars
@@ -149,7 +149,7 @@ One or two sentences: commit hash, subject, whether stranded-Checkpoint case han
 
 ## References
 
-- [workflow-git.md](../../rules/workflow-git.md) — shared branch/commit hygiene: branching model, two-phase model, Checkpoint convention, land-ready definition
+- the `workflow-git` rule — shared branch/commit hygiene: branching model, two-phase model, Checkpoint convention, land-ready definition
 - [`commit_reference.md`](./commit_reference.md) — Conventional Commits v1.0.0 cheat sheet
 - `/finalize` skill (`../finalize/SKILL.md`) — rebasing-phase sibling for cleaning `main..HEAD` before landing
 - CLAUDE.md — toolchain bootstrap, build & dev commands

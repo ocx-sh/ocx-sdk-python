@@ -5,7 +5,7 @@ lock_version = 1
 declaration_hash_version = 1
 declaration_hash = "sha256:839c0b3d14a5189bb5b2dffba3f6a2b2dc6a2f0d4bf079b0414a478c68a48dfb"
 generated_by = "grim 0.14.3"
-generated_at = "2026-10-11T22:55:56Z"
+generated_at = "2026-10-11T23:26:08Z"
 
 [[skill]]
 name = "code-docs-cleanup"
@@ -26,7 +26,7 @@ tag = "latest"
 [[skill]]
 name = "commit"
 path = "./agent-config/commit"
-hash = "sha256:be69316b52e3ed2d5eb04f412444c46a7bd44bdeba2b54b7c6d000250c9c19e4"
+hash = "sha256:a2668da5cb1154f6463c4b19fc0fd5f2bc9911770f1e1fa5cf3a780e9ed3c2d5"
 
 [[skill]]
 name = "docs-instrument"
@@ -171,12 +171,12 @@ hash = "sha256:bf3c61c29d9e635f70110a4f737e86cf4cb520dca662348ea152dc36b16af9bd"
 [[rule]]
 name = "workflow-feature"
 path = "./agent-config/workflow-feature.md"
-hash = "sha256:c3925b878e9e82b1d3c8e77675591ac629d0812405d86dafaf138b1e1e99fb18"
+hash = "sha256:07f5e091880791396e4c84573d853b9ea421650db12d9b55d70e0710fa5cb38b"
 
 [[rule]]
 name = "workflow-git"
 path = "./agent-config/workflow-git.md"
-hash = "sha256:f83a0109a5e3b09bd87dbb8bf0ca07f04d72592100e09d958be6c352e33949df"
+hash = "sha256:60e51b04c8785dfba6e8ef6b94c203e548abe2a0696786964f46cf21866812e7"
 
 [[rule]]
 name = "workflow-intent"

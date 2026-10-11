@@ -34,7 +34,7 @@ Commit with subject exactly `Checkpoint` (no type, no body) means "rolling WIP".
 
 ## Conventional Commits (Quick Rules)
 
-Full cheat sheet: [`commit_reference.md`](../skills/commit/commit_reference.md) (types, scopes, footers, breaking changes, worked examples).
+Full cheat sheet: `commit_reference.md` in the `commit` skill (types, scopes, footers, breaking changes, worked examples).
 
 - Format: `<type>[optional scope]: <description>`
 - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`
@@ -81,5 +81,5 @@ Every commit on branch must pass `task verify` before landing on `main`. `pre_co
 
 ## References
 
-- [`commit_reference.md`](../skills/commit/commit_reference.md) — Conventional Commits v1.0.0 cheat sheet
+- `commit_reference.md` in the `commit` skill — Conventional Commits v1.0.0 cheat sheet
 - [workflow-intent.md](./workflow-intent.md) — work-type router
