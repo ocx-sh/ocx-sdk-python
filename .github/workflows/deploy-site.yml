@@ -9,6 +9,9 @@ on:
       - "site/**"
       - ocx.toml
       - ocx.lock
+      - "docs/**"
+      - "src/**"
+      - "CHANGELOG.md"
   workflow_dispatch:
 
 permissions: {}

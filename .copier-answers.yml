@@ -16,4 +16,8 @@ site:
     dir: site
     dist: site/dist
     path: /integrations/python
+    paths:
+    - docs/**
+    - src/**
+    - CHANGELOG.md
 theme_bundle: true
