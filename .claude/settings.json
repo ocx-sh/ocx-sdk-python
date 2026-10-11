@@ -1,5 +1,9 @@
 {
   "claudeMdExcludes": [
-    "**/.claude/rules/docs-quality/**"
+    "**/.claude/rules/docs-quality/**",
+    "**/.claude/rules/code-docs/**",
+    "**/.claude/rules/python-packaging/**",
+    "**/.claude/rules/python-quality/**",
+    "**/.claude/rules/typescript-quality/**"
   ]
 }

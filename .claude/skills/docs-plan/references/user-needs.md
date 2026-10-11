@@ -79,7 +79,8 @@ A rendered documentation page that opens "As a developer, I need to..." is the
 template leaking into published content.
 
 ```sh
-grep -rn "so that I can" docs/ --include='*.md' | grep -v docs/discovery/
+git ls-files -z --cached --others --exclude-standard -- ':(glob)docs/**/*.md' \
+  | xargs -0 -r grep -H -n -e 'so that I can' -- | grep -v docs/discovery/
 ```
 
 That must print nothing.

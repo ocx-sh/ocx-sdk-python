@@ -23,7 +23,7 @@ produced `unverified: reading heuristic`. Report; never fix unless asked.
 
 - Named paths or directories: use them as given, whatever their location.
 - Nothing named: the branch diff,
-  `git diff --name-only --diff-filter=d "$(git merge-base HEAD origin/HEAD)" -- '*.md' '*.mdx' '*.rst' '*.adoc' '*.asciidoc'`.
+  `git diff --name-only --diff-filter=d --merge-base origin/HEAD -- '*.md' '*.mdx' '*.rst' '*.adoc' '*.asciidoc'`.
 - Drop agent config (`CLAUDE.md`, `AGENTS.md`, `SKILL.md`, `.claude/`,
   `.agents/`), vendored copies and build output. The rule excludes them too.
 

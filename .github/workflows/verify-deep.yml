@@ -1,0 +1,78 @@
+# ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update
+name: verify-deep
+
+on:
+  schedule:
+    # Nightly minute is stable per repository: sha256(repo_name)[:4] % 60, computed at render time.
+    - cron: "16 3 * * *"
+  workflow_dispatch:
+  workflow_call:
+  # Lets a PR that adds this workflow run its own deep tier (dispatch needs the file on the default branch).
+  pull_request:
+    types: [labeled]
+
+permissions: {}
+
+jobs:
+  deep:
+    if: github.event_name != 'pull_request' || github.event.label.name == 'run-deep'
+    name: deep (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Reads OTEL secrets, so it runs in an environment.
+    environment: ci
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          groups: default,test
+          otel-auth: ${{ secrets.OTEL_AUTH }}
+      - run: task ci:deep
+      - name: Push JUnit telemetry
+        if: always()
+        uses: ocx-sh/conventions/.github/actions/setup@21306dbdaa5950550e41fefd286f3d7ba201d4d1 # v0
+        with:
+          report: target/reports/junit/*.xml
+          otel-auth: ${{ secrets.OTEL_AUTH }}
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-${{ matrix.os }}
+          path: target/reports/junit
+          if-no-files-found: ignore
+
+  # One issue labelled nightly-red: opened/updated on a red scheduled run, closed on the next green one.
+  nightly-red:
+    if: always() && github.event_name == 'schedule'
+    needs: [deep]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update or close the nightly-red issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RESULT: ${{ needs.deep.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          num=$(gh issue list --repo "$REPO" --label nightly-red --state open --json number --jq '.[0].number // empty')
+          if [ "$RESULT" = success ]; then
+            [ -z "$num" ] || gh issue close "$num" --repo "$REPO" --comment "Nightly green again: $RUN_URL"
+          elif [ "$RESULT" = failure ]; then
+            if [ -n "$num" ]; then
+              gh issue comment "$num" --repo "$REPO" --body "Still red: $RUN_URL"
+            else
+              gh label create nightly-red --repo "$REPO" --color B60205 --description "verify-deep failed on schedule" 2>/dev/null || true
+              gh issue create --repo "$REPO" --label nightly-red --title "verify-deep: nightly red" --body "The scheduled verify-deep run failed: $RUN_URL"
+            fi
+          fi

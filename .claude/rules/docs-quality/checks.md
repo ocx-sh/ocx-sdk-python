@@ -5,7 +5,7 @@ summary: One row per shipped script, what it checks, how to run it, what its fix
 
 # The checks
 
-`checks/` holds eight Python scripts and three configs. Every script needs
+`checks/` holds eight Python scripts, one awk filter and three configs. Every script needs
 Python 3.11 at least, imports nothing outside the standard library, and reads
 source markdown rather than built output. Every rule ID a script prints is
 defined in a depth file the index routes you to.
@@ -148,6 +148,7 @@ pages only, and DOC-TYPE-14 and DOC-TYPE-15 on every page.
 |---|---|---|
 | `checks/markdownlint.jsonc` | The shipped markdownlint config, tuning MD001, MD003, MD025 with `front_matter_title` set to the empty string, MD036, MD040, MD041, MD045 and MD054 | `npx markdownlint-cli2 --config checks/markdownlint.jsonc 'docs/**/*.md'` |
 | `checks/lychee.toml` | An example built-output link checker config for DOC-OBS-01, with both measured traps handled | `lychee --include-fragments --config checks/lychee.toml 'site/**/*.html'` |
+| `checks/prose_marks.awk` | The DOC-PLAIN-01 mark scan: prints `N:LINE` for each stripped-prose line that holds an en dash, em dash, semicolon or curly quote. POSIX awk, so it needs no PCRE | Pipe `strip_prose.py` output into `LC_ALL=C awk -f checks/prose_marks.awk`, as the DOC-PLAIN-01 block shows |
 | `checks/vale.ini` | The optional tier-1 layer, packages pinned by org and repo, with the severity split noted | `vale --config checks/vale.ini docs/` |
 
 MD041 is off wherever the declaration comment is line 1. MD040 carries

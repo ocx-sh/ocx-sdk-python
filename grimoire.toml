@@ -1,9 +1,13 @@
 #:schema https://grimoire.rs/schemas/grimoire-config.schema.json
 [options]
-clients = ["claude", "codex"]
+clients = ["claude", "codex", "opencode"]
 
 [bundles]
 docs-essentials = "ghcr.io/ocx-sh/lore/docs-essentials:latest"
+code-docs-essentials = "ghcr.io/ocx-sh/lore/code-docs-essentials:latest"
+python-essentials = "ghcr.io/ocx-sh/lore/python-essentials:latest"
+typescript-essentials = "ghcr.io/ocx-sh/lore/typescript-essentials:latest"
+ocx-theme = "ghcr.io/ocx-sh/lore/ocx-theme:latest"
 
 [skills]
 

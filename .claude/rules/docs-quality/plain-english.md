@@ -44,9 +44,14 @@ at error whole-tree only when the tree is already at zero violations.
 
 | ID | Rule | Rationale | Verification | Severity |
 |---|---|---|---|---|
-| DOC-PLAIN-01 | Write documentation prose without em dashes, en dashes, semicolons or curly quotes. | Machine translation and terminal rendering both mangle these marks, which corrupts a command the reader copies. | `python3 checks/prose.py --root . PATH` reports no DOC-PLAIN-01 finding, equivalent to `python3 checks/strip_prose.py PATH \| grep -nP '[\x{2013}\x{2014};\x{201C}\x{201D}\x{2018}\x{2019}]'` returning nothing. House style for translation and terminal rendering, never a claim about authorship. Measured 8,462 hits over 229 of 249 pages (wave-2 calibration), so it runs on changed lines first. | SHOULD, pinned |
+| DOC-PLAIN-01 | Write documentation prose without em dashes, en dashes, semicolons or curly quotes. | Machine translation and terminal rendering both mangle these marks, which corrupts a command the reader copies. | `python3 checks/prose.py --root . PATH` reports no DOC-PLAIN-01 finding, equivalent to see block DOC-PLAIN-01 returning nothing. House style for translation and terminal rendering, never a claim about authorship. Measured 8,462 hits over 229 of 249 pages (wave-2 calibration), so it runs on changed lines first. | SHOULD, pinned |
 | DOC-PLAIN-02 | Split any prose sentence longer than 25 words. | A stacked-clause sentence makes the reader hold three ideas at once before any of them resolves. | `python3 checks/prose.py --root . PATH`. Threshold 25 words (GOV.UK clear-language guidance). The counter reads `strip_prose.py` output, so a link target is not counted as prose. Measured 4,674 long sentences over 211 of 249 pages, 2.6 percent of them false before the link-target strip (wave-2 calibration). Error on changed lines, warning whole-tree until the backfill lands. | MUST |
 | DOC-PLAIN-03 | Keep every paragraph to 5 sentences or fewer. | A long block hides its own topic sentence, so a scanner has no entry point. | `python3 checks/prose.py --root . PATH`. Threshold 5 sentences (GOV.UK clear-language guidance). The counter discards bare `N.` list markers first. Measured 153 long paragraphs over 69 of 249 pages, 10.5 percent of them false before that fix (wave-2 calibration). | SHOULD |
+
+```sh
+# DOC-PLAIN-01
+python3 checks/strip_prose.py PATH | LC_ALL=C awk -f checks/prose_marks.awk
+```
 
 ## Readability
 
@@ -72,10 +77,18 @@ which is the only published ancestor any of these lists has.
 | ID | Rule | Rationale | Verification | Severity |
 |---|---|---|---|---|
 | DOC-PLAIN-08 | Remove every chatbot artifact and every AI-authorship badge from a published page. | A leftover "I hope this helps" proves an unedited paste, and a page badge is a second unmaintained place for an authorship fact to rot. | `python3 checks/prose.py --root . PATH` (artifact and badge arm), covering `I hope this helps`, `as an AI`, `knowledge cutoff`, `oaicite`, `AI-generated`, `AI-assisted` and the assisted-by phrasings. Measured 0 hits over 249 pages (wave-2 calibration), so this one launches at error whole-tree today. | MUST |
-| DOC-PLAIN-09 | Never word a finding, a rule or a commit message as a claim about who or what wrote a page. | Single-instance authorship detection is falsified, so the claim is false and it gives a reader a reason to switch the whole gate off. | `grep -rniE -e 'AI-written' -e 'AI-generated' -e 'sign of AI' -e 'detect.{0,12}AI' -e 'written by (an )?AI' <your check messages and rule files>` returns nothing. Findings read as a count, for example "4 tells per 1,000 words, a human should read this". Measured single-instance accuracy of 57 and 64 percent (Wikipedia, Signs of AI writing), and a human author at 10.13 em dashes per 1,000 words inside a model's own range (Freeburg 2026). | MUST |
+| DOC-PLAIN-09 | Never word a finding, a rule or a commit message as a claim about who or what wrote a page. | Single-instance authorship detection is falsified, so the claim is false and it gives a reader a reason to switch the whole gate off. | see block DOC-PLAIN-09 returns nothing. Findings read as a count, for example "4 tells per 1,000 words, a human should read this". Measured single-instance accuracy of 57 and 64 percent (Wikipedia, Signs of AI writing), and a human author at 10.13 em dashes per 1,000 words inside a model's own range (Freeburg 2026). | MUST |
 | DOC-PLAIN-10 | Gate a vocabulary tell on its density per 1,000 words, never on one occurrence. | One "delve" is ordinary prose, so a per-instance fail flags human writing. | `python3 checks/prose.py --root . PATH` reports hits per 1,000 words against a default of 3, labelled uncalibrated in the config because no source states a validated threshold. The wordlist excludes `underscore` and `unlock`, which name ordinary technical objects. Skips any page under 300 prose words, this family's own floor. Measured 18 raw hits over 14 of 249 pages, 17 of them false, and the single page over threshold failed on a false positive (wave-2 calibration). | CONSIDER |
 | DOC-PLAIN-11 | Remove time-relative words from documentation prose. | Words like "currently" and "latest" are accurate on the day of writing and wrong one release later. | `python3 checks/prose.py --root . PATH` (time-relative arm, Google's timeless-documentation list). Pages declaring `doc_type: changelog` are skipped through `checks/doc_declaration.py`. A noun phrase naming a value the reader's environment computes is exempt, for example "the latest digest": unverified: reading heuristic. Look for whether the sentence claims product status or describes a resolved runtime value. Measured 398 hits over 104 of 249 pages, about half runtime-state phrases in a 10-item sample. Changed lines first. | SHOULD |
 | DOC-PLAIN-12 | Remove marketing superlatives from documentation prose. | A superlative makes a claim the reader cannot check and delays the fact they came for. | `python3 checks/prose.py --root . PATH` (superlative arm) over `powerful`, `seamless`, `revolutionary`, `game-chang`, `supercharge`, `unlock`, `empower`, `cutting-edge`, `robust`, `effortless`. The list has no published ancestor, which is why it stays advisory. Files under a research or decisions path are excluded before reporting. Measured 8 hits over 6 of 249 pages, all 8 false (wave-2 calibration). | CONSIDER |
+
+```sh
+# DOC-PLAIN-09
+# MSGS is your check messages and rule files
+MSGS=checks
+git ls-files -z --cached --others --exclude-standard -- "$MSGS" \
+  | xargs -0 -r grep -H -n -i -E -e 'AI-written' -e 'AI-generated' -e 'sign of AI' -e 'detect.{0,12}AI' -e 'written by (an )?AI' --
+```
 
 ## Structure
 

@@ -194,10 +194,12 @@ grep -cE "^  i_need_to:|^  tier:" <artifact>
 grep -nEi "[0-9]+ ?%|[0-9]+ (votes|respondents|users surveyed)" <artifact>
 
 # Every friction log has verbatim output.
-grep -nE '^[$`]' docs/discovery/friction-logs/*.md
+git ls-files -z --cached --others --exclude-standard -- ':(glob)docs/discovery/friction-logs/*.md' \
+  | xargs -0 -r grep -H -n -E -e '^[$`]' --
 
 # No friction log proposes a fix.
-grep -niE "^## .*(solution|proposed fix|recommendation)" docs/discovery/friction-logs/*.md
+git ls-files -z --cached --others --exclude-standard -- ':(glob)docs/discovery/friction-logs/*.md' \
+  | xargs -0 -r grep -H -n -i -E -e '^## .*(solution|proposed fix|recommendation)' --
 ```
 
 The last three must print nothing, except the verbatim-output grep, which must

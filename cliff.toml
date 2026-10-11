@@ -1,8 +1,7 @@
 # git-cliff ~ configuration file
 # https://git-cliff.org/docs/configuration
 #
-# CHANGELOG.md is generated — never edit it by hand; run `task changelog`
-# (or `task release:prepare`).
+# Based on the built-in keepachangelog preset, customized for OCX.
 
 [changelog]
 header = """

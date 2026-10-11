@@ -3,39 +3,147 @@ agent = []
 [metadata]
 lock_version = 1
 declaration_hash_version = 1
-declaration_hash = "sha256:390e45b51164e8964682a2adfa7384d9bc2d6a3c3cd18244b28da9b6bae882d5"
+declaration_hash = "sha256:9ddbcd666056d64c1750ec9d6051c661f0aa5546b2df8783b704606ad51cf98a"
 generated_by = "grim 0.14.3"
-generated_at = "2026-10-07T17:39:16Z"
+generated_at = "2026-10-11T19:27:19Z"
+
+[[skill]]
+name = "code-docs-cleanup"
+pinned = "ghcr.io/ocx-sh/lore/code-docs-cleanup@sha256:4b312606567dab8769e98fcf9770072bc425e6f2e9d1b71a3638e9c60bcaed18"
+
+[[skill.bundles]]
+repo = "ghcr.io/ocx-sh/lore/code-docs-essentials"
+tag = "latest"
+
+[[skill.bundles]]
+repo = "ghcr.io/ocx-sh/lore/python-essentials"
+tag = "latest"
+
+[[skill.bundles]]
+repo = "ghcr.io/ocx-sh/lore/typescript-essentials"
+tag = "latest"
 
 [[skill]]
 name = "docs-instrument"
-pinned = "ghcr.io/ocx-sh/lore/docs-instrument@sha256:e6a5459c18f7d8192ec81efc70bc674809edfbdc305d96bc60bf3cb14b3b790d"
+pinned = "ghcr.io/ocx-sh/lore/docs-instrument@sha256:fb3e1c487517dfacac9761ad95070479faa77a7a089e8fb61219dd813f92213b"
 bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
 bundle_tag = "latest"
 
 [[skill]]
 name = "docs-plan"
-pinned = "ghcr.io/ocx-sh/lore/docs-plan@sha256:cbff12650842b27b1af5513caf447c516bb33b72735121902b48576fa0840778"
+pinned = "ghcr.io/ocx-sh/lore/docs-plan@sha256:09751a25d1535543ac0cae1a52273ec3e1938b9db577b83509de025508757180"
 bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
 bundle_tag = "latest"
 
 [[skill]]
 name = "docs-review"
-pinned = "ghcr.io/ocx-sh/lore/docs-review@sha256:6008173170905e2f0e0562a10d840b5120496a7fb99564d985fce6bbeb05ac5f"
+pinned = "ghcr.io/ocx-sh/lore/docs-review@sha256:e3a08c62f16489d01c00d702fc780c485d85f0cf3f22948e3d07ba09c7e0a3f4"
+bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
+bundle_tag = "latest"
+
+[[skill]]
+name = "ocx-theme-components"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme-components@sha256:f8f46606b4afac01ee35ea629f15e233fb1f5ede1a267d54bd08e79a20741923"
+bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
+bundle_tag = "latest"
+
+[[skill]]
+name = "ocx-theme-deploy"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme-deploy@sha256:47c3fcd8d3fe1dfb330bd87610e31b8371aec0d8b0bdc6e96ce6b50c891e02a1"
+bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
+bundle_tag = "latest"
+
+[[skill]]
+name = "ocx-theme-icons"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme-icons@sha256:781c0f1b8c3a1392a5ec2580af1ac8326a5e0b97c184eda2fcf020512d01a8db"
+bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
+bundle_tag = "latest"
+
+[[skill]]
+name = "ocx-theme-quality"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme-quality@sha256:818d2fa4daa9131f77263d91d14d0ecdf671cf25dcad210c2d7d2c6fb6041444"
+bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
+bundle_tag = "latest"
+
+[[skill]]
+name = "ocx-theme-setup"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme-setup@sha256:ccb95dd6cb8da4296568d63384dfd0bfcc64de4fe4acafdb8b6a60ec953dcb71"
+bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
+bundle_tag = "latest"
+
+[[skill]]
+name = "ocx-theme-theming"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme-theming@sha256:e6a6607dba159a07bc4257d2df78692d5a12e2636a5dc2c2f4bea098eba281c2"
+bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
+bundle_tag = "latest"
+
+[[rule]]
+name = "code-docs"
+pinned = "ghcr.io/ocx-sh/lore/code-docs@sha256:0f0e026af937583e31a597a7d6b98b352ac7fefda15dd2e2c000ec31f857883a"
+
+[[rule.bundles]]
+repo = "ghcr.io/ocx-sh/lore/code-docs-essentials"
+tag = "latest"
+
+[[rule.bundles]]
+repo = "ghcr.io/ocx-sh/lore/python-essentials"
+tag = "latest"
+
+[[rule.bundles]]
+repo = "ghcr.io/ocx-sh/lore/typescript-essentials"
+tag = "latest"
+
+[[rule]]
+name = "docs-quality"
+pinned = "ghcr.io/ocx-sh/lore/docs-quality@sha256:065355e0be2ce30d340c71b57bb10c5360a954a166023199535cedee56cee96c"
 bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
 bundle_tag = "latest"
 
 [[rule]]
-name = "docs-quality"
-pinned = "ghcr.io/ocx-sh/lore/docs-quality@sha256:d9ab2df9ccff688f98f539ab1f1c3c9cf56fdfefa91b7d190dfca70d0afed09e"
-bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
+name = "python-packaging"
+pinned = "ghcr.io/ocx-sh/lore/python-packaging@sha256:b0fee4f821d8a88df6b5c264df043d5be1ab843d550193d9aad3b66040e4e85c"
+bundle = "ghcr.io/ocx-sh/lore/python-essentials"
 bundle_tag = "latest"
+
+[[rule]]
+name = "python-quality"
+pinned = "ghcr.io/ocx-sh/lore/python-quality@sha256:755c0c3e70ab5f79620feae52522b0cfa97e37bbf126cc1c6d460ea2e2001291"
+bundle = "ghcr.io/ocx-sh/lore/python-essentials"
+bundle_tag = "latest"
+
+[[rule]]
+name = "typescript-packaging"
+pinned = "ghcr.io/ocx-sh/lore/typescript-packaging@sha256:bb84da4598396e188bb370f191832cc5f988214303f0a1a6c5c18ed9d1bee7de"
+bundle = "ghcr.io/ocx-sh/lore/typescript-essentials"
+bundle_tag = "latest"
+
+[[rule]]
+name = "typescript-quality"
+pinned = "ghcr.io/ocx-sh/lore/typescript-quality@sha256:5df437c8dad6758409deac39b87c1f0c6f7846ee28e8be47ba9d7cbc696427aa"
+bundle = "ghcr.io/ocx-sh/lore/typescript-essentials"
+bundle_tag = "latest"
+
+[[bundle]]
+name = "code-docs-essentials"
+repo = "ghcr.io/ocx-sh/lore/code-docs-essentials"
+tag = "latest"
+pinned = "ghcr.io/ocx-sh/lore/code-docs-essentials@sha256:183da12123e068eb066bd211bd837e4a8fcd5f2de1f1db222b3c34e0b740039a"
+
+[[bundle.member]]
+kind = "skill"
+name = "code-docs-cleanup"
+id = "ghcr.io/ocx-sh/lore/code-docs-cleanup:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "code-docs"
+id = "ghcr.io/ocx-sh/lore/code-docs:latest"
 
 [[bundle]]
 name = "docs-essentials"
 repo = "ghcr.io/ocx-sh/lore/docs-essentials"
 tag = "latest"
-pinned = "ghcr.io/ocx-sh/lore/docs-essentials@sha256:d8b090ccb9c7871b4fb03b7f1671a9464bf8d0a07e6d1ee8733a25ac79ae9c38"
+pinned = "ghcr.io/ocx-sh/lore/docs-essentials@sha256:21469c134d44ace8bc6f0d2468aadb972394c29aaf0deb0d52b33636832abb6d"
 
 [[bundle.member]]
 kind = "skill"
@@ -56,3 +164,91 @@ id = "ghcr.io/ocx-sh/lore/docs-review:latest"
 kind = "rule"
 name = "docs-quality"
 id = "ghcr.io/ocx-sh/lore/docs-quality:latest"
+
+[[bundle]]
+name = "ocx-theme"
+repo = "ghcr.io/ocx-sh/lore/ocx-theme"
+tag = "latest"
+pinned = "ghcr.io/ocx-sh/lore/ocx-theme@sha256:be276e93a0c29f49f94948fbecfd35989e329221ed3b414e6f590060df3e23a1"
+
+[[bundle.member]]
+kind = "skill"
+name = "ocx-theme-components"
+id = "ghcr.io/ocx-sh/lore/ocx-theme-components:latest"
+
+[[bundle.member]]
+kind = "skill"
+name = "ocx-theme-deploy"
+id = "ghcr.io/ocx-sh/lore/ocx-theme-deploy:latest"
+
+[[bundle.member]]
+kind = "skill"
+name = "ocx-theme-icons"
+id = "ghcr.io/ocx-sh/lore/ocx-theme-icons:latest"
+
+[[bundle.member]]
+kind = "skill"
+name = "ocx-theme-quality"
+id = "ghcr.io/ocx-sh/lore/ocx-theme-quality:latest"
+
+[[bundle.member]]
+kind = "skill"
+name = "ocx-theme-setup"
+id = "ghcr.io/ocx-sh/lore/ocx-theme-setup:latest"
+
+[[bundle.member]]
+kind = "skill"
+name = "ocx-theme-theming"
+id = "ghcr.io/ocx-sh/lore/ocx-theme-theming:latest"
+
+[[bundle]]
+name = "python-essentials"
+repo = "ghcr.io/ocx-sh/lore/python-essentials"
+tag = "latest"
+pinned = "ghcr.io/ocx-sh/lore/python-essentials@sha256:a5d599b8a5e890a58bc1fa76b22239321adf63f54a825673a03f6f9e43084603"
+
+[[bundle.member]]
+kind = "skill"
+name = "code-docs-cleanup"
+id = "ghcr.io/ocx-sh/lore/code-docs-cleanup:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "code-docs"
+id = "ghcr.io/ocx-sh/lore/code-docs:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "python-packaging"
+id = "ghcr.io/ocx-sh/lore/python-packaging:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "python-quality"
+id = "ghcr.io/ocx-sh/lore/python-quality:latest"
+
+[[bundle]]
+name = "typescript-essentials"
+repo = "ghcr.io/ocx-sh/lore/typescript-essentials"
+tag = "latest"
+pinned = "ghcr.io/ocx-sh/lore/typescript-essentials@sha256:e0446fdfa48ee779e3d3a31c74efdcebf1f557f91c7f1939d548fdf3d0e6c9b4"
+
+[[bundle.member]]
+kind = "skill"
+name = "code-docs-cleanup"
+id = "ghcr.io/ocx-sh/lore/code-docs-cleanup:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "code-docs"
+id = "ghcr.io/ocx-sh/lore/code-docs:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "typescript-packaging"
+id = "ghcr.io/ocx-sh/lore/typescript-packaging:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "typescript-quality"
+id = "ghcr.io/ocx-sh/lore/typescript-quality:latest"

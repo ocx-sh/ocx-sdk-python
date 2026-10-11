@@ -117,7 +117,7 @@ definitions.
 
 | ID | Rule | Rationale | Verification | Severity |
 |---|---|---|---|---|
-| DOC-DISC-01 | Never source a candidate task from an existing docs page title or heading. | The docs tree invents a need that only justifies the page already written. | `grep -rhoE --include='*.md' '^#+ .*' docs > titles.txt` then compare against the artifact's `task` values. A task whose only source is an existing title fails. | MUST |
+| DOC-DISC-01 | Never source a candidate task from an existing docs page title or heading. | The docs tree invents a need that only justifies the page already written. | see block DOC-DISC-01 then compare against the artifact's `task` values. A task whose only source is an existing title fails. | MUST |
 | DOC-DISC-02 | Write exactly one user need per shortlisted task, in the form "As a X, I need to Y, so that Z". | A task with no need sentence cannot be tested for solution shape later. | `python3 -c "import sys,yaml;d=yaml.safe_load(open(sys.argv[1]));sys.exit(any(not all(t['user_need'].get(k) for k in ('as_a','i_need_to','so_that')) for t in d['tasks']))" <artifact>` | MUST |
 | DOC-DISC-03 | Reject a user need whose need or outcome clause names a page, command or flag. | The agent paraphrases the target page back at itself instead of reasoning about the task. | Build a token file from docs headings and CLI subcommand and flag names, drop every token under 4 characters, keep only phrases of 2 words or more, then `grep -oiFf tokens.txt needs.txt`. Any hit fails. The first token construction measured a 100% false-positive rate on 5 legitimate needs (calibration run A), so treat a hit as a prompt to re-read, not as a verdict. | SHOULD |
 | DOC-DISC-04 | Structure every friction log as Context, Pros and cons, and Detailed stream of consciousness, with no proposed-fix section. | A fix named during discovery locks in a solution before the task is understood. | `grep -c '^## ' <log>` returns 3, and `grep -ni -e '^## .*solution' -e '^## .*proposed fix' -e '^## .*recommendation' <log>` returns nothing. | SHOULD |
@@ -129,6 +129,12 @@ definitions.
 | DOC-DISC-10 | Exempt from the stub half of the delete test any page that reaches a verified result, and any page whose body is mostly a build-time generator directive. | A 20-word page that installs the tool is not a stub, and a 4-line autodoc directive renders a full API surface. | Before the word count, `grep -n -e '^::: ' -e '^.. auto' <page>`. A hit exempts the page. Otherwise skip any row whose page carries the `# doc:` success marker. | SHOULD |
 | DOC-DISC-11 | Write the discovery result to one durable artifact file with the fixed schema. | A result that exists only in a transcript cannot be diffed on the next run. | `test -f docs/discovery/use-cases.yaml` and the file parses with one entry per shortlisted task. | MUST |
 | DOC-DISC-12 | Re-run discovery on every feature merge, and re-run the grep-only coverage audit on every tagged release. | There is no traffic curve to watch, so the trigger has to be a code change or a release boundary. | A CI job on the merge event and a job on the release tag regenerate the coverage columns and diff the stub and orphan counts against the prior run. | CONSIDER |
+
+```sh
+# DOC-DISC-01
+git ls-files -z --cached --others --exclude-standard -- ':(glob)docs/**/*.md' \
+  | xargs -0 -r -n1 grep -E -o -e '^#+ .*' -- > titles.txt
+```
 
 `DOC-DISC-13` to `DOC-DISC-25` are defined in the `docs-quality` rule set, under
 its page-types depth file. This procedure consumes them. It does not redefine

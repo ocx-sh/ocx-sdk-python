@@ -148,10 +148,16 @@ wrong contract. A CONTRIBUTING file declares `doc_type: how-to`.
 | DOC-TYPE-37 | Spell every changelog category heading exactly as Keep a Changelog states it, and never require all six. | Training data carries many changelog dialects, and a rule demanding all six would fail every changelog measured. | `checks/page_type.py <paths>` matches every `###` inside a version section against `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` (Keep a Changelog 1.1.0). Measured 11 of 11 changelogs comply, and 0 of 11 ever emit the other three. | SHOULD |
 | DOC-TYPE-38 | Never let a version section be a re-rendered commit log. | Keep a Changelog states this as an explicit don't, and its founding principle is that changelogs are for humans. | unverified: reading heuristic. Look for a version section where every line is a Conventional Commits subject copied verbatim. | SHOULD |
 | DOC-TYPE-39 | State a migration path in every entry marked breaking. | A breaking entry with no migration sends the reader to the diff to work it out. | `checks/page_type.py <paths>` requires migration prose, an explicit "no migration needed", or a markdown link within 3 lines of a breaking marker, and fails a bare filename. Resolve any link with `checks/links_raw.py`. Measured 23 of 23 breaking entries carry inline prose, 0 carry a link, 2 carry a bare filename. | SHOULD |
-| DOC-TYPE-40 | Never gate a build on the presence of an `## [Unreleased]` heading. | A generator correctly omits it between a release and the next merged commit, so the gate reddens a compliant repo. | `grep -rn "Unreleased" checks/` returns no failing assertion. Measured 10 of 11 changelogs carry no such heading right now and every one is compliant. | MUST |
+| DOC-TYPE-40 | Never gate a build on the presence of an `## [Unreleased]` heading. | A generator correctly omits it between a release and the next merged commit, so the gate reddens a compliant repo. | see block DOC-TYPE-40 returns no failing assertion. Measured 10 of 11 changelogs carry no such heading right now and every one is compliant. | MUST |
 | DOC-TYPE-41 | Credit Keep a Changelog when the file uses its template sentence. | Borrowing a template sentence and dropping its citation is the same defect as an uncited analogy. | `checks/page_type.py <paths>` fails a file matching "All notable changes to this project" with no `keepachangelog.com` link. Measured 9 of 11 files cite it, 2 do not. | SHOULD |
 | DOC-TYPE-42 | On a CONTRIBUTING file, state prerequisites, setup, how to run the tests, the commit convention and a before-you-submit checklist, in that order. | Three independently authored files converge on exactly this order, and a contributor reads it once, top to bottom. | unverified: reading heuristic. Look for which of the five sections are missing, and accept a thin project that skips one. Read on 3 of 20 files. | CONSIDER |
 | DOC-TYPE-43 | Never open a CONTRIBUTING file with marketing or onboarding-sell content. | Its reader has already decided to contribute, so re-selling the project wastes the one thing they came for. | `checks/page_type.py <paths>` requires the first element after the H1 to be prose or a setup step, never an image or a badge line. Read on the same 3 of 20 files. | CONSIDER |
+
+```sh
+# DOC-TYPE-40
+git ls-files -z --cached --others --exclude-standard -- ':(glob)checks/**' \
+  | xargs -0 -r grep -H -n -e 'Unreleased' --
+```
 
 ## Rules: tier and first steps
 

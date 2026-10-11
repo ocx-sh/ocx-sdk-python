@@ -266,18 +266,21 @@ Fixture and measurement shapes are in [references/rollout.md](references/rollout
 
 ```sh
 # every shipped check proves itself against its own fixtures
-for s in checks/*.py; do python3 "$s" --self-test || echo "SELF-TEST FAILED $s"; done
+git ls-files -z --cached --others --exclude-standard -- ':(glob)checks/*.py' \
+  | xargs -0 -r -n1 sh -c 'python3 "$0" --self-test || echo "SELF-TEST FAILED $0"'
 
 # every path any rule or config names resolves on disk
-grep -ohE 'checks/[A-Za-z0-9_.-]+' rules/docs-quality*.md rules/docs-quality/*.md \
+git ls-files -z --cached --others --exclude-standard -- ':(glob)rules/docs-quality*.md' ':(glob)rules/docs-quality/*.md' \
+  | xargs -0 -r -n1 grep -o -E -e 'checks/[A-Za-z0-9_.-]+' -- \
   | sort -u | while read -r p; do test -e "$p" || echo "MISSING $p"; done
 
 # no unwired gate is described as coverage
-grep -rniE 'tracked, not built|future gate|not implemented yet|(gate|check).{0,15}TODO' \
-  rules/ .github/ 2>/dev/null
+git ls-files -z --cached --others --exclude-standard -- ':(glob)rules/**' ':(glob).github/**' \
+  | xargs -0 -r grep -H -n -i -E -e 'tracked, not built' -e 'future gate' -e 'not implemented yet' -e '(gate|check).{0,15}TODO' --
 
 # no absolute or repository-specific path leaked into a template or fixture
-grep -rnE '/(home|Users)/|(crates|services|packages)/' checks/ | grep -v Binary
+git ls-files -z --cached --others --exclude-standard -- ':(glob)checks/**' \
+  | xargs -0 -r grep -H -n -E -e '/(home|Users)/' -e '(crates|services|packages)/' -- | grep -v Binary
 ```
 
 Then plant one violation per wired check, watch it go red, and revert it.

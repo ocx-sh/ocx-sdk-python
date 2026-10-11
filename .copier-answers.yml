@@ -1,0 +1,19 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 21306db
+_src_path: https://github.com/ocx-sh/conventions.git
+bazel: false
+deep_os:
+- ubuntu-latest
+- macos-latest
+- windows-latest
+languages:
+- python
+- typescript
+profile: full
+repo_name: ocx-sdk-python
+site:
+    deploy: true
+    dir: site
+    dist: site/dist
+    path: /integrations/python
+theme_bundle: true

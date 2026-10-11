@@ -1,0 +1,13 @@
+# zizmor policy for this repo (https://docs.zizmor.sh/configuration/).
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # Default is ref-pin for actions/* and hash-pin for the rest. Our own actions hash-pin too.
+        actions/*: hash-pin
+        ocx-sh/*: hash-pin
+        '*': hash-pin
+  # Flags every `uses: ./.github/actions/deploy`; the deploy contract (C-329) mandates that
+  # local path, so the rule has no actionable finding here.
+  self-repository:
+    disable: true
