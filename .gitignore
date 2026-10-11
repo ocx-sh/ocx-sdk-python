@@ -46,3 +46,6 @@ site/src/content/docs/
 
 # direnv local activation state (.envrc itself IS tracked)
 .direnv/
+
+# CI reports (JUnit XML, written by the baseline ci:* tasks)
+target/

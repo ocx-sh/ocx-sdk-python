@@ -2,178 +2,207 @@
 
 version: '3'
 
+includes:
+  baseline:
+    taskfile: ./taskfiles/baseline.taskfile.yml
+    flatten: true
+
+vars:
+  PY_VERSIONS: ['3.12', '3.13', '3.14']
+  JUNIT: target/reports/junit
+
 tasks:
   default:
-    desc: Fast feedback loop — lint + types + tests
+    desc: Full local gate
     cmds:
       - task: verify
 
   verify:
-    desc: Full quality gate (format check, lint, types, tests, coverage)
+    desc: Full local gate, the same sequence CI runs
+    cmds:
+      - task: ci:lint
+      - task: ci:test
+      - task: lock:check
+      - task: baseline:check
+      - task: secrets
+
+  # ---- CI entry points (C-003): the same commands run locally and in verify-basic / verify-deep ----
+
+  ci:lint:
+    desc: Format check, lint, types
     cmds:
       - task: format:check
       - task: lint
       - task: types
+
+  ci:test:
+    desc: Unit tier (under coverage, 100% gate) + contract tier; JUnit XML goes to target/reports/junit/
+    cmds:
+      - mkdir -p {{.JUNIT}}
       - task: test
+        vars: { CLI_ARGS: '--junitxml={{.JUNIT}}/unit.xml' }
       - task: cov:report
+      - task: test:contract
+        vars: { CLI_ARGS: '--junitxml={{.JUNIT}}/contract.xml' }
+
+  ci:build:
+    desc: Build (stub; the wheel is built by release.yml via `task build`)
+    cmds:
+      - echo "nothing to build in CI"
+
+  ci:docs:
+    desc: Docs site build + layout check, then the Lighthouse gate
+    env:
+      LH_HTML: '1'
+    cmds:
+      - task: docs:build
+      - task: site:lighthouse
+
+  ci:deep:
+    desc: Deep tier (nightly) - unit tests on every supported Python, acceptance + link check on Linux
+    cmds:
+      - mkdir -p {{.JUNIT}}
+      - for: { var: PY_VERSIONS }
+        cmd: ocx exec -g test -- uv run --python {{.ITEM}} --extra dev pytest --junitxml={{.JUNIT}}/unit-py{{.ITEM}}.xml
+      # Acceptance needs a Linux Docker daemon (compose registry stack).
+      - task: deep:linux
+        vars: { OS: '{{OS}}' }
+
+  deep:linux:
+    internal: true
+    status:
+      - '[ "{{.OS}}" != linux ]'
+    cmds:
+      - task: test:acceptance
+        vars: { CLI_ARGS: '--junitxml={{.JUNIT}}/acceptance.xml' }
+      # Canary: acceptance against the latest ocx release. Scheduled runs only, never blocking.
+      - cmd: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            OCX_TEST_VERSIONS=latest {{.TASK_EXE}} test:acceptance -- --junitxml={{.JUNIT}}/canary.xml \
+              || echo "::warning::acceptance canary (ocx latest) failed - non-blocking"
+          fi
+      - task: lint:links
+
+  release:bump-files:
+    desc: Write the release version into pyproject.toml (called by release:prepare with VERSION=x.y.z)
+    requires:
+      vars: [VERSION]
+    cmds:
+      - ocx exec -g test -- uv version {{.VERSION}}
+
+  # ---- Repo tasks ----
 
   format:
     desc: Apply formatting
     cmds:
-      - uv run --extra dev ruff format src tests
+      - ocx exec -g test -- uv run --extra dev ruff format src tests
 
   format:check:
     desc: Check formatting without applying
     cmds:
-      - uv run --extra dev ruff format --check src tests
+      - ocx exec -g test -- uv run --extra dev ruff format --check src tests
 
   lint:
     desc: Lint source
     cmds:
-      - uv run --extra dev ruff check src tests
+      - ocx exec -g test -- uv run --extra dev ruff check src tests
 
   types:
     desc: Type-check source
     cmds:
-      - uv run --extra dev pyright
+      - ocx exec -g test -- uv run --extra dev pyright
 
   test:
     desc: Run pytest under coverage
     cmds:
-      - uv run --extra dev coverage run -m pytest {{.CLI_ARGS}}
+      - ocx exec -g test -- uv run --extra dev coverage run -m pytest {{.CLI_ARGS}}
 
   test:contract:
-    desc: Run contract-tier tests against the pinned ocx binary
+    desc: Run contract-tier tests against the pinned ocx binary (TESTED_OCX_VERSION, provisioned by bootstrap.ensure)
     cmds:
-      - OCX_SDK_CONTRACT=1 uv run --extra dev pytest tests/contract docs README.md {{.CLI_ARGS}}
+      # The tier must hit the version the SDK claims, not whichever ocx the toolchain ships.
+      - |
+        pin=$(ocx exec -g test -- uv run --extra dev python -c "from ocx_sdk import TESTED_OCX_VERSION; print(TESTED_OCX_VERSION)")
+        OCX_SDK_CONTRACT=1 OCX_TEST_VERSIONS="${OCX_TEST_VERSIONS:-$pin}" ocx exec -g test -- uv run --extra dev pytest tests/contract docs README.md {{.CLI_ARGS}}
 
   test:acceptance:
-    desc: Run acceptance-tier tests against a compose stack
+    desc: Run acceptance-tier tests against a compose stack (ocx at TESTED_OCX_VERSION unless OCX_TEST_VERSIONS is set)
     cmds:
-      - OCX_SDK_ACCEPTANCE=1 uv run --extra dev pytest tests/acceptance {{.CLI_ARGS}}
+      - |
+        pin=$(ocx exec -g test -- uv run --extra dev python -c "from ocx_sdk import TESTED_OCX_VERSION; print(TESTED_OCX_VERSION)")
+        OCX_SDK_ACCEPTANCE=1 OCX_TEST_VERSIONS="${OCX_TEST_VERSIONS:-$pin}" ocx exec -g test -- uv run --extra dev pytest tests/acceptance {{.CLI_ARGS}}
 
   cov:report:
     desc: Print coverage report (enforces fail_under from pyproject.toml)
     cmds:
-      - uv run --extra dev coverage report
+      - ocx exec -g test -- uv run --extra dev coverage report
 
   cov:xml:
     desc: Emit coverage.xml for CI upload
     cmds:
-      - uv run --extra dev coverage xml
+      - ocx exec -g test -- uv run --extra dev coverage xml
 
   cov:html:
     desc: Generate HTML coverage report at htmlcov/ for local browsing
     cmds:
-      - uv run --extra dev coverage html
+      - ocx exec -g test -- uv run --extra dev coverage html
 
   docs:serve:
     desc: Live-reload Starlight server at http://localhost:4321/integrations/python/
     dir: site
     cmds:
-      - pnpm install --frozen-lockfile
-      - pnpm dev
+      - ocx exec -g docs -- pnpm install --frozen-lockfile
+      - ocx exec -g docs -- pnpm dev
 
   docs:build:
     desc: Build the Starlight site into site/dist and run the ocx.sh layout check
     dir: site
     cmds:
-      - pnpm install --frozen-lockfile
-      - pnpm build
-      - pnpm check
+      - ocx exec -g docs -- pnpm install --frozen-lockfile
+      - ocx exec -g docs -- pnpm build
+      - ocx exec -g docs -- pnpm check
 
   site:lighthouse:
     desc: Build the site, serve it under its base path and audit every page with Lighthouse (mobile, 100 x4 plus budgets)
     dir: site
     cmds:
-      - pnpm install --frozen-lockfile
-      - pnpm exec playwright-core install chromium
-      - pnpm lighthouse {{.CLI_ARGS}}
+      - ocx exec -g docs -- pnpm install --frozen-lockfile
+      # CI runners also need chromium's system libraries.
+      - ocx exec -g docs -- pnpm exec playwright-core install ${CI:+--with-deps} chromium
+      - ocx exec -g docs -- pnpm lighthouse {{.CLI_ARGS}}
 
   site:test:
     desc: Offline unit test of the Lighthouse budgets and page discovery
     dir: site
     cmds:
-      - pnpm install --frozen-lockfile
-      - pnpm test
+      - ocx exec -g docs -- pnpm install --frozen-lockfile
+      - ocx exec -g docs -- pnpm test
 
   docs:clean:
     desc: Remove the generated docs content and the build output
     cmds:
-      - rm -rf site/dist site/.astro site/.lighthouseci site/src/content/docs
-
-  lint:actions:
-    desc: Lint GitHub Actions workflows
-    cmds:
-      - actionlint
+      - rm -rf site/dist site/.astro site/src/content/docs site/.lighthouseci
 
   lint:links:
     desc: Check for broken links (network; may be flaky offline)
     cmds:
       # tests/fixtures holds ocx's own --help output captured verbatim; the
       # example URLs in it are illustrative, not links this repo owns.
-      - lychee --cache --max-cache-age 1d --exclude-path tests/fixtures .
-
-  secrets:
-    desc: Scan for committed secrets
-    cmds:
-      - gitleaks detect --source . --redact
+      - ocx exec -g lint -- lychee --cache --max-cache-age 1d --exclude-path tests/fixtures .
 
   build:
     desc: Build wheel + sdist
     cmds:
-      - uv build
+      - ocx exec -g test -- uv build
 
   # Regenerate CHANGELOG.md from the full git history.
   changelog:
     desc: Update CHANGELOG.md from git history
     cmds:
-      - git-cliff --output CHANGELOG.md
+      - ocx exec -g release -- git-cliff --output CHANGELOG.md
 
   # Show what would go into the next release's changelog section.
   changelog:preview:
     desc: Preview unreleased changes
     cmds:
-      - git-cliff --unreleased
-
-  # Full release preparation: compute next version, update pyproject + install
-  # snippets + CHANGELOG, run verify. After this task succeeds, the human
-  # reviews and commits.
-  #
-  # Version selection:
-  #   task release:prepare                 # interactive menu: auto | patch | minor | major
-  #   task release:prepare BUMP=minor      # skip the menu, force a bump level
-  #   task release:prepare BUMP=auto VERSION=1.4.0   # pin an exact version (v prefix optional)
-  #
-  # BUMP is a required enum: with interactive mode on (.taskrc.yml) and a TTY it
-  # renders a selection menu; on CI / no TTY it must be passed on the CLI.
-  release:prepare:
-    desc: 'Prepare a release (interactive: pick auto|patch|minor|major; or BUMP=<level> / VERSION=x.y.z)'
-    requires:
-      vars:
-        - name: BUMP
-          enum: [auto, patch, minor, major]
-    vars:
-      # git-cliff computes the next version from git history. `auto` lets it pick
-      # the bump from conventional commits; otherwise BUMP forces the level.
-      # VERSION pins an exact value and wins over BUMP.
-      NEXT_VERSION:
-        sh: |
-          if [ -n "{{.VERSION}}" ]; then
-            printf 'v%s' "{{.VERSION | default "" | trimPrefix "v"}}"
-          elif [ "{{.BUMP}}" = "auto" ]; then
-            git-cliff --bumped-version
-          else
-            git-cliff --bumped-version --bump "{{.BUMP}}"
-          fi
-    cmds:
-      - echo "Next version:{{.NEXT_VERSION}}"
-      - uv version "{{.NEXT_VERSION | trimPrefix "v"}}"
-      - git-cliff --tag "{{.NEXT_VERSION}}" -o CHANGELOG.md
-      - task verify
-      - |
-        echo ""
-        echo "Release prepared ({{.NEXT_VERSION}}). Review changes, then:"
-        echo "  git add -A && git commit -m 'chore(release): {{.NEXT_VERSION}}'"
-        echo "  git tag {{.NEXT_VERSION}}"
-        echo "  git push --atomic origin main {{.NEXT_VERSION}}"
+      - ocx exec -g release -- git-cliff --unreleased

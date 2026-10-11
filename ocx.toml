@@ -11,6 +11,9 @@ lychee = "ocx.sh/lychee/lychee:0.24.2"
 gitleaks = "ocx.sh/gitleaks/gitleaks:8.30.1"
 grim = "ocx.sh/grimoire/cli:0.14.3"
 
+[group.test.tools]
+uv = "ocx.sh/astral-sh/uv:0.13.0"
+
 [group.release.tools]
 git-cliff = "ocx.sh/git-cliff/git-cliff:2.14.2"
 

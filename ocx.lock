@@ -1,9 +1,9 @@
 [metadata]
 lock_version = 3
 declaration_hash_version = 1
-declaration_hash = "sha256:c21fed05949c7f7e40a8c25d36ccd1a4a99e9d797507cb6533a30e39986af577"
+declaration_hash = "sha256:700f6e2d447a9e4bf30a0730c7a9c4161a9b29a4aae29c49d9720c84fc95b5c6"
 generated_by = "ocx 0.6.5"
-generated_at = "2026-10-11T19:26:57Z"
+generated_at = "2026-10-11T19:33:46Z"
 
 [[tool]]
 name = "task"
@@ -134,3 +134,18 @@ repository = "ocx.sh/git-cliff/git-cliff"
 "linux/arm64" = "sha256:0ef5b24785e0c82e9e71b6695908c74c0d80b3273080ba10efdd8c416f23cbe4"
 "windows/amd64" = "sha256:a60055c818e4dc5856f76d5e3419bbbf4cba33f25ba9b70a6f3f81bacb5f5b43"
 "windows/arm64" = "sha256:2a6cd5be4e38a61f1295871321487f1e2e2fd4d9f3dea2368898625f7a5b1f9a"
+
+[[tool]]
+name = "uv"
+group = "test"
+repository = "ocx.sh/astral-sh/uv"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:3019a84eccc4cd68eda3da6a379ae0b9d4517bce40c17c2a654854c7da84b4cd"
+"darwin/arm64" = "sha256:325f75fa4b634e79d84826a5ea4a5ce648f49f767510a844860496566df47574"
+"linux/amd64" = "sha256:9992716f235879ad6ec57331c924c89a2133af9ccdc2ed08c918a1f89065c84b"
+"linux/amd64+libc.glibc" = "sha256:6d6b3885aaf55ab4ca7ee091235278abbcdf85f97d6e3a03eeda45b942af4648"
+"linux/arm64" = "sha256:c7533bfbd2428fa67ac6870d371e1ad804d8025ddfc44a01a42e3fef443b9e28"
+"linux/arm64+libc.glibc" = "sha256:07d2102476f6414cfe738c301797291a896f8a2d8705b3f89f078e7d6de70fcd"
+"windows/amd64" = "sha256:a380728fec87ec4dfdf98fe6ce56352bc4ac8b26ee4adb0fad5694335845f3fa"
+"windows/arm64" = "sha256:3499f5a32cc688ba437e0f2dcd5f6115faf6065f82af5cc41185767192d9390e"
