@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: 25738f8
+_commit: 2c061a4
 _src_path: https://github.com/ocx-sh/conventions.git
 bazel: false
 deep_os:
