@@ -33,6 +33,33 @@ tasks:
     cmds:
       - ocx exec -g lint -- prek install --hook-type pre-commit --hook-type commit-msg
 
+  # Hook bodies live here, not in .pre-commit-config.yaml: Task embeds a POSIX shell interpreter, so
+  # they run unchanged on Windows where a hook entry cannot assume `sh` (C-007). Builtins only.
+  hooks:commit-msg:
+    desc: "Fail unless the commit subject is a conventional commit (arg: the message file, as prek passes it)"
+    silent: true
+    cmds:
+      - cmd: |
+          read -r msg < "{{.CLI_ARGS}}" || true
+          case "$msg" in Merge\ *|Revert\ \"*) exit 0 ;; esac
+          re='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
+          if [[ $msg =~ $re ]]; then exit 0; fi
+          echo "commit subject must be '<type>[(scope)][!]: <subject>' with type one of: feat fix docs style refactor perf test build ci chore revert" >&2
+          exit 1
+
+  hooks:repo-pre-commit:
+    desc: Run the repo-owned hooks:pre-commit task when the repo defines it
+    silent: true
+    cmds:
+      - cmd: |
+          case "
+          $({{.TASK_EXE}} --list-all --silent)
+          " in
+            *"
+          hooks:pre-commit
+          "*) {{.TASK_EXE}} hooks:pre-commit ;;
+          esac
+
   lock:check:
     desc: Fail when ocx.lock or grimoire.lock is stale or the installed client files drift from it
     cmds:
@@ -122,7 +149,17 @@ tasks:
             exit 1
           fi
           branch=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name) || exit 1
-          runs=$(gh run list --workflow verify-deep.yml --branch "$branch" --status completed --limit 20 --json conclusion,url,event) || exit 1
+          err=$(mktemp)
+          if ! runs=$(gh run list --workflow verify-deep.yml --branch "$branch" --status completed --limit 20 --json conclusion,url,event 2>"$err"); then
+            # A workflow file absent from the default branch is a 404, which is the "never ran" case.
+            if grep -q "not found on the default branch" "$err"; then
+              echo "release:prepare: no verify-deep run on $branch yet — dispatch one" >&2
+            else
+              cat "$err" >&2
+            fi
+            rm -f "$err"; exit 1
+          fi
+          rm -f "$err"
           latest=$(printf '%s' "$runs" | ocx exec -g lint -- uv run --no-project python -c "import json,sys; rs=[r for r in json.load(sys.stdin) if r.get('event') in ('schedule','workflow_dispatch')]; print(rs[0]['conclusion'], rs[0]['url']) if rs else print('none')") || exit 1
           case "$latest" in
             none)

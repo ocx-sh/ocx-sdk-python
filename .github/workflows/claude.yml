@@ -17,6 +17,7 @@ jobs:
   gate:
     name: Token gate
     runs-on: ubuntu-latest
+    environment: ci
     permissions: {}
     outputs:
       has_token: ${{ steps.token.outputs.has_token }}
@@ -37,8 +38,10 @@ jobs:
     if: >-
       needs.gate.outputs.has_token == 'true' &&
       github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !endsWith(github.actor, '[bot]')
     runs-on: ubuntu-latest
+    environment: ci
     timeout-minutes: 30
     permissions:
       contents: read
@@ -54,7 +57,17 @@ jobs:
         uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--max-turns 25"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. Read the diff with `gh pr diff` and judge it for correctness, security, and
+            the repo's conventions in AGENTS.md (read it first, if present). Comment inline on concrete problems,
+            then post exactly one summary review comment with `gh pr comment`: a verdict plus the issues that matter.
+            Skip style nits a linter would catch. Do not push commits or edit files.
+          claude_args: >-
+            --max-turns 25
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
 
   respond:
     name: "@claude responder"
@@ -65,6 +78,7 @@ jobs:
       contains(github.event.comment.body, '@claude') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
+    environment: ci
     timeout-minutes: 30
     permissions:
       contents: read
