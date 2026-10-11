@@ -191,9 +191,9 @@ assert not report.clean
 assert [(row.tag, row.status) for row in report.reports[0].rows] == [("latest", "stale")]
 ```
 
-`cascade_repair(dry_run=True, announce_tags=path)` plans without writing and
-leaves the tags it would touch in `path` — the file `announce(tags_file=path)`
-consumes. Only a 65 *without* a report (an error envelope instead) raises.
+`cascade_repair(dry_run=True)` plans without writing; the real
+`cascade_repair(announce_tags=path)` appends the tags it moved to `path` — the
+file `announce(tags_file=path)` consumes. Only a 65 *without* a report (an error envelope instead) raises.
 
 ## Consuming what you just published
 

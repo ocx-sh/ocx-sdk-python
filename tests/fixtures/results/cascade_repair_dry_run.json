@@ -174,7 +174,7 @@
         }
       ],
       "outcomes": [],
-      "announce_tags": [
+      "tags": [
         "1",
         "1.0",
         "latest"
@@ -182,5 +182,5 @@
     }
   ],
   "dry_run": true,
-  "announce_tags_path": "/tmp/ocx-recapture-announce-tags.txt"
+  "tags_file": "/tmp/ocx-recapture-announce-tags.txt"
 }

@@ -3319,7 +3319,7 @@ class PackageCommands:
             "cascade",
             "repair",
             *_switch("--dry-run", dry_run),
-            *_flag("--announce-tags", announce_tags),
+            *_flag("--tags-file", announce_tags),
         ]
         result = self._call(
             command, _identifiers(refs), timeout=timeout, retry=retry, mutating=not dry_run, ok_codes=_CASCADE_OK

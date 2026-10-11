@@ -199,7 +199,7 @@
           }
         }
       ],
-      "announce_tags": [
+      "tags": [
         "1",
         "1.0",
         "latest"
@@ -207,5 +207,5 @@
     }
   ],
   "dry_run": false,
-  "announce_tags_path": null
+  "tags_file": null
 }
