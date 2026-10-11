@@ -60,7 +60,9 @@ tasks:
             echo "grim:check: no grimoire.lock yet (mirror profile) - task setup creates it; skipping install"
             exit 0
           fi
-          ocx exec -g lint -- grim install
+          # --force: a fresh clone has no grim install state, so committed client files would read as
+          # locally modified; the git check below is what catches real drift from the lock.
+          ocx exec -g lint -- grim install --force
       - cmd: |
           if ! git diff --exit-code -- .claude .codex .opencode .agents; then
             echo "grim:check: installed client files differ from grimoire.lock — run task setup and commit the result" >&2
