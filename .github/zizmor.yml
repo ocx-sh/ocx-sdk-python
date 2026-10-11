@@ -1,3 +1,4 @@
+# ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update
 # zizmor policy for this repo (https://docs.zizmor.sh/configuration/).
 rules:
   unpinned-uses:

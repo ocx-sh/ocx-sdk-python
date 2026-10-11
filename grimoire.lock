@@ -3,9 +3,9 @@ agent = []
 [metadata]
 lock_version = 1
 declaration_hash_version = 1
-declaration_hash = "sha256:9ddbcd666056d64c1750ec9d6051c661f0aa5546b2df8783b704606ad51cf98a"
+declaration_hash = "sha256:839c0b3d14a5189bb5b2dffba3f6a2b2dc6a2f0d4bf079b0414a478c68a48dfb"
 generated_by = "grim 0.14.3"
-generated_at = "2026-10-11T19:27:19Z"
+generated_at = "2026-10-11T22:55:56Z"
 
 [[skill]]
 name = "code-docs-cleanup"
@@ -22,6 +22,11 @@ tag = "latest"
 [[skill.bundles]]
 repo = "ghcr.io/ocx-sh/lore/typescript-essentials"
 tag = "latest"
+
+[[skill]]
+name = "commit"
+path = "./agent-config/commit"
+hash = "sha256:be69316b52e3ed2d5eb04f412444c46a7bd44bdeba2b54b7c6d000250c9c19e4"
 
 [[skill]]
 name = "docs-instrument"
@@ -78,6 +83,11 @@ bundle = "ghcr.io/ocx-sh/lore/ocx-theme"
 bundle_tag = "latest"
 
 [[rule]]
+name = "architecture"
+path = "./agent-config/architecture.md"
+hash = "sha256:14e92554207961315dd8e8d579b81c7dd781154d4f95537f98df392696adad70"
+
+[[rule]]
 name = "code-docs"
 pinned = "ghcr.io/ocx-sh/lore/code-docs@sha256:0f0e026af937583e31a597a7d6b98b352ac7fefda15dd2e2c000ec31f857883a"
 
@@ -112,6 +122,36 @@ bundle = "ghcr.io/ocx-sh/lore/python-essentials"
 bundle_tag = "latest"
 
 [[rule]]
+name = "quality-core"
+path = "./agent-config/quality-core.md"
+hash = "sha256:8bfbf0a5108b90731d95f3180e425184dfc4534b43df3648d588bc307586fddb"
+
+[[rule]]
+name = "quality-python"
+path = "./agent-config/quality-python.md"
+hash = "sha256:d87e847c40ad07f501e6654a43663a479620f23cb03534aa06f5e4924e01f09b"
+
+[[rule]]
+name = "quality-security"
+path = "./agent-config/quality-security.md"
+hash = "sha256:471124076725d348aebe76d8bc9f1008d012e6f67b936c787f1fe44f02441b5c"
+
+[[rule]]
+name = "quality-tests"
+path = "./agent-config/quality-tests.md"
+hash = "sha256:f5b4c676cf1f0d7980bb48ca23296128a8ef4517dae3b8c7dc470bfe795d1ae8"
+
+[[rule]]
+name = "subsystem-ci"
+path = "./agent-config/subsystem-ci.md"
+hash = "sha256:74b615f59fb4174dc282310661500e32306aa5d8ccaa764c899badea0e78b95c"
+
+[[rule]]
+name = "subsystem-taskfiles"
+path = "./agent-config/subsystem-taskfiles.md"
+hash = "sha256:56140909391a7c73984f8bb5de96479f83052e0427d0d9b010c02b12b2f1be64"
+
+[[rule]]
 name = "typescript-packaging"
 pinned = "ghcr.io/ocx-sh/lore/typescript-packaging@sha256:bb84da4598396e188bb370f191832cc5f988214303f0a1a6c5c18ed9d1bee7de"
 bundle = "ghcr.io/ocx-sh/lore/typescript-essentials"
@@ -122,6 +162,31 @@ name = "typescript-quality"
 pinned = "ghcr.io/ocx-sh/lore/typescript-quality@sha256:5df437c8dad6758409deac39b87c1f0c6f7846ee28e8be47ba9d7cbc696427aa"
 bundle = "ghcr.io/ocx-sh/lore/typescript-essentials"
 bundle_tag = "latest"
+
+[[rule]]
+name = "workflow-bugfix"
+path = "./agent-config/workflow-bugfix.md"
+hash = "sha256:bf3c61c29d9e635f70110a4f737e86cf4cb520dca662348ea152dc36b16af9bd"
+
+[[rule]]
+name = "workflow-feature"
+path = "./agent-config/workflow-feature.md"
+hash = "sha256:c3925b878e9e82b1d3c8e77675591ac629d0812405d86dafaf138b1e1e99fb18"
+
+[[rule]]
+name = "workflow-git"
+path = "./agent-config/workflow-git.md"
+hash = "sha256:f83a0109a5e3b09bd87dbb8bf0ca07f04d72592100e09d958be6c352e33949df"
+
+[[rule]]
+name = "workflow-intent"
+path = "./agent-config/workflow-intent.md"
+hash = "sha256:ff0c58fb4068c337bf6d418f9c53159552c50efbbe6e81a18a0dc728f0d3c1ce"
+
+[[rule]]
+name = "workflow-refactor"
+path = "./agent-config/workflow-refactor.md"
+hash = "sha256:7d4fae6a61a935de924e5b6766d2b1a2dce7854a4fe5404f5877ecf56b3b1ba9"
 
 [[bundle]]
 name = "code-docs-essentials"

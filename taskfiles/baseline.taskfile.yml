@@ -68,7 +68,7 @@ tasks:
       - task: grim:check
 
   grim:check:
-    desc: Fail on a grimoire.toml/grimoire.lock mismatch, drifted client files or missing clients (D-05)
+    desc: Fail on a grimoire.toml/grimoire.lock mismatch or missing clients (D-05)
     cmds:
       - cmd: |
           clients=",$(ocx exec -g lint -- grim config get options.clients 2>/dev/null),"
@@ -81,19 +81,19 @@ tasks:
             exit 1
           fi
       # `grim install` refuses (exit 65) a grimoire.lock whose declaration hash no longer matches
-      # grimoire.toml, and a client file modified since install. A floating tag with a newer
-      # upstream digest is not a failure: install only materialises what the lock records.
+      # grimoire.toml (exit 79 when it is missing). Client files are gitignored output (.gitignore in
+      # each client dir), so a fresh clone installs clean; a floating tag with a newer upstream digest
+      # is not a failure: install only materialises what the lock records.
       - cmd: |
           if [ ! -f grimoire.lock ] && grep -q '^profile: mirror' .copier-answers.yml; then
             echo "grim:check: no grimoire.lock yet (mirror profile) - task setup creates it; skipping install"
             exit 0
           fi
-          # --force: a fresh clone has no grim install state, so committed client files would read as
-          # locally modified; the git check below is what catches real drift from the lock.
-          ocx exec -g lint -- grim install --force
+          ocx exec -g lint -- grim install
       - cmd: |
-          if ! git diff --exit-code -- .claude .codex .opencode .agents; then
-            echo "grim:check: installed client files differ from grimoire.lock — run task setup and commit the result" >&2
+          # The two grim-written root files outside the ignored client dirs are committed; they must match the lock.
+          if ! git diff --exit-code -- .claude/settings.json opencode.json; then
+            echo "grim:check: grim-written .claude/settings.json / opencode.json differ from grimoire.lock — run task setup and commit them" >&2
             exit 1
           fi
 

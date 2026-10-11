@@ -1,1 +1,0 @@
-Contents: [Declare the page](#declare-the-page) · [Non-negotiables](#non-negotiables) · [Item three](#item-three) · [Item four](#item-four) · [Item five](#item-five) · [Item six](#item-six) · [Item seven](#item-seven) · [Item eight](#item-eight)
