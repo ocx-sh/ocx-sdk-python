@@ -40,7 +40,8 @@ tasks:
     silent: true
     cmds:
       - cmd: |
-          read -r msg < "{{.CLI_ARGS}}" || true
+          # Task already shell-quotes CLI_ARGS (a path with spaces arrives as 'a b/MSG'): do not wrap it in quotes again.
+          read -r msg < {{.CLI_ARGS}} || true
           case "$msg" in Merge\ *|Revert\ \"*) exit 0 ;; esac
           re='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
           if [[ $msg =~ $re ]]; then exit 0; fi
@@ -105,7 +106,7 @@ tasks:
     desc: Lint GitHub workflows with actionlint and zizmor
     cmds:
       - ocx exec -g lint -- actionlint
-      - ocx exec -g lint -- uvx --from zizmor=={{.ZIZMOR_VERSION}} zizmor --no-online-audits --config .github/zizmor.yml .github/workflows
+      - ocx exec -g lint -- uvx --from zizmor=={{.ZIZMOR_VERSION}} zizmor --no-online-audits --config .github/zizmor.yml .github
 
   baseline:check:
     desc: Fail on a hand-edited template-owned file or a broken baseline contract (ocx.toml, grimoire.toml, root tasks)
