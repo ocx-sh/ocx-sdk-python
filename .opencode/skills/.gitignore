@@ -1,0 +1,5 @@
+# ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update
+# grim client output: `task setup` installs it from grimoire.lock, so it is never committed.
+# Repo-owned skills and rules live in agent-config/, declared in grimoire.toml as path sources.
+*
+!.gitignore

@@ -3,12 +3,25 @@
 clients = ["claude", "codex", "opencode"]
 
 [bundles]
-docs-essentials = "ghcr.io/ocx-sh/lore/docs-essentials:latest"
 code-docs-essentials = "ghcr.io/ocx-sh/lore/code-docs-essentials:latest"
+docs-essentials = "ghcr.io/ocx-sh/lore/docs-essentials:latest"
+ocx-theme = "ghcr.io/ocx-sh/lore/ocx-theme:latest"
 python-essentials = "ghcr.io/ocx-sh/lore/python-essentials:latest"
 typescript-essentials = "ghcr.io/ocx-sh/lore/typescript-essentials:latest"
-ocx-theme = "ghcr.io/ocx-sh/lore/ocx-theme:latest"
 
 [skills]
+commit = "./agent-config/commit"
 
 [rules]
+architecture = "./agent-config/architecture.md"
+quality-core = "./agent-config/quality-core.md"
+quality-python = "./agent-config/quality-python.md"
+quality-security = "./agent-config/quality-security.md"
+quality-tests = "./agent-config/quality-tests.md"
+subsystem-ci = "./agent-config/subsystem-ci.md"
+subsystem-taskfiles = "./agent-config/subsystem-taskfiles.md"
+workflow-bugfix = "./agent-config/workflow-bugfix.md"
+workflow-feature = "./agent-config/workflow-feature.md"
+workflow-git = "./agent-config/workflow-git.md"
+workflow-intent = "./agent-config/workflow-intent.md"
+workflow-refactor = "./agent-config/workflow-refactor.md"

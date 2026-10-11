@@ -1,3 +1,4 @@
+# ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update
 name: Deploy to ocx.sh
 
 # Publishes the site on push to main that touches the site, plus a manual dispatch. No pull_request trigger: PR
@@ -34,7 +35,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup
-        uses: ocx-sh/conventions/.github/actions/setup@2c061a46ced91e5fb27581ef9e6cd64e489ab39e # v0
+        uses: ocx-sh/conventions/.github/actions/setup@f9951ed566b54c3f7d2e436739ee28ffa79d93dd # v0
         with:
           groups: default,docs
       - name: Build the site

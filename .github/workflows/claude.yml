@@ -1,3 +1,4 @@
+# ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update
 name: Claude
 
 # PR review on open, ready and new pushes, plus an @claude responder on comments. Every job skips (green, not red)
@@ -51,6 +52,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ocx-sh/conventions/.github/actions/setup@f9951ed566b54c3f7d2e436739ee28ffa79d93dd # v0
+        with:
+          groups: default,lint
+      - name: Install grim skills and rules (gitignored, from grimoire.lock)
+        run: ocx exec -g lint -- grim install
       - name: Review with Claude Code
         uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
@@ -86,6 +92,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ocx-sh/conventions/.github/actions/setup@f9951ed566b54c3f7d2e436739ee28ffa79d93dd # v0
+        with:
+          groups: default,lint
+      - name: Install grim skills and rules (gitignored, from grimoire.lock)
+        run: ocx exec -g lint -- grim install
       - name: Respond to @claude
         uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
