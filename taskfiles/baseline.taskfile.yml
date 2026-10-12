@@ -81,9 +81,9 @@ tasks:
             exit 1
           fi
       # `grim install` refuses (exit 65) a grimoire.lock whose declaration hash no longer matches
-      # grimoire.toml (exit 79 when it is missing). Client files are gitignored output (.gitignore in
-      # each client dir), so a fresh clone installs clean; a floating tag with a newer upstream digest
-      # is not a failure: install only materialises what the lock records.
+      # grimoire.toml (exit 79 when it is missing). Client files are committed grim output, so any
+      # change install makes means a hand edit or a render the lock no longer produces; a floating
+      # tag with a newer upstream digest is not a failure: install only materialises what the lock records.
       - cmd: |
           if [ ! -f grimoire.lock ] && grep -q '^profile: mirror' .copier-answers.yml; then
             echo "grim:check: no grimoire.lock yet (mirror profile) - task setup creates it; skipping install"
@@ -91,9 +91,11 @@ tasks:
           fi
           ocx exec -g lint -- grim install
       - cmd: |
-          # The two grim-written root files outside the ignored client dirs are committed; they must match the lock.
-          if ! git diff --exit-code -- .claude/settings.json opencode.json; then
-            echo "grim:check: grim-written .claude/settings.json / opencode.json differ from grimoire.lock — run task setup and commit them" >&2
+          out=$(git status --porcelain -- .claude/settings.json opencode.json .claude/skills .claude/rules \
+            .claude/agents .opencode/skills .opencode/rules .agents/skills | grep -v '^. ' || true)  # worktree vs index; staged is fine
+          if [ -n "$out" ]; then
+            printf '%s\n' "$out" >&2
+            echo "grim:check: grim client files differ from grimoire.lock — run task setup and commit them" >&2
             exit 1
           fi
 
