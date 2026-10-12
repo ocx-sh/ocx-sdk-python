@@ -1,1 +1,1 @@
-{"$schema": "https://docs.renovatebot.com/renovate-schema.json", "extends": ["github>ocx-sh/conventions//renovate/default#v0.1.0"], "description": "ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update"}
+{"$schema": "https://docs.renovatebot.com/renovate-schema.json", "extends": ["github>ocx-sh/conventions//renovate/default#v0.1.1"], "description": "ocx-baseline: template-owned file — change ocx-sh/conventions, then run task copier:update"}
