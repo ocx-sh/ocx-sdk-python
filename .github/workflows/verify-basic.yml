@@ -24,7 +24,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # `task secrets` (gitleaks git) scans the full history
-      - uses: ocx-sh/conventions/.github/actions/setup@a5b53015cf4f48869aa356289f6f985707adcd56 # v0.1.1
+      - uses: ocx-sh/conventions/.github/actions/setup@723b544119d0a57045bd9c796d570848f73cf3bb # v0
         with:
           groups: default,lint
       - run: task ci:lint
@@ -44,14 +44,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ocx-sh/conventions/.github/actions/setup@a5b53015cf4f48869aa356289f6f985707adcd56 # v0.1.1
+      - uses: ocx-sh/conventions/.github/actions/setup@723b544119d0a57045bd9c796d570848f73cf3bb # v0
         with:
           groups: default,test
           otel-auth: ${{ secrets.OTEL_OTLP_AUTH }}
       - run: task ci:test
       - name: Push JUnit telemetry
         if: always()
-        uses: ocx-sh/conventions/.github/actions/setup@a5b53015cf4f48869aa356289f6f985707adcd56 # v0.1.1
+        uses: ocx-sh/conventions/.github/actions/setup@723b544119d0a57045bd9c796d570848f73cf3bb # v0
         with:
           report: target/reports/junit/*.xml
           otel-auth: ${{ secrets.OTEL_OTLP_AUTH }}
@@ -72,10 +72,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ocx-sh/conventions/.github/actions/setup@a5b53015cf4f48869aa356289f6f985707adcd56 # v0.1.1
+      - uses: ocx-sh/conventions/.github/actions/setup@723b544119d0a57045bd9c796d570848f73cf3bb # v0
         with:
           groups: default,docs
       - run: task ci:docs
+      - name: Upload docs reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-reports
+          path: target/reports/
+          if-no-files-found: ignore
+          retention-days: 14
+          overwrite: true # a job rerun uploads the same name again; without it the step 409s and fails the job
 
   # The single required check: every job succeeded (or was skipped).
   basic-gate:

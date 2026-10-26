@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: v0.1.1
+_commit: v0.3.1-1-g723b544
 _src_path: https://github.com/ocx-sh/conventions.git
 bazel: false
 deep_os:
@@ -9,8 +9,12 @@ deep_os:
 languages:
 - python
 - typescript
+maintainers:
+- michael-herwig
 profile: full
 repo_name: ocx-sdk-python
+repo_owner: ocx-sh
+repo_workflows: false
 site:
     deploy: true
     dir: site
@@ -20,4 +24,6 @@ site:
     - docs/**
     - src/**
     - CHANGELOG.md
+submodules: false
 theme_bundle: true
+zizmor_ignore: []

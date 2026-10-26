@@ -6,7 +6,11 @@ on:
     # Nightly minute is stable per repository: sha256(repo_name)[:4] % 60, computed at render time.
     - cron: "16 3 * * *"
   workflow_dispatch:
+  # A caller passes the secrets this file reads by name (never `secrets: inherit`); all optional, so an empty one degrades.
   workflow_call:
+    secrets:
+      OTEL_OTLP_AUTH:
+        required: false
   # Lets a PR that adds this workflow run its own deep tier (dispatch needs the file on the default branch).
   pull_request:
     types: [labeled]
@@ -28,14 +32,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ocx-sh/conventions/.github/actions/setup@a5b53015cf4f48869aa356289f6f985707adcd56 # v0.1.1
+      - uses: ocx-sh/conventions/.github/actions/setup@723b544119d0a57045bd9c796d570848f73cf3bb # v0
         with:
           groups: default,test
           otel-auth: ${{ secrets.OTEL_OTLP_AUTH }}
       - run: task ci:deep
       - name: Push JUnit telemetry
         if: always()
-        uses: ocx-sh/conventions/.github/actions/setup@a5b53015cf4f48869aa356289f6f985707adcd56 # v0.1.1
+        uses: ocx-sh/conventions/.github/actions/setup@723b544119d0a57045bd9c796d570848f73cf3bb # v0
         with:
           report: target/reports/junit/*.xml
           otel-auth: ${{ secrets.OTEL_OTLP_AUTH }}
