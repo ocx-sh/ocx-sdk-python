@@ -42,7 +42,7 @@ jobs:
         run: task ci:docs
       - name: Deploy
         id: deploy
-        uses: ocx-sh/website/.github/actions/deploy@1b898a76d4c3bbe60d9619a931c74f21660f4eb4 # v0.1.1
+        uses: ocx-sh/website/.github/actions/deploy@e86b83014538975c186912e5038567c69b2f2f2c # v0.3.0
         with:
           dist: "site/dist"
           path: "/integrations/python"
