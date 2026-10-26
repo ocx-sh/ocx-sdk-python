@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.4",
-    "@ocx-sh/theme": "0.1.1",
+    "@ocx-sh/theme": "0.3.0",
     "astro": "7.3.5",
     "starlight-pydocs": "0.3.0"
   },
