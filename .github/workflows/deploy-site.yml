@@ -45,5 +45,5 @@ jobs:
         uses: ocx-sh/website/.github/actions/deploy@e86b83014538975c186912e5038567c69b2f2f2c # v0.3.0
         with:
           dist: "site/dist"
-          path: "/integrations/python"
+          path: "/integrations/python/"
           storage-key: ${{ secrets.BUNNY_STORAGE_KEY }}
