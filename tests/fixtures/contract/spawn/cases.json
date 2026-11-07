@@ -84,15 +84,14 @@
       "child": [["Path", "C:\\Windows"], ["OCX_BINARY_PIN", "C:\\ocx\\ocx.exe"]]
     },
     {
-      "name": "names_that_only_resemble_ocx_are_kept",
-      "parent": [["OCXHOME", "kept"], ["MY_OCX_HOME", "kept"], ["_OCX_X", "kept"], ["OCX", "kept"]],
+      "name": "names_that_only_resemble_the_pin_are_kept",
+      "parent": [["OCX_BINARY_PIN_OLD", "kept"], ["XOCX_BINARY_PIN", "kept"], ["OCX_BINARY", "kept"]],
       "caller": [],
       "binary": "/opt/ocx/bin/ocx",
       "child": [
-        ["OCXHOME", "kept"],
-        ["MY_OCX_HOME", "kept"],
-        ["_OCX_X", "kept"],
-        ["OCX", "kept"],
+        ["OCX_BINARY_PIN_OLD", "kept"],
+        ["XOCX_BINARY_PIN", "kept"],
+        ["OCX_BINARY", "kept"],
         ["OCX_BINARY_PIN", "/opt/ocx/bin/ocx"]
       ]
     },
