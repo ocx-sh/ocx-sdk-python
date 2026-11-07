@@ -210,11 +210,11 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
     A plain `bool` is set-only: `False` carries no "leave the ambient value"
     tier, so it means "not requested" and the host's value survives. The
     fields that can actively clear an ambient value are typed `| None`, and
-    the `None` arm is what defers to the host — except on the three variables
-    written either way, `OCX_NO_UPDATE_CHECK`, `OCX_NO_CONSENT` and
-    `OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean the SDK's
-    default rather than the host's value. Each carries the reason at its
-    write site.
+    the `None` arm is what defers to the host — except on the two variables
+    written either way, `OCX_NO_UPDATE_CHECK` and `OCX_NO_CONSENT`, where
+    saying nothing has to mean the SDK's default rather than the host's value.
+    Each carries the reason at its write site. A field left unset never
+    removes a host entry.
 
     Every write and clear **in this function** goes through `_put`, so the
     SDK's answer replaces the host's in any spelling. `_apply_auth` writes
@@ -271,16 +271,8 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         # side — naming a source beside it would describe a tier already off.
         _put(mapping, "OCX_MANAGED_CONFIG", config.managed_config)
 
-    # D13: written either way, like OCX_NO_UPDATE_CHECK and for the same
-    # reason — a caller asking for ocx's own root of trust back has to beat an
-    # ambient OCX_SIGSTORE_TRUSTED_ROOT, which a set-only write could not do.
-    # This variable does not disable verification, it redefines what "trusted"
-    # means, and it outranks `[trust.sigstore]`, so a hostile ambient value
-    # repoints Fulcio, CT, and Rekor while every install still reports
-    # verified — failure presenting as success. `None` therefore clears rather
-    # than defers, which is the `_put` arm that takes no value.
-    root = config.sigstore_trusted_root
-    _put(mapping, "OCX_SIGSTORE_TRUSTED_ROOT", None if root is None else str(root))
+    if config.sigstore_trusted_root is not None:
+        _put(mapping, "OCX_SIGSTORE_TRUSTED_ROOT", str(config.sigstore_trusted_root))
 
     if config.no_config_refresh is not None:
         if config.no_config_refresh:

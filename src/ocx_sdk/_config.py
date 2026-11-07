@@ -15,10 +15,10 @@ Three fields decide security posture and are worth reading twice:
   allows, and any explicit value — **including the empty tuple** — to replace
   the ambient set entirely. `()` is therefore "plaintext nowhere", the
   fail-closed answer to an `OCX_INSECURE_REGISTRIES` a CI image exported.
-- `sigstore_trusted_root` is `None` to mean ocx's own root of trust, which
-  `_env` enforces by *clearing* an ambient `OCX_SIGSTORE_TRUSTED_ROOT` rather
-  than inheriting it — the variable outranks the config file, so inheriting it
-  would let the host redefine what "trusted" means with no visible symptom.
+- `sigstore_trusted_root` is `None` to leave an ambient
+  `OCX_SIGSTORE_TRUSTED_ROOT` as the host exported it, and a value to replace
+  it. The variable outranks the config file, so a caller who wants ocx's own
+  root of trust narrows the `HostEnv`.
 - `auth` and `insecure_registries` naming the same registry means credentials
   would travel over plaintext HTTP (CWE-319), so the constructor warns. It
   warns again on a non-lowercase `auth` key, which would export credentials
@@ -124,13 +124,8 @@ class OcxConfig:
             so `()` blocks an ambient re-enable (fail-closed).
         sigstore_trusted_root: The Sigstore trusted root to verify signatures
             against, for air-gapped verification against a private root of
-            trust. `None` is **not** "leave the ambient value" here, unlike
-            the other path-shaped fields: it means ocx's own default root, and
-            `_env` pops an ambient `OCX_SIGSTORE_TRUSTED_ROOT` to enforce that.
-            The variable redefines what "trusted" means and outranks the
-            config file, so an ambient one could otherwise repoint Fulcio, CT,
-            and Rekor at an attacker's material while every install still
-            reported verified.
+            trust. `None` leaves an ambient `OCX_SIGSTORE_TRUSTED_ROOT` as
+            the host exported it; a value replaces it.
             The path travels verbatim, as `home`, `config`, `index` and
             `docker_config` do: `~` is not expanded, and a relative path
             resolves against the *child's* working directory, not the

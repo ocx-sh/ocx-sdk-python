@@ -18,10 +18,10 @@ call composes what it was asked for whatever state the host carries. To
 narrow what a child inherits, pass a narrower
 [`HostEnv`](api.md#ocx_sdk.HostEnv).
 
-The one exception is a variable `OcxConfig` writes, which replaces the host's
-value (see below). `OCX_SIGSTORE_TRUSTED_ROOT` is among them: with no
-`sigstore_trusted_root` it is cleared, because it redefines what "trusted"
-means and outranks `[trust.sigstore]`.
+A variable `OcxConfig` writes replaces the host's value of that name (see
+below); a field left unset writes nothing and clears nothing. That includes
+`OCX_SIGSTORE_TRUSTED_ROOT`: with no `sigstore_trusted_root` the host's value
+reaches ocx as exported.
 
 ## Written last: `OCX_BINARY_PIN`
 
@@ -37,9 +37,9 @@ never duplicated beside it), and is never empty.
 field is set-only — `False` means "not requested", and the host's ambient
 value (if any) survives. A field typed `X | None` can actively clear an
 ambient value; `None` means "leave the host's value alone" — except for the
-three rows marked *always written*, `OCX_NO_UPDATE_CHECK`, `OCX_NO_CONSENT`
-and `OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean the SDK's
-default rather than whatever the host exported.
+two rows marked *always written*, `OCX_NO_UPDATE_CHECK` and `OCX_NO_CONSENT`,
+where saying nothing has to mean the SDK's default rather than whatever the
+host exported.
 
 Every value the SDK writes here — and every ambient value it clears —
 replaces the host's answer for that name in **any case spelling**, for the
@@ -62,7 +62,7 @@ write leaves the ambient value exactly as the host spelled it.
 | `OCX_MANAGED_CONFIG` | `managed_config: str \| None` | `MANAGED_CONFIG_DISABLED` (`""`) force-disables an ambient managed-config tier; skipped entirely under `no_config`. |
 | `OCX_NO_CONFIG_REFRESH` | `no_config_refresh: bool \| None` | `True` writes `1`; `False` explicitly clears an ambient value; `None` leaves it alone. |
 | `OCX_INSECURE_REGISTRIES` | `insecure_registries: Collection[str] \| None` | **Fail-closed**: any explicit value, including `()`, replaces the ambient set entirely rather than merging with it. |
-| `OCX_SIGSTORE_TRUSTED_ROOT` | `sigstore_trusted_root: str \| Path \| None` | *Always written*: a value sets it, `None` **pops** any ambient one. `None` therefore means ocx's own root of trust, not the host's — see the neutralization table for why. Typed `str \| Path` because CI configuration usually interpolates it as text. |
+| `OCX_SIGSTORE_TRUSTED_ROOT` | `sigstore_trusted_root: str \| Path \| None` | A value sets it; `None` leaves the host's value as exported. Typed `str \| Path` because CI configuration usually interpolates it as text. |
 | `OCX_RECORDS_DIR` | `records_dir: Path \| None` | Where `exec` writes its execution record; the directory must already exist. The per-call `records_dir=` on every `exec`/`spawn` verb overrides it. |
 | `OCX_RECORDS_NAME` | `records_name: str \| None` | The record's filename template (`{time}`, `{host}`, `{pid}`, `{rand}`). Per-call `records_name=` overrides it. |
 | `OCX_TOOLCHAIN_DIR` | `toolchain_dir: Path \| None` | Where the project toolchain links live. `OCX_TOOLCHAIN_PINNED` and `OCX_TOOLCHAIN_ACTIVATE` are deliberately not modelled — the former is the weakest tier under `pinned=` on `env`/`exec`, the latter is a shell-session concern. |

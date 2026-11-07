@@ -293,17 +293,12 @@ def test_sigstore_trusted_root_accepts_a_plain_string_path() -> None:
     assert mapping["OCX_SIGSTORE_TRUSTED_ROOT"] == "/etc/ocx/root.json"
 
 
-def test_sigstore_trusted_root_none_clears_an_ambient_root_of_trust() -> None:
-    # D13: the security half, and the arm a set-only write would fail. This
-    # variable does not disable verification, it REDEFINES what "trusted"
-    # means, and its precedence is env -> [trust.sigstore] -> default, so it
-    # beats the config file. A hostile ambient value points Fulcio, CT, and
-    # Rekor at an attacker's material and every install still reports
-    # verified — failure presenting as success. Saying nothing therefore has
-    # to mean ocx's default trust root, not the host's.
-    mapping = _spawn(OcxConfig(), OCX_SIGSTORE_TRUSTED_ROOT="/tmp/attacker-root.json")
+def test_sigstore_trusted_root_none_leaves_an_ambient_root_of_trust_in_place() -> None:
+    # The SDK clears nothing: a field the caller left unset writes no pair, so the
+    # caller's own environment decides.
+    mapping = _spawn(OcxConfig(), OCX_SIGSTORE_TRUSTED_ROOT="/etc/ocx/ambient-root.json")
 
-    assert "OCX_SIGSTORE_TRUSTED_ROOT" not in mapping
+    assert mapping["OCX_SIGSTORE_TRUSTED_ROOT"] == "/etc/ocx/ambient-root.json"
 
 
 def test_an_explicit_sigstore_trusted_root_beats_an_ambient_one() -> None:
@@ -314,30 +309,11 @@ def test_an_explicit_sigstore_trusted_root_beats_an_ambient_one() -> None:
     assert mapping["OCX_SIGSTORE_TRUSTED_ROOT"] == str(_TRUST_ROOT)
 
 
-@pytest.mark.parametrize(
-    ("config", "expected"),
-    [
-        pytest.param(OcxConfig(), None, id="none-clears"),
-        pytest.param(OcxConfig(sigstore_trusted_root=_TRUST_ROOT), str(_TRUST_ROOT), id="explicit-replaces"),
-    ],
-)
-def test_an_ambient_root_of_trust_is_cleared_whatever_case_it_was_spelled_in(
-    config: OcxConfig, expected: str | None
-) -> None:
-    """The D13 clear matches on `.upper()`, like the neutralization pass.
+def test_an_explicit_root_of_trust_replaces_every_case_spelling_of_the_ambient_one() -> None:
+    """A Windows child reads either spelling, so the explicit answer replaces them all."""
+    mapping = _spawn(OcxConfig(sigstore_trusted_root=_TRUST_ROOT), ocx_sigstore_trusted_root="/etc/ocx/ambient.json")
 
-    A lower-cased spelling surviving here is worse than a surviving
-    `ocx_no_verify`: on Windows the child resolves it, and it repoints
-    Fulcio, CT, and Rekor rather than merely skipping the check. Left as an
-    exact match it would also outlive the explicit arm, since the SDK's
-    upper-cased write and the host's spelling are two distinct dict keys that
-    a case-insensitive child cannot tell apart.
-    """
-    mapping = _spawn(config, ocx_sigstore_trusted_root="/tmp/attacker-root.json")
-
-    assert [mapping[key] for key in mapping if key.upper() == "OCX_SIGSTORE_TRUSTED_ROOT"] == (
-        [] if expected is None else [expected]
-    )
+    assert [mapping[key] for key in mapping if key.upper() == "OCX_SIGSTORE_TRUSTED_ROOT"] == [str(_TRUST_ROOT)]
 
 
 def test_no_config_refresh_false_clears_an_ambient_suppression() -> None:
