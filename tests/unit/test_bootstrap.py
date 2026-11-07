@@ -458,6 +458,8 @@ def test_ensure_requires_a_pin_when_a_mirror_is_configured(tmp_path):
 def test_cache_refuses_a_symlinked_level_below_the_root(tmp_path, install):
     root = tmp_path / "cache"
     root.mkdir()
+    # A group-writable root is refused first, which a 002 umask would otherwise create.
+    root.chmod(0o755)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     (root / "0.5.8").symlink_to(elsewhere, target_is_directory=True)
@@ -631,6 +633,8 @@ def test_archive_member_size_is_capped(tmp_path, monkeypatch):
 def _fake_binary(directory: Path, name: str = _EXE) -> Path:
     """Create an executable file that `shutil.which` will accept."""
     directory.mkdir(parents=True, exist_ok=True)
+    # `discover` refuses a hit in a group- or other-writable directory, which a 002 umask would otherwise create.
+    directory.chmod(0o755)
     binary = directory / name
     binary.write_text("#!/bin/sh\n")
     binary.chmod(0o755)

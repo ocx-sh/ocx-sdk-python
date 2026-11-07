@@ -27,7 +27,7 @@ handle reaches into another.
 
 Only two things reach argv from `OcxConfig`: `log_level`, which has no
 environment tier the SDK writes, and `--project`, which must be explicit
-because the ambient `OCX_PROJECT` is neutralized on every spawn. Every other
+so that no call depends on the ambient `OCX_PROJECT`. Every other
 field travels as an `OCX_*` variable composed by `_env.build_spawn_env` —
 one config-to-wire mapping, in the module that owns it.
 
@@ -681,7 +681,7 @@ class _Runner:
 
     def spawn_env(self) -> SpawnEnv:
         """Compose the child environment for one call, secrets and all."""
-        return build_spawn_env(self.host, self.config)
+        return build_spawn_env(self.host, self.config, self.exe)
 
     def flags(self, presentation: Sequence[str], project: Path | None) -> list[str]:
         """Build the flags that go ahead of the subcommand.
@@ -1505,7 +1505,7 @@ class PackageCommands:
                 package, so `True` against an uncovered package is a
                 documented no-op rather than enforcement — it does not make
                 an unsigned package fail. `False` also beats an ambient
-                `OCX_NO_VERIFY`, which the SDK neutralizes on every spawn.
+                `OCX_NO_VERIFY`: the argv flag outranks the variable.
             timeout: Seconds per attempt. Omitted takes the config's.
             retry: Retry policy. `None` opts out; omitted takes the config's.
 
@@ -2003,7 +2003,7 @@ class PackageCommands:
                 only where a `[[trust.policy]]` covers the package, so `True`
                 against an uncovered package is a documented no-op rather
                 than enforcement. `False` also beats an ambient
-                `OCX_NO_VERIFY`, which the SDK neutralizes on every spawn.
+                `OCX_NO_VERIFY`: the argv flag outranks the variable.
             timeout: Seconds per attempt. Omitted takes the config's.
             retry: Retry policy. `None` opts out; omitted takes the config's.
 

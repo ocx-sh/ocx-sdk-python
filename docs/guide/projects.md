@@ -7,8 +7,8 @@
 obtained from [`Ocx.project(path)`](../reference/api.md#ocx_sdk.Ocx.project) —
 never constructed directly. Every call carries `--project <path>`
 explicitly, so no `Project` method depends on the process's working
-directory, and an ambient `OCX_PROJECT` can never retarget one (the SDK
-neutralizes it on every spawn).
+directory, and an ambient `OCX_PROJECT` cannot retarget one (the explicit
+flag outranks the variable).
 
 ```python-no-run
 # illustrative: /srv/build stands in for a real project directory.

@@ -11,8 +11,8 @@ against the WP00 corpus and failing closed on mismatch), and
 at the SDK's own serializer rather than ocx's).
 
 The rest specifies the three transformations `build_spawn_env` performs:
-neutralize the ambient project/global/quiet triple, apply the config onto
-the host snapshot, and let explicit credentials beat ambient ones per slug.
+keep the host snapshot whole, apply the config onto it, let explicit credentials
+beat ambient ones per slug, and write the binary pin last.
 """
 
 from __future__ import annotations
@@ -49,12 +49,13 @@ _HOME = Path("/opt/ocx-home")
 _CONFIG_FILE = Path("/etc/ocx/config.toml")
 _INDEX = Path("/var/ocx/index")
 _DOCKER = Path("/run/docker")
+_BINARY = Path("/opt/ocx/bin/ocx")
 _TRUST_ROOT = Path("/etc/ocx/air-gapped-trusted-root.json")
 
 
 def _spawn(config: OcxConfig | None = None, /, **ambient: str) -> Mapping[str, str]:
     """Build a spawn env from an explicit ambient snapshot and return its mapping."""
-    return build_spawn_env(HostEnv(ambient), config or OcxConfig()).mapping
+    return build_spawn_env(HostEnv(ambient), config or OcxConfig(), _BINARY).mapping
 
 
 # ── the slug carve-out (§9) ──────────────────────────────────────────────────
@@ -83,7 +84,7 @@ def test_empty_registry_is_refused_rather_than_authenticating_anonymously() -> N
     config = OcxConfig(auth={"": BearerAuth("t0ken")})
 
     with pytest.raises(OcxError, match=r"canonicalizes to an empty slug|cannot name an environment variable"):
-        build_spawn_env(HostEnv({}), config)
+        build_spawn_env(HostEnv({}), config, _BINARY)
 
 
 def test_registries_sharing_one_slug_are_refused() -> None:
@@ -93,84 +94,56 @@ def test_registries_sharing_one_slug_are_refused() -> None:
     config = OcxConfig(auth={"ghcr.io": BearerAuth("first"), "ghcr-io": BearerAuth("second")})
 
     with pytest.raises(OcxError, match=r"both canonicalize to the slug 'ghcr_io'"):
-        build_spawn_env(HostEnv({}), config)
+        build_spawn_env(HostEnv({}), config, _BINARY)
 
 
-# ── neutralization (§6) ──────────────────────────────────────────────────────
+# ── pass-through and the pin (§6) ────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
     "key",
     [
-        pytest.param("OCX_PROJECT", id="project"),
-        pytest.param("OCX_GLOBAL", id="global"),
-        pytest.param("OCX_QUIET", id="quiet"),
-        # D12. `OCX_NO_VERIFY` is the fail-open one and the reason the tuple
-        # grew: it is inert below the old 0.5.8 floor and live at 0.6.0, so
-        # raising MIN_SUPPORTED is what created the hole. It silently skips
-        # signature verification — no error, no exit code, no output the SDK
-        # could see — and ocx re-exports it to its own children, so it rides
-        # through nested invocations and into every `exec`ed child command.
-        # Neutralizing removes a channel, not a capability: `verify=False` on
-        # `install`/`pull` still says it, at the call site, where it is
-        # reviewable. The two hook variables are their inert siblings — an
-        # SDK-spawned child renders no prompt and offers no completions.
-        pytest.param("OCX_NO_VERIFY", id="no-verify"),
-        pytest.param("OCX_NO_HOOK", id="no-hook"),
-        pytest.param("OCX_NO_COMPLETIONS", id="no-completions"),
+        "OCX_PROJECT",
+        "OCX_GLOBAL",
+        "OCX_QUIET",
+        "OCX_NO_VERIFY",
+        "OCX_NO_HOOK",
+        "OCX_NO_COMPLETION",
+        "__OCX_ENV_STATE",
+        "ocx_offline",
+        "Ocx_No_Hook",
     ],
 )
-def test_neutralized_keys_never_reach_the_child(key: str) -> None:
-    mapping = _spawn(**{key: "1"})
+def test_an_inherited_ocx_variable_reaches_the_child_unchanged(key: str) -> None:
+    # The caller is responsible for its own environment: the SDK adds, never removes.
+    mapping = _spawn(**{key: "inherited"})
 
-    assert key not in mapping
+    assert mapping[key] == "inherited"
 
 
-def test_neutralization_leaves_unrelated_ambient_variables_alone() -> None:
-    # Only the neutralized keys are dropped; everything else the caller chose
-    # to inherit survives verbatim.
+def test_unrelated_ambient_variables_survive_beside_the_pin() -> None:
     mapping = _spawn(PATH="/usr/bin", CI="true", OCX_PROJECT="/elsewhere")
 
-    assert {"PATH": "/usr/bin", "CI": "true"}.items() <= mapping.items()
-    assert "OCX_PROJECT" not in mapping
+    assert {"PATH": "/usr/bin", "CI": "true", "OCX_PROJECT": "/elsewhere"}.items() <= mapping.items()
 
 
-@pytest.mark.parametrize(
-    "spelling",
-    [
-        pytest.param("ocx_project", id="project"),
-        pytest.param("ocx_global", id="global"),
-        pytest.param("ocx_quiet", id="quiet"),
-        pytest.param("ocx_no_verify", id="no-verify"),
-        pytest.param("Ocx_No_Hook", id="no-hook"),
-        pytest.param("Ocx_No_Completions", id="no-completions"),
-    ],
-)
-def test_a_neutralized_key_is_dropped_whatever_case_the_host_spelled_it(spelling: str) -> None:
-    """The drop matches on `key.upper()`, as `_clear_claimed_triples` casefolds.
-
-    `HostEnv.current()` cannot produce these spellings — Windows upper-cases
-    its env names and POSIX would not resolve a lower-cased one — but a
-    hand-built `HostEnv` can, and a Windows child looks env vars up
-    case-insensitively, so `ocx_no_verify=1` would arrive live and disable
-    signature verification.
-
-    Asserted as the property (no spelling of the name reaches the child), not
-    as the mechanism: reading `_NEUTRALIZED_KEYS` back would keep passing if
-    someone moved the drop to a place it no longer runs.
-    """
-    mapping = _spawn(**{spelling: "1"})
-
-    assert [key for key in mapping if key.upper() == spelling.upper()] == []
+def test_the_pin_names_the_binary_the_sdk_runs() -> None:
+    assert _spawn()["OCX_BINARY_PIN"] == str(_BINARY)
 
 
-def test_a_neutralized_verification_switch_is_dropped_even_alongside_a_full_config() -> None:
-    # D12: neutralization runs before `_apply_config`, so a config that writes
-    # its own OCX_* vars cannot reintroduce the ambient kill switch by
-    # arriving later in the assembly.
+@pytest.mark.parametrize("spelling", ["OCX_BINARY_PIN", "ocx_binary_pin", "Ocx_Binary_Pin"])
+def test_the_pin_replaces_an_inherited_one_in_any_letter_case(spelling: str) -> None:
+    mapping = _spawn(**{spelling: "/somewhere/else/ocx"})
+
+    assert [key for key in mapping if key.upper() == "OCX_BINARY_PIN"] == ["OCX_BINARY_PIN"]
+    assert mapping["OCX_BINARY_PIN"] == str(_BINARY)
+
+
+def test_a_config_write_beats_the_ambient_value_it_names() -> None:
+    # The config layer still replaces the ambient variable it writes; nothing else is touched.
     mapping = _spawn(OcxConfig(offline=True, home=_HOME), OCX_NO_VERIFY="1", OCX_OFFLINE="0")
 
-    assert "OCX_NO_VERIFY" not in mapping
+    assert mapping["OCX_NO_VERIFY"] == "1"
     assert mapping["OCX_OFFLINE"] == "1"
 
 
@@ -485,7 +458,7 @@ def test_an_insecure_registry_entry_may_not_smuggle_a_comma() -> None:
     config = OcxConfig(insecure_registries=("localhost:5000,evil.corp",))
 
     with pytest.raises(OcxError, match="contains ','"):
-        build_spawn_env(HostEnv({}), config)
+        build_spawn_env(HostEnv({}), config, _BINARY)
 
 
 def test_sdk_side_policy_never_reaches_the_child_environment() -> None:
@@ -644,7 +617,7 @@ def test_secrets_absent_from_repr_logs_errors() -> None:
     password = "hunter2-password"
     config = OcxConfig(auth={"ghcr.io": BearerAuth(token), "docker.io": BasicAuth("ci", password)})
 
-    spawn_env = build_spawn_env(HostEnv({"PATH": "/usr/bin"}), config)
+    spawn_env = build_spawn_env(HostEnv({"PATH": "/usr/bin"}), config, _BINARY)
 
     # The mapping MUST carry the secrets — the child cannot authenticate
     # without them. Secrecy is about the human-readable surfaces.
@@ -669,7 +642,7 @@ def test_configured_forge_tokens_never_repr_and_are_redacted() -> None:
     """The `auth` rule for the two forge secrets: carried to the child, off every readable surface."""
     config = OcxConfig(forge_token="glpat-api-secret", forge_git_token="glpat-push-secret", forge_git_username="bot")
 
-    spawn_env = build_spawn_env(HostEnv({}), config)
+    spawn_env = build_spawn_env(HostEnv({}), config, _BINARY)
 
     assert spawn_env.mapping["OCX_ANNOUNCE_TOKEN"] == "glpat-api-secret"
     assert spawn_env.mapping["OCX_ANNOUNCE_GIT_TOKEN"] == "glpat-push-secret"
@@ -680,7 +653,9 @@ def test_configured_forge_tokens_never_repr_and_are_redacted() -> None:
 
 
 def test_spawn_env_repr_names_its_keys_without_showing_a_value() -> None:
-    spawn_env = build_spawn_env(HostEnv({"PATH": "/usr/bin"}), OcxConfig(auth={"ghcr.io": BearerAuth("s3cret")}))
+    spawn_env = build_spawn_env(
+        HostEnv({"PATH": "/usr/bin"}), OcxConfig(auth={"ghcr.io": BearerAuth("s3cret")}), _BINARY
+    )
 
     assert "OCX_AUTH_ghcr_io_TOKEN" in repr(spawn_env)
     assert "s3cret" not in repr(spawn_env)
@@ -692,14 +667,14 @@ def test_redact_masks_overlapping_secrets_longest_first() -> None:
     # secret, so the redactor orders its replacements by length.
     config = OcxConfig(auth={"a.io": BearerAuth("secret-token"), "b.io": BearerAuth("secret")})
 
-    redact = build_spawn_env(HostEnv({}), config).redact
+    redact = build_spawn_env(HostEnv({}), config, _BINARY).redact
 
     assert redact("secret-token") == "***"
     assert redact("secret") == "***"
 
 
 def test_redact_is_the_identity_without_credentials() -> None:
-    redact = build_spawn_env(HostEnv({}), OcxConfig()).redact
+    redact = build_spawn_env(HostEnv({}), OcxConfig(), _BINARY).redact
 
     assert redact("nothing to hide") == "nothing to hide"
 
@@ -707,7 +682,7 @@ def test_redact_is_the_identity_without_credentials() -> None:
 def test_redact_ignores_an_empty_credential() -> None:
     # An empty secret would otherwise match at every position and turn a log
     # line into a wall of asterisks.
-    redact = build_spawn_env(HostEnv({}), OcxConfig(auth={"a.io": BearerAuth("")})).redact
+    redact = build_spawn_env(HostEnv({}), OcxConfig(auth={"a.io": BearerAuth("")}), _BINARY).redact
 
     assert redact("nothing to hide") == "nothing to hide"
 
@@ -731,7 +706,7 @@ def test_forge_credentials_are_redacted_like_registry_tokens(name: str) -> None:
     """
     host = HostEnv({name: "glpat-forge-secret", "PATH": "/usr/bin"})
 
-    spawn_env = build_spawn_env(host, OcxConfig())
+    spawn_env = build_spawn_env(host, OcxConfig(), _BINARY)
 
     assert spawn_env.mapping[name] == "glpat-forge-secret"
     assert spawn_env.redact("pushing with glpat-forge-secret") == "pushing with ***"
@@ -744,7 +719,7 @@ def test_redact_scrubs_a_credential_the_host_exported() -> None:
     # seeded from the composed mapping rather than from the config alone.
     host = HostEnv({"OCX_AUTH_ghcr_io_TYPE": "token", "OCX_AUTH_ghcr_io_TOKEN": "ambient-token"})
 
-    redact = build_spawn_env(host, OcxConfig()).redact
+    redact = build_spawn_env(host, OcxConfig(), _BINARY).redact
 
     assert redact("pulling with ambient-token") == "pulling with ***"
 
@@ -768,7 +743,7 @@ def test_an_ambient_credential_is_redacted_whatever_case_it_was_spelled_in(spell
     """
     host = HostEnv({spelling: "sekret-token-123"})
 
-    redact = build_spawn_env(host, OcxConfig()).redact
+    redact = build_spawn_env(host, OcxConfig(), _BINARY).redact
 
     assert redact("pulling with sekret-token-123") == "pulling with ***"
 
@@ -780,7 +755,7 @@ def test_the_header_form_of_a_case_variant_ambient_basic_credential_is_redacted(
     encoded = base64.b64encode(b"ci:hunter2").decode()
     host = HostEnv({"ocx_auth_ghcr_io_user": "ci", "ocx_auth_ghcr_io_token": "hunter2"})
 
-    redact = build_spawn_env(host, OcxConfig()).redact
+    redact = build_spawn_env(host, OcxConfig(), _BINARY).redact
 
     assert redact(f"Authorization: Basic {encoded}") == "Authorization: Basic ***"
 
@@ -798,7 +773,7 @@ def test_every_case_spelling_of_an_ambient_user_gets_its_header_form_redacted() 
         }
     )
 
-    redact = build_spawn_env(host, OcxConfig()).redact
+    redact = build_spawn_env(host, OcxConfig(), _BINARY).redact
 
     assert [redact(base64.b64encode(f"{user}:T1".encode()).decode()) for user in ("alice", "bob")] == ["***", "***"]
 
@@ -808,13 +783,13 @@ def test_redact_scrubs_the_basic_authorization_header_form() -> None:
     # wire, so a plaintext-only scrub would leave it readable in a trace log.
     encoded = base64.b64encode(b"ci:hunter2").decode()
 
-    redact = build_spawn_env(HostEnv({}), OcxConfig(auth={"ghcr.io": BasicAuth("ci", "hunter2")})).redact
+    redact = build_spawn_env(HostEnv({}), OcxConfig(auth={"ghcr.io": BasicAuth("ci", "hunter2")}), _BINARY).redact
 
     assert redact(f"Authorization: Basic {encoded}") == "Authorization: Basic ***"
 
 
 def test_spawn_env_is_frozen_and_slotted() -> None:
-    spawn_env = build_spawn_env(HostEnv({}), OcxConfig())
+    spawn_env = build_spawn_env(HostEnv({}), OcxConfig(), _BINARY)
 
     assert not hasattr(spawn_env, "__dict__")
     with pytest.raises(FrozenInstanceError, match="cannot assign to field"):
@@ -824,7 +799,7 @@ def test_spawn_env_is_frozen_and_slotted() -> None:
 def test_spawn_env_mapping_refuses_mutation() -> None:
     # Read-only like HostEnv.source: a consumer cannot rewrite a composed env
     # behind the choke point's back.
-    spawn_env = build_spawn_env(HostEnv({"PATH": "/usr/bin"}), OcxConfig())
+    spawn_env = build_spawn_env(HostEnv({"PATH": "/usr/bin"}), OcxConfig(), _BINARY)
 
     with pytest.raises(TypeError, match="does not support item assignment"):
         spawn_env.mapping["PATH"] = "/evil"  # type: ignore[index]

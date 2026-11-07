@@ -187,6 +187,28 @@ def test_auth_env_propagation_pinned(
     assert {key: seen.get(key) for key in secrets} == secrets
 
 
+def test_binary_pin_reaches_a_tool_ocx_spawns(
+    ocx_exe: Path,
+    host_env: HostEnv,
+    config: OcxConfig,
+    tmp_path: Path,
+) -> None:
+    """`OCX_BINARY_PIN` names the binary the SDK runs, so a nested ocx call reaches the same one.
+
+    The ambient value is a decoy: the SDK writes the pin last, over whatever the host exported.
+    """
+    root = tmp_path / "pin-project"
+    root.mkdir()
+    (root / "ocx.toml").write_text(_PLAIN_ENV, encoding="utf-8")
+    decoy = HostEnv({**host_env.source, "OCX_BINARY_PIN": "/somewhere/else/ocx"})
+    project = Ocx(exe=ocx_exe, host_env=decoy, config=config).project(project_file(root))
+    project.lock()
+
+    seen = child_env(project.exec(["printenv"]).stdout)
+
+    assert seen.get("OCX_BINARY_PIN") == str(ocx_exe)
+
+
 def test_registry_slug_fixtures(
     slug_corpus: list[Mapping[str, str]],
     project_factory: Callable[..., Project],

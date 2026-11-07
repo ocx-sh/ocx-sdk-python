@@ -109,10 +109,11 @@ The `verify` parameter on both methods is a three-state override —
 ocx's own default, which is on. `True` is not enforcement: against a package
 no policy covers there is nothing to verify against, and the flag is a
 documented no-op rather than a promise that unsigned content will be
-refused. `False` is the only way to skip verification through this SDK: the
-ambient `OCX_NO_VERIFY` escape hatch is neutralized on every spawn, so an
-opt-out has to be visible at the call site rather than in whatever exported
-a variable three CI layers up.
+refused. `False` skips verification at the call site, where a reviewer sees
+it. The SDK does not filter the host environment, so an `OCX_NO_VERIFY` the
+caller exports still reaches ocx: narrow the
+[`HostEnv`](../../reference/api.md#ocx_sdk.HostEnv) when a child must not
+inherit it.
 
 ## `PackageRef`: carried, never parsed
 

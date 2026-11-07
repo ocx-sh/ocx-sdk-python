@@ -8,28 +8,28 @@ Python exception. The composition itself happens in one place —
 [Errors & credentials](../guide/concepts/errors-and-security.md); this page
 is the exhaustive wire-level table.
 
-## Neutralized on every spawn
+## Inherited unchanged
 
-Dropped from the ambient environment before anything else, regardless of
-configuration — an inherited value here would silently retarget or
-mis-scope a call. The drop is **case-insensitive**: `ocx_no_verify` goes
-the same way `OCX_NO_VERIFY` does, because a Windows child resolves an
-environment lookup case-insensitively and would read either spelling.
+The SDK removes nothing from the host snapshot. Every inherited variable
+reaches the child as it was exported, `OCX_*` and `__OCX_*` ones included
+(`OCX_PROJECT`, `OCX_GLOBAL`, `OCX_NO_VERIFY`, `__OCX_ENV_STATE` and the
+rest): the caller is responsible for its own environment, and an explicit ocx
+call composes what it was asked for whatever state the host carries. To
+narrow what a child inherits, pass a narrower
+[`HostEnv`](api.md#ocx_sdk.HostEnv).
 
-| Variable | Why |
-|---|---|
-| `OCX_PROJECT` | The SDK always targets a project through an explicit `--project`. |
-| `OCX_GLOBAL` | Same reasoning — global scope is explicit, never ambient. |
-| `OCX_QUIET` | The SDK controls output verbosity through its own presentation flags. |
-| `OCX_NO_VERIFY` | A silent kill switch for signature verification — a skipped verification looks identical to a passed one. Say it at the call site instead: `install(..., verify=False)` / `pull(..., verify=False)`, whose argv flag outranks the variable. |
-| `OCX_NO_HOOK` | Governs the per-prompt shell hook, which a spawned child never renders. |
-| `OCX_NO_COMPLETIONS` | Its sibling in the same ladder, for the same reason. |
+The one exception is a variable `OcxConfig` writes, which replaces the host's
+value (see below). `OCX_SIGSTORE_TRUSTED_ROOT` is among them: with no
+`sigstore_trusted_root` it is cleared, because it redefines what "trusted"
+means and outranks `[trust.sigstore]`.
 
-`OCX_SIGSTORE_TRUSTED_ROOT` is cleared too, one step later — it is popped by
-the config pass rather than the neutralization pass, because
-`OcxConfig.sigstore_trusted_root` can put a value back. It redefines what
-"trusted" means and outranks `[trust.sigstore]`, so an inherited value could
-repoint Fulcio, CT, and Rekor while every install still reported *verified*.
+## Written last: `OCX_BINARY_PIN`
+
+The only variable the SDK writes about itself: the absolute path of the binary
+this handle runs, so a nested ocx call reaches the same one. It is written
+after the host and the config, replaces an inherited or configured value of
+that name in **any case spelling** (a Windows `ocx_binary_pin` is replaced,
+never duplicated beside it), and is never empty.
 
 ## Written from `OcxConfig`
 
@@ -43,7 +43,7 @@ default rather than whatever the host exported.
 
 Every value the SDK writes here — and every ambient value it clears —
 replaces the host's answer for that name in **any case spelling**, for the
-same reason the neutralization table gives. A field the SDK does *not*
+same reason the pin does: a Windows child reads either spelling. A field the SDK does *not*
 write leaves the ambient value exactly as the host spelled it.
 
 | Variable | `OcxConfig` field | Notes |
