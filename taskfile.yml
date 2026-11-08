@@ -163,7 +163,7 @@ tasks:
       - ocx exec -g docs -- pnpm check
 
   site:lighthouse:
-    desc: Build the site, serve it under its base path and audit every page with Lighthouse (mobile: a11y, best-practices and SEO at 100, performance metrics under ceilings, plus budgets)
+    desc: Build the site, serve it under its base path and audit every page with Lighthouse (mobile; a11y, best-practices and SEO at 100, performance metrics under ceilings, plus budgets)
     dir: site
     cmds:
       - ocx exec -g docs -- pnpm install --frozen-lockfile
