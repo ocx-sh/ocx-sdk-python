@@ -85,7 +85,7 @@ bundle_tag = "latest"
 [[rule]]
 name = "architecture"
 path = "./agent-config/architecture.md"
-hash = "sha256:14e92554207961315dd8e8d579b81c7dd781154d4f95537f98df392696adad70"
+hash = "sha256:7b91b69fa2f9192d506f3c5f7f050f1072c3f4fecb1c530947566124d56cc8b4"
 
 [[rule]]
 name = "code-docs"
