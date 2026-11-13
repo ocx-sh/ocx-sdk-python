@@ -31,12 +31,6 @@ _DEFAULTS = {
     "managed_config": None,
     "auth": {},
     "insecure_registries": None,
-    # D13. `None` is not "leave the ambient value" here, unlike the other
-    # path-shaped fields — `_env` pops an ambient OCX_SIGSTORE_TRUSTED_ROOT on
-    # this arm, so the default means ocx's own root of trust. The field exists
-    # so that neutralizing the variable removes a channel rather than the
-    # air-gapped-verification capability; `tests/unit/test_env.py` holds the
-    # spawn-side halves.
     "sigstore_trusted_root": None,
     "docker_config": None,
     "index": None,

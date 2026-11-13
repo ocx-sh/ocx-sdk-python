@@ -26,8 +26,9 @@ Every change and every review is checked against these.
   [ocx#326](https://github.com/ocx-sh/ocx/issues/326). The build receipt beside a `package create`
   bundle is read through `ocx package receipt` (0.6.2) like any other
   report — never off disk, so its file format stays ocx's alone.
-- `OCX_ENV`, `OCX_PATCHES`, `OCX_BINARY_PIN`: opaque pass-through. Never
-  parse, rewrite, or synthesize.
+- `OCX_ENV`, `OCX_PATCHES`: opaque pass-through. Never parse, rewrite, or
+  synthesize. `OCX_BINARY_PIN` is the one `OCX_*` the SDK writes: the binary
+  it runs, last, over any inherited case spelling.
 
 ## Dependencies
 
@@ -124,7 +125,8 @@ Every change and every review is checked against these.
   entry and the release-after-restore on exit — never the block body, since
   holding it there would serialize callers and fake a nesting safety the
   API deliberately doesn't offer. Concurrent code uses `.mapping`.
-- Always neutralize ambient `OCX_PROJECT`/`OCX_GLOBAL`/`OCX_QUIET` on spawn.
+- Never remove anything from the host snapshot on spawn: the child is the
+  host, then the config's writes, then `OCX_BINARY_PIN`.
 - Always write `OCX_NO_CONSENT` on spawn (`"1"` unless `OcxConfig.consent`):
   a library must not stamp `state/projects/<key>/consent.json` as a side
   effect of a `pull`/`exec`/`lock` — consent is config-only, never argv.

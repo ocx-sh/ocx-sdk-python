@@ -639,11 +639,12 @@ def test_config_knobs_travel_as_environment_not_argv(exe: Path, process: _Proces
     assert process.last.env["OCX_HOME"] == str(Path("/opt/ocx"))
 
 
-def test_ambient_project_targeting_is_neutralized(exe: Path, process: _Process) -> None:
-    Ocx(exe, host_env=HostEnv({"OCX_PROJECT": "/elsewhere", "OCX_QUIET": "1"})).about()
+def test_ambient_ocx_variables_reach_the_child_and_the_pin_names_the_binary(exe: Path, process: _Process) -> None:
+    Ocx(exe, host_env=HostEnv({"OCX_PROJECT": "/elsewhere", "__OCX_ENV_STATE": "state"})).about()
 
-    assert "OCX_PROJECT" not in process.last.env
-    assert "OCX_QUIET" not in process.last.env
+    assert process.last.env["OCX_PROJECT"] == "/elsewhere"
+    assert process.last.env["__OCX_ENV_STATE"] == "state"
+    assert process.last.env["OCX_BINARY_PIN"] == str(exe)
 
 
 def test_every_project_call_carries_the_project_flag(project: Project, process: _Process) -> None:

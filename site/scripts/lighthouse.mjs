@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * `task site:lighthouse`: builds the site, serves it with `astro preview` under its base path and
- * audits every built HTML page with Lighthouse (mobile) through lhci's assertion engine: all four
- * categories at 1 plus the budgets in ../lighthouse.budgets.mjs. A failing page gets two more runs
+ * audits every built HTML page with Lighthouse (mobile) through lhci's assertion engine: accessibility,
+ * best practices and SEO at 1, the performance metrics under their ceilings and the budgets in ../lighthouse.budgets.mjs. A failing page gets two more runs
  * and is judged on the median run. Trimmed from ocx-sh/website `scripts/lighthouse.mjs` (no lanes,
  * no result cache: one Chrome, one page at a time).
  *
@@ -23,6 +23,13 @@ const PORT = 4331;
 /** Runs a failing page gets in total before its median run is judged. */
 export const RETRY_RUNS = 3;
 export const ASSERT_MATRIX = [{ matchingUrlPattern: '.*', assertions: assertions() }];
+
+const lhciUtils = require.resolve('@lhci/utils/src/assertions.js', { paths: [require.resolve('@lhci/cli/package.json')] });
+const { getAllAssertionResults } = require(lhciUtils);
+const { computeRepresentativeRuns } = require(lhciUtils.replace('assertions.js', 'representative-runs.js'));
+
+/** The assertions one representative (median) run fails. */
+export const failedAssertions = (lhr) => getAllAssertionResults({ assertMatrix: ASSERT_MATRIX }, [lhr]).filter((a) => !a.passed);
 
 const slug = (path) => path.replace(/^\/|\/$/g, '').replace(/[^\w.-]+/g, '_') || 'index';
 
@@ -59,9 +66,6 @@ async function main() {
   const { default: lighthouse } = await import('lighthouse');
   const { launch } = await import('chrome-launcher');
   const { chromium } = await import('playwright-core');
-  const utils = require.resolve('@lhci/utils/src/assertions.js', { paths: [require.resolve('@lhci/cli/package.json')] });
-  const { getAllAssertionResults } = require(utils);
-  const { computeRepresentativeRuns } = require(utils.replace('assertions.js', 'representative-runs.js'));
 
   const preview = spawn('pnpm', ['exec', 'astro', 'preview', '--host', '127.0.0.1', '--port', String(PORT)], {
     cwd: SITE,
@@ -87,7 +91,7 @@ async function main() {
     };
     const judge = (runs) => {
       const [median] = computeRepresentativeRuns([runs.map((r) => [r.lhr, r.lhr])]);
-      return getAllAssertionResults({ assertMatrix: ASSERT_MATRIX }, [median]).filter((a) => !a.passed);
+      return failedAssertions(median);
     };
     for (const path of list) {
       const url = `http://127.0.0.1:${PORT}${path}`;

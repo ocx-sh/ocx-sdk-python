@@ -302,9 +302,9 @@ async def test_t1_async_twins_smoke(ocx: Ocx, project_factory: Callable[..., Pro
 def test_project_calls_carry_the_project_flag(ocx: Ocx, project_factory: Callable[..., Project]) -> None:
     """Every project-tier call names its project explicitly (a durable anchor).
 
-    The ambient `OCX_PROJECT` is neutralized on every spawn, so `--project` is
-    the only thing keeping a call pointed at the right tree — and the reason
-    no method depends on the working directory.
+    The explicit `--project` outranks an ambient `OCX_PROJECT`, so it is the
+    only thing keeping a call pointed at the right tree — and the reason no
+    method depends on the working directory.
     """
     project = project_factory(_PROJECT)
 

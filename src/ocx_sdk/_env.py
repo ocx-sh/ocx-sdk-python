@@ -12,13 +12,12 @@ it is about to log, attach to a `CommandResult`, or raise (§6, §9, §12).
 One choke point means one place to audit. The layering rule that keeps it
 true: no other module composes a child env or reads a credential value.
 
-Three transformations happen, in order:
+The child environment is built in this order, and nothing is removed from
+the host snapshot — the caller is responsible for its own environment:
 
-1. **Neutralize.** Every key in `_NEUTRALIZED_KEYS` is always dropped,
-   whatever case the host spelled it in — the SDK targets a project through
-   an explicit `--project`, and an inherited `OCX_PROJECT` would silently
-   retarget every call; an inherited `OCX_NO_VERIFY` would silently disable
-   signature verification.
+1. **Host.** The snapshot the caller chose, unchanged. An inherited `OCX_*` or
+   `__OCX_*` variable, `__OCX_ENV_STATE` included, reaches the child like any
+   other: an explicit ocx call composes what it was asked for.
 2. **Apply the config.** `OcxConfig` fields map onto the `OCX_*` wire vars
    ocx reads. A field typed `X | None` uses `None` for "leave whatever the
    host had"; a plain `bool` has no such tier, so `False` means "not
@@ -26,14 +25,15 @@ Three transformations happen, in order:
 3. **Apply auth.** Ambient `OCX_AUTH_*` passes through untouched, except
    where `config.auth` names the same registry — explicit configuration wins
    over the ambient environment, per slug.
+4. **Pin.** `OCX_BINARY_PIN` names the binary this SDK runs, written last and
+   replacing an entry of that name in any letter case, so a nested ocx call
+   reaches the same binary.
 
 **The case rule (D14), stated once for the whole module.** Ambient names are
-matched on `key.upper()` everywhere: all three passes and the redaction set.
-`HostEnv.current()` cannot hand us a lower-cased `ocx_no_verify` (Windows
-upper-cases its env names, POSIX would not resolve one), but a hand-built
-`HostEnv` can — and a Windows child resolves env lookups case-insensitively,
-so two dict keys differing only in case are one variable to it and that
-spelling arrives live.
+matched on `key.upper()` everywhere: the config and auth passes, the pin and
+the redaction set. A Windows child resolves env lookups case-insensitively,
+so two dict keys differing only in case are one variable to it and the
+spelling the SDK meant to replace would arrive live beside its replacement.
 """
 
 from __future__ import annotations
@@ -43,6 +43,7 @@ import json
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -50,25 +51,8 @@ from ._config import OcxConfig
 from ._errors import OcxError
 from ._types import Auth, BasicAuth, EnvValue, HostEnv, ListVar, PathVar
 
-_NEUTRALIZED_KEYS: Final = (
-    "OCX_PROJECT",
-    "OCX_GLOBAL",
-    "OCX_QUIET",
-    "OCX_NO_VERIFY",
-    "OCX_NO_HOOK",
-    "OCX_NO_COMPLETIONS",
-)
-"""Ambient variables dropped from every spawn, whatever the config says.
-
-`OCX_NO_VERIFY` is the security one (D12): ambient, it silently disables
-signature verification, and a skipped verification is byte-identical to a
-passed one from the SDK side. Nothing is lost by dropping it — `install` and
-`pull` take `verify=`, and the argv flag outranks the variable, so a caller who
-means it says so at the call site. `OCX_NO_HOOK` and `OCX_NO_COMPLETIONS`
-govern interactive-shell affordances a spawned child never renders.
-
-Spelled uppercase here, but matched case-insensitively — see `build_spawn_env`.
-"""
+_PIN_KEY: Final = "OCX_BINARY_PIN"
+"""The one variable the SDK writes about itself: the binary it runs."""
 
 _AUTH_PREFIX: Final = "OCX_AUTH_"
 """Namespace of the credential variables ocx reads."""
@@ -129,16 +113,18 @@ class SpawnEnv:
         return f"SpawnEnv(keys=[{', '.join(sorted(self.mapping))}], values={_REDACTED})"
 
 
-def build_spawn_env(host: HostEnv, config: OcxConfig) -> SpawnEnv:
+def build_spawn_env(host: HostEnv, config: OcxConfig, binary: Path) -> SpawnEnv:
     """Compose the environment for one ocx spawn.
 
     The single assembly point for child environments (§6). `host` is already
     narrowed to whatever the caller chose to inherit — `build_spawn_env` adds
-    the config on top rather than filtering again.
+    the config and the binary pin on top and removes nothing.
 
     Args:
         host: The snapshot the child inherits from.
         config: The session configuration whose fields become `OCX_*` vars.
+        binary: The absolute path of the ocx the SDK runs, written last as
+            `OCX_BINARY_PIN`.
 
     Returns:
         The finished mapping and the redactor for the secrets it carries.
@@ -148,12 +134,11 @@ def build_spawn_env(host: HostEnv, config: OcxConfig) -> SpawnEnv:
             cannot name an environment variable. Refused rather than
             emitted anonymously.
     """
-    # Case rule, module docstring. Over-dropping a variable nothing reads is
-    # the cheap direction; leaking the kill switch is not.
-    mapping = {key: value for key, value in host.source.items() if key.upper() not in _NEUTRALIZED_KEYS}
+    mapping = dict(host.source)
 
     _apply_config(mapping, config)
     _apply_auth(mapping, config.auth)
+    _put(mapping, _PIN_KEY, str(binary))
 
     return SpawnEnv(mapping, _make_redactor(_secrets(mapping)))
 
@@ -225,11 +210,11 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
     A plain `bool` is set-only: `False` carries no "leave the ambient value"
     tier, so it means "not requested" and the host's value survives. The
     fields that can actively clear an ambient value are typed `| None`, and
-    the `None` arm is what defers to the host — except on the three variables
-    written either way, `OCX_NO_UPDATE_CHECK`, `OCX_NO_CONSENT` and
-    `OCX_SIGSTORE_TRUSTED_ROOT`, where saying nothing has to mean the SDK's
-    default rather than the host's value. Each carries the reason at its
-    write site.
+    the `None` arm is what defers to the host — except on the two variables
+    written either way, `OCX_NO_UPDATE_CHECK` and `OCX_NO_CONSENT`, where
+    saying nothing has to mean the SDK's default rather than the host's value.
+    Each carries the reason at its write site. A field left unset never
+    removes a host entry.
 
     Every write and clear **in this function** goes through `_put`, so the
     SDK's answer replaces the host's in any spelling. `_apply_auth` writes
@@ -286,16 +271,8 @@ def _apply_config(mapping: dict[str, str], config: OcxConfig) -> None:
         # side — naming a source beside it would describe a tier already off.
         _put(mapping, "OCX_MANAGED_CONFIG", config.managed_config)
 
-    # D13: written either way, like OCX_NO_UPDATE_CHECK and for the same
-    # reason — a caller asking for ocx's own root of trust back has to beat an
-    # ambient OCX_SIGSTORE_TRUSTED_ROOT, which a set-only write could not do.
-    # This variable does not disable verification, it redefines what "trusted"
-    # means, and it outranks `[trust.sigstore]`, so a hostile ambient value
-    # repoints Fulcio, CT, and Rekor while every install still reports
-    # verified — failure presenting as success. `None` therefore clears rather
-    # than defers, which is the `_put` arm that takes no value.
-    root = config.sigstore_trusted_root
-    _put(mapping, "OCX_SIGSTORE_TRUSTED_ROOT", None if root is None else str(root))
+    if config.sigstore_trusted_root is not None:
+        _put(mapping, "OCX_SIGSTORE_TRUSTED_ROOT", str(config.sigstore_trusted_root))
 
     if config.no_config_refresh is not None:
         if config.no_config_refresh:
