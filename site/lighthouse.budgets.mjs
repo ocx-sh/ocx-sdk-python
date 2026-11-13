@@ -49,7 +49,8 @@ export function pages(dist = DIST, base = BASE) {
   if (!existsSync(dist)) throw new Error(`missing dist: ${dist}`);
   return readdirSync(dist, { recursive: true, encoding: 'utf8' })
     .map((f) => f.split('\\').join('/'))
-    .filter((f) => f.endsWith('.html'))
+    // frag/ pages are noindex Deferred fragments, not pages to audit.
+    .filter((f) => f.endsWith('.html') && !/(?:^|\/)frag\//.test(f))
     .map((f) => base + f.replace(/(?:^|\/)index\.html$/, (m) => (m.startsWith('/') ? '/' : '')))
     .sort();
 }
