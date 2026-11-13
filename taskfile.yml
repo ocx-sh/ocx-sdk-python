@@ -120,10 +120,11 @@ tasks:
   test:contract:
     desc: Run contract-tier tests against the pinned ocx binary (TESTED_OCX_VERSION, provisioned by bootstrap.ensure)
     cmds:
-      # The tier must hit the version the SDK claims, not whichever ocx the toolchain ships.
+      # The tier must hit the version the SDK claims, not whichever ocx the toolchain ships;
+      # OCX_INSTALL_VERSION makes the docs examples' bare `bootstrap.ensure()` take it instead of the latest release.
       - |
         pin=$(ocx exec -g test -- uv run --extra dev python -c "from ocx_sdk import TESTED_OCX_VERSION; print(TESTED_OCX_VERSION)")
-        OCX_SDK_CONTRACT=1 OCX_TEST_VERSIONS="${OCX_TEST_VERSIONS:-$pin}" ocx exec -g test -- uv run --extra dev pytest tests/contract docs README.md {{.CLI_ARGS}}
+        OCX_SDK_CONTRACT=1 OCX_INSTALL_VERSION="${OCX_INSTALL_VERSION:-$pin}" OCX_TEST_VERSIONS="${OCX_TEST_VERSIONS:-$pin}" ocx exec -g test -- uv run --extra dev pytest tests/contract docs README.md {{.CLI_ARGS}}
 
   test:acceptance:
     desc: Run acceptance-tier tests against a compose stack (ocx at TESTED_OCX_VERSION unless OCX_TEST_VERSIONS is set)
